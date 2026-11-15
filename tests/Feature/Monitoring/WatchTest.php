@@ -157,6 +157,24 @@ class WatchTest extends TestCase
         $this->assertSame(3, Alert::count());
     }
 
+    public function test_task_limited_to_other_environment_is_not_watched(): void
+    {
+        $this->assertSame('testing', $this->app->environment());
+        $this->schedule()->call(fn () => null)->environments('production')->watched('job-prod', 60);
+        // この環境で動く処理は今どおり見張る
+        $this->schedule()->call(fn () => null)->environments(['testing', 'production'])->watched('job-here', 60);
+
+        Carbon::setTestNow('2026-11-15 10:00:00');
+        $this->assertSame(0, Artisan::call('foundation:watch'));
+        $this->assertNull($this->row('job-prod'), 'この環境で動かない処理は記録の行も作らない');
+
+        Carbon::setTestNow('2026-11-15 12:00:00');
+        $this->assertSame(1, Artisan::call('foundation:watch'));
+        $alert = Alert::sole();
+        $this->assertStringContainsString('job-here', $alert->body);
+        $this->assertStringNotContainsString('job-prod', $alert->body);
+    }
+
     public function test_external_task_recorded_by_command(): void
     {
         config()->set('foundation.monitoring.external', ['backup' => ['max_age_minutes' => 60, 'label' => '日次のバックアップ']]);

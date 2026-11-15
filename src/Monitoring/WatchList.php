@@ -6,7 +6,7 @@ use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use WeakMap;
 
-/** 見張る名前の一覧：schedule の watched() と、設定の external */
+/** 見張る名前の一覧：schedule の watched()（この環境で動く処理だけ）と、設定の external */
 class WatchList
 {
     /** @var WeakMap<Event, array{0: string, 1: int}> */
@@ -27,8 +27,11 @@ class WatchList
     {
         $tasks = [];
 
+        $environment = app()->environment();
         foreach (app(Schedule::class)->events() as $event) {
-            if (isset($this->marks[$event])) {
+            // ->environments() でこの環境の外に絞った処理は動かないので見張らない。
+            // ->when()・->skip() の条件は見張る時点で評価できないので見張る（docs/monitoring.md）
+            if (isset($this->marks[$event]) && $event->runsInEnvironment($environment)) {
                 [$name, $max] = $this->marks[$event];
                 $tasks[$name] = ['max' => $max, 'label' => $name];
             }

@@ -28,6 +28,8 @@ php artisan migrate   # 有効なときはパッケージのマイグレーシ�
 Schedule::command('reports:daily')->dailyAt('03:00')->watched('daily-report', 1560); // 26時間
 ```
 
+**`->environments('production')` などで絞った処理は、その環境の外では見張らない**（ステージングで「一度も成功していません」と知らせない）。**`->when()`・`->skip()` の条件は見張る時点で評価できないので、条件で動かない処理も見張る**：条件で止める処理には `->watched()` を付けないか、許す古さを条件で止まる長さより長くする。
+
 3. `foundation:watch` は**自動で schedule に入る**（有効なときだけ。`monitoring.watch_cron`、既定 `0 * * * *`＝毎時。`withoutOverlapping(10)`）。入れ忘れても動く。
 4. **`schedule:run` を毎分回す cron は、アプリ側で用意する**（`* * * * * php artisan schedule:run`）。
 
