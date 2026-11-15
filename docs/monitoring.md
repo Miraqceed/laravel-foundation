@@ -40,8 +40,17 @@ Schedule::command('reports:daily')->dailyAt('03:00')->watched('daily-report', 15
 処理の終わりで記録し、`monitoring.external` に見張りを書く：
 
 ```bash
-./backup.sh && php artisan foundation:record backup || php artisan foundation:record backup --failed --detail="dump 失敗"
+# 失敗したときは記録したうえで、台本の終了コードを残す（cron・呼び出し元が失敗に気付けるように）
+if ./backup.sh; then
+    php artisan foundation:record backup
+else
+    status=$?
+    php artisan foundation:record backup --failed --detail="dump 失敗"
+    exit "$status"
+fi
 ```
+
+`./backup.sh && php artisan foundation:record backup || php artisan foundation:record backup --failed` と1行で書かない。失敗の記録が成功すると、行全体の終了コードがいつも 0 になり、失敗が cron から見えなくなる。
 
 ```php
 'monitoring' => [
@@ -64,6 +73,7 @@ Schedule::command('reports:daily')->dailyAt('03:00')->watched('daily-report', 15
     'channels' => ['log'],          // log・mail・webhook・chatwork・slack
     'throttle_minutes' => 60,       // 同じ鍵の知らせを作らない間
     'max_attempts' => 10,           // 送り先ごとの試す回数の上限
+    'log' => ['channel' => null, 'level' => 'error'], // null はアプリの既定のチャネル
     'mail' => ['to' => 'ops@example.com'],
     'webhook' => ['url' => '…', 'secret' => env('FOUNDATION_WEBHOOK_SECRET')],
     'chatwork' => ['token' => '…', 'room_id' => '…'],
@@ -71,23 +81,59 @@ Schedule::command('reports:daily')->dailyAt('03:00')->watched('daily-report', 15
 ],
 ```
 
-- **MiraqStudio の顧客のアプリは `log` の送り先を使う**（Runtime Agent がログを読んで運営に届ける）。
+- **送り先は用意した5つ（`log`・`mail`・`webhook`・`chatwork`・`slack`）で固定。** 第1段ではアプリが送り先を足す口はない（`Channel` は内部の interface で、0.x のうちに変わりうる）。
+- **MiraqStudio の顧客のアプリは `log` の送り先を使い、`log.channel` を `stderr` にする**（Runtime Agent がコンテナの標準エラーを読んで運営に届ける）：
+
+```php
+'alerts' => [
+    'channels' => ['log'],
+    'log' => ['channel' => 'stderr'],
+],
+```
+
+- `log.channel` が `null`（既定）なら、アプリの既定のチャネル（`LOG_CHANNEL`）に書く。`log.level`（既定 `error`）は書く重さ。**チャネルの `level`（`LOG_LEVEL`）より低い重さにすると、Monolog が行を捨てるのに、知らせは送れた扱いになる**（送り直さない）。`LOG_LEVEL` を `error` より高くしているアプリは `log.level` も上げる。
 - 自分のコードから知らせるとき：`app(AlertSender::class)->send('鍵', '件名', '本文')`。**投げない**（送り先の失敗も書き込みの失敗も飲む。DB への書き込みは savepoint で包み、PostgreSQL のトランザクションを中断させない）。戻りは `Alert`、間引かれたら `null`。
 - 知らせは先に DB へ書いてから送る。送れなかった行は `foundation:watch`（毎回）と `php artisan foundation:alerts:retry --limit=20` で送り直す。`max_attempts` に達したら諦め、`foundation.alert.abandoned` を `Log::error` に残して `report()` する。
 - **間引きの鍵は1つ。** 60分の間は、同じ鍵（`foundation.watch`）の知らせは作らない。そのため、別のタスクが後から止まっても、間引きの間は**別の知らせにならない**（次の知らせに新しい停止も入る）。
 - **外のトランザクションの中で `send()` を呼ぶと**、その外側が rollback されたとき知らせの行ごと消える。トランザクションの外で呼ぶ。
 - メールの `timeout` は mailer の設定に任せる。
 
-## ログの1行の形
+## ログの1行の形（v1 の契約）
 
-`log` の送り先は、`Log::warning` で次の1行を書く。**行は `foundation.alert ` ＋ 1行の JSON**（改行は `\n` に直る。日本語・スラッシュはそのまま）：
+`log` の送り先は、`log.channel` のチャネルに `log.level` の重さで次の1行を書く。**文は `foundation.alert ` ＋ 1行の JSON**（改行は `\n` に直る。日本語・スラッシュはそのまま。不正な UTF-8 は U+FFFD に置き換える）：
 
 ```
 foundation.alert {"v":1,"key":"foundation.watch","subject":"定期の処理が止まっています","body":"定期の処理が止まっているか、動いていません。\n\n・daily-report：一度も成功していません","app":"MyApp","at":"2026-11-15T03:00:00+09:00"}
 ```
 
 - キー：`v`（形の版。いまは 1）・`key`・`subject`・`body`（4000 文字まで）・`app`（`config('app.name')`）・`at`（知らせを作った時刻、ISO 8601）。
-- **Monolog の飾りが前に付く。** Laravel の既定の整形だと実際の行は `[2026-11-15 03:00:00] production.WARNING: foundation.alert {…} [] []` になる。読む側（Runtime Agent など）は**行頭ではなく `foundation.alert ` の位置で探し**、その後ろの `{` から対応する `}` までを JSON として読む（行末の `[] []` は飾り）。
+- パッケージは Monolog の context と extra を**いつも空で渡す**（文の中の `{…}` も置き換わらない）。
+
+### 読み方（読む側はこのとおりに読む）
+
+Monolog の整形で、文の前に飾り（`[日時] 環境.重さ: `）が付き、後ろに空の context と extra が付くことがある。読む側（Runtime Agent など）は：
+
+1. 行の中で最初の `foundation.alert `（後ろの空白まで）を探す（**行頭では探さない**）。
+2. その後ろから**行末まで**を取る。
+3. 末尾の空白を落とし、末尾が ` [] []`（Monolog の空の context と extra）ならそれも落として、もう一度末尾の空白を落とす。
+4. 残りを JSON として解析する。
+
+`{` から最初の `}` までを取る読み方はしない（本文に `}` を含むと途中で切れる）。JSON は `}` で終わるので、末尾の ` [] []` が JSON の一部になることはない。
+
+| 整形 | 実際の行の例 |
+|---|---|
+| Laravel の既定（空の context・extra を出さない） | `[2026-11-15 03:00:00] production.ERROR: foundation.alert {"v":1,…,"at":"…"}  `（末尾に空白が2つ） |
+| Monolog の素の `LineFormatter` | `[2026-11-15 03:00:00] app.ERROR: foundation.alert {"v":1,…,"at":"…"} [] []` |
+
+本文に `}` を含む例（`body` が `閉じ括弧 } と [] [] を含む`）：
+
+```
+[2026-11-15 03:00:00] production.ERROR: foundation.alert {"v":1,"key":"k","subject":"件名","body":"閉じ括弧 } と [] [] を含む","app":"MyApp","at":"2026-11-15T03:00:00+09:00"} [] []
+```
+
+手順2〜3で ` [] []` だけが落ち、`body` は元のまま読める。試し `tests/Feature/Monitoring/LogChannelTest.php` が、本物の Monolog の2つの整形でこの読み方を確かめる。
+
+**前提：アプリがそのチャネルに context・extra を足していないこと。** `Log::shareContext()`・チャネルの `withContext()`・`Context::add()`（Laravel が extra に足す）を使うと、末尾が ` [] []` でなくなり、この読み方では読めない。知らせを書くチャネル（`log.channel`）には足さない。
 
 ## Webhook の署名
 

@@ -9,11 +9,6 @@ use RuntimeException;
 
 class WebhookChannel implements Channel
 {
-    public function name(): string
-    {
-        return 'webhook';
-    }
-
     public function deliver(Alert $alert): void
     {
         $url = (string) config('foundation.monitoring.alerts.webhook.url');
@@ -23,8 +18,9 @@ class WebhookChannel implements Channel
 
         $body = LogChannel::payload($alert);
         // 署名なしの知らせは受け取る側で偽物と見分けられない。秘密がなければ送らない
+        // 空白だけの値も空とみなす（.env の書き損じで、だれでも作れる署名にしない）
         $secret = (string) config('foundation.monitoring.alerts.webhook.secret');
-        if ($secret === '') {
+        if (trim($secret) === '') {
             throw new RuntimeException('webhook.secret が設定されていません');
         }
         $timestamp = (string) now()->timestamp;

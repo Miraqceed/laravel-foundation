@@ -9,11 +9,6 @@ use RuntimeException;
 
 class ChatworkChannel implements Channel
 {
-    public function name(): string
-    {
-        return 'chatwork';
-    }
-
     public function deliver(Alert $alert): void
     {
         $token = (string) config('foundation.monitoring.alerts.chatwork.token');

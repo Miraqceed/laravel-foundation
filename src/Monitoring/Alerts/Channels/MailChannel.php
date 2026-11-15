@@ -9,11 +9,6 @@ use RuntimeException;
 
 class MailChannel implements Channel
 {
-    public function name(): string
-    {
-        return 'mail';
-    }
-
     public function deliver(Alert $alert): void
     {
         $to = config('foundation.monitoring.alerts.mail.to');

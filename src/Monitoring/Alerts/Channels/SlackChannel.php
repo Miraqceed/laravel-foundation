@@ -9,11 +9,6 @@ use RuntimeException;
 
 class SlackChannel implements Channel
 {
-    public function name(): string
-    {
-        return 'slack';
-    }
-
     public function deliver(Alert $alert): void
     {
         $url = (string) config('foundation.monitoring.alerts.slack.webhook_url');

@@ -82,6 +82,9 @@ return [
             'max_attempts' => 10,
             // log・mail・webhook・chatwork・slack
             'channels' => ['log'],
+            // log の送り先：チャネル（null ならアプリの既定のチャネル）と重さ。
+            // MiraqStudio の顧客のアプリは channel を 'stderr' にする。チャネルの level（LOG_LEVEL）より低い重さは捨てられ、送れた扱いになる
+            'log' => ['channel' => null, 'level' => 'error'],
             'mail' => ['to' => null],
             'webhook' => ['url' => null, 'secret' => null],
             'chatwork' => ['token' => null, 'room_id' => null],

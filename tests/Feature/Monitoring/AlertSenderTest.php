@@ -187,15 +187,15 @@ class AlertSenderTest extends TestCase
     {
         $this->channels(['log', 'webhook']);
         Http::fake(['*' => Http::response('', 500)]);
-        Log::spy();
+        $logger = Mockery::mock();
+        $logger->shouldReceive('log')->once()->withArgs(
+            fn ($level, $message) => $level === 'error' && str_starts_with($message, 'foundation.alert {')
+        );
+        Log::shouldReceive('channel')->with(null)->andReturn($logger);
 
         $this->sender()->send('k', '件名', '本文');
         $this->sender()->retry();
         $this->sender()->retry();
-
-        Log::shouldHaveReceived('warning')->once()->withArgs(
-            fn ($message) => str_starts_with($message, 'foundation.alert {')
-        );
     }
 
     public function test_same_key_is_throttled_by_created_at(): void
@@ -215,14 +215,30 @@ class AlertSenderTest extends TestCase
         $this->assertSame(3, Alert::count());
     }
 
+    public function test_long_key_is_throttled_like_the_stored_key(): void
+    {
+        $this->channels(['webhook']);
+        Http::fake(['*' => Http::response('', 500)]);
+        $long = str_repeat('鍵', 300);
+
+        $this->assertNotNull($this->sender()->send($long, 'a', 'b'));
+        // 保存では 255 字に切り詰める。比べる前にも同じく切り詰めないと、間引きが効かない
+        $this->assertNull($this->sender()->send($long, 'a', 'b'));
+        $this->assertSame(1, Alert::count());
+        $this->assertSame(255, mb_strlen(Alert::first()->key));
+    }
+
     public function test_log_channel_writes_single_line_with_marker(): void
     {
         $captured = null;
-        Log::shouldReceive('warning')->once()->with(Mockery::on(function ($message) use (&$captured) {
+        $logger = Mockery::mock();
+        // 引数は重さと文の2つだけ（context・extra を渡さない。docs/monitoring.md の v1 の契約）
+        $logger->shouldReceive('log')->once()->with('error', Mockery::on(function ($message) use (&$captured) {
             $captured = $message;
 
             return true;
         }));
+        Log::shouldReceive('channel')->once()->with(null)->andReturn($logger);
 
         $alert = new Alert(['key' => 'k', 'subject' => '件名', 'body' => "1行目\n2行目\r\n3行目", 'created_at' => Carbon::parse('2026-11-15 10:00:00')]);
         (new LogChannel)->deliver($alert);
@@ -340,6 +356,18 @@ class AlertSenderTest extends TestCase
         $delivery = AlertDelivery::first();
         $this->assertNull($delivery->sent_at);
         $this->assertStringContainsString('webhook.secret', $delivery->last_error);
+    }
+
+    public function test_webhook_with_blank_secret_fails_instead_of_sending_unsigned(): void
+    {
+        $this->channels(['webhook']);
+        config()->set('foundation.monitoring.alerts.webhook.secret', "  \t ");
+        Http::fake();
+
+        $this->sender()->send('k', 's', 'b');
+
+        Http::assertNothingSent();
+        $this->assertStringContainsString('webhook.secret', AlertDelivery::first()->last_error);
     }
 
     public function test_send_does_not_throw_when_database_goes_away_after_creation(): void

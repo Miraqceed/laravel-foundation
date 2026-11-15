@@ -39,6 +39,12 @@ class AlertSender
             return null;
         }
 
+        // 不正な UTF-8 を先に置き換えてから切り詰める（PostgreSQL は不正な並びを書けず、JSON にもできない）。
+        // 間引きで比べる鍵も、保存と同じく切り詰めた鍵にする（255 字を超える鍵で間引きが効かなくならないように）
+        $key = mb_substr(self::scrub($key), 0, 255);
+        $subject = mb_substr(self::scrub($subject), 0, 255);
+        $body = mb_substr(self::scrub($body), 0, self::BODY_LIMIT);
+
         try {
             [$alert, $deliveries] = DB::transaction(function () use ($key, $subject, $body) {
                 $throttle = (int) config('foundation.monitoring.alerts.throttle_minutes', 60);
@@ -47,9 +53,9 @@ class AlertSender
                 }
 
                 $alert = Alert::create([
-                    'key' => mb_substr($key, 0, 255),
-                    'subject' => mb_substr($subject, 0, 255),
-                    'body' => mb_substr($body, 0, self::BODY_LIMIT),
+                    'key' => $key,
+                    'subject' => $subject,
+                    'body' => $body,
                     'created_at' => now(),
                 ]);
                 $deliveries = [];
@@ -181,6 +187,11 @@ class AlertSender
         } catch (Throwable $e) {
             report($e);
         }
+    }
+
+    private static function scrub(string $text): string
+    {
+        return mb_scrub($text, 'UTF-8');
     }
 
     /** 送り先の URL に秘密が入りうる（Slack など）ので、誤りの文からは URL を伏せる */
