@@ -2,13 +2,43 @@
 
 namespace Miraqceed\Foundation;
 
+use Illuminate\Contracts\Foundation\CachesConfiguration;
 use Illuminate\Support\ServiceProvider;
 
 class FoundationServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/foundation.php', 'foundation');
+        // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
+        // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
+        if (! ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached())) {
+            $config = $this->app->make('config');
+            $config->set('foundation', self::mergeDefaults(
+                require __DIR__.'/../config/foundation.php',
+                $config->get('foundation', []),
+            ));
+        }
+    }
+
+    /**
+     * 連想配列は再帰して合併し、リスト（markers など）はアプリの値で置き換える。
+     *
+     * @param  array<string, mixed>  $defaults
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private static function mergeDefaults(array $defaults, array $overrides): array
+    {
+        foreach ($overrides as $key => $value) {
+            if (is_array($value) && isset($defaults[$key]) && is_array($defaults[$key])
+                && ! array_is_list($value) && ! array_is_list($defaults[$key])) {
+                $defaults[$key] = self::mergeDefaults($defaults[$key], $value);
+            } else {
+                $defaults[$key] = $value;
+            }
+        }
+
+        return $defaults;
     }
 
     public function boot(): void
