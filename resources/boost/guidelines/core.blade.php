@@ -50,6 +50,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - `foundation.security.enabled` を真にし、ミドルウェア `foundation.security-headers` を**自分で** `web` のグループに足す。
 - `'unsafe-inline'` を足して済ませない。外の元は `foundation.security.areas` に足す。インラインの `<script>`・`<style>` には `Nonce::get()` の nonce を付ける。
 - Laravel 12・13 の Vue・React の starter kit は、`resources/views/app.blade.php` にインラインの `<script>`（ダークモード）と `<style>` を持つ。どちらにも `nonce="@{{ Vite::cspNonce() }}"` を付ける（付けないと CSP で止まる）。
+- `X-Frame-Options` は区分の `frame-ancestors` から決まる（`'none'` → DENY、`'self'` だけ → SAMEORIGIN、ほかの元を含む → 付けない）。iframe を許すときは `X-Frame-Options` を自分で付けず、`frame-ancestors` を直す。
 - 違反の報告の口（`report_route`）を `web` のグループに入れない。報告の口の回数の制限（接続元ごと）も、逆プロキシの後ろでは `trustProxies` が前提。
 
 ### 見張りと知らせ（`docs/monitoring.md`）

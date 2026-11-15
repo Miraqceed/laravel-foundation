@@ -110,6 +110,53 @@ class SecurityHeadersTest extends TestCase
         $res->assertHeader('X-Frame-Options', 'DENY');
     }
 
+    /** @return array<string, ?string> パスごとの X-Frame-Options（付かなければ null） */
+    private function frameOptions(): array
+    {
+        $seen = [];
+        foreach (['/plain', '/admin', '/api/x'] as $path) {
+            $res = $this->get($path);
+            $seen[$path] = $res->headers->has('X-Frame-Options') ? $res->headers->get('X-Frame-Options') : null;
+        }
+
+        return $seen;
+    }
+
+    public function test_frame_options_follow_each_areas_frame_ancestors(): void
+    {
+        foreach ([false, true] as $reportOnly) {
+            config([
+                'foundation.security.report_only' => $reportOnly,
+                'foundation.security.areas.web.frame-ancestors' => ["'none'"],
+                'foundation.security.areas.admin.frame-ancestors' => ["'self'"],
+                'foundation.security.areas.api.frame-ancestors' => ["'self'", 'https://partner.example.test'],
+            ]);
+
+            // Report-Only の移行の間も、強制にしたときと同じ埋め込みを許す（'self' なら同じオリジンの iframe が止まらない）
+            $this->assertSame(
+                ['/plain' => 'DENY', '/admin' => 'SAMEORIGIN', '/api/x' => null],
+                $this->frameOptions(),
+                $reportOnly ? 'Report-Only' : '強制',
+            );
+        }
+    }
+
+    public function test_frame_options_without_frame_ancestors_is_deny(): void
+    {
+        $areas = config('foundation.security.areas');
+        unset($areas['admin']['frame-ancestors']);
+        config([
+            'foundation.security.areas' => $areas,
+            // 空の元の並び（''none'' と同じ意味）と、大文字の書き方
+            'foundation.security.areas.api.frame-ancestors' => ["'SELF'"],
+        ]);
+
+        $this->assertSame(['/plain' => 'DENY', '/admin' => 'DENY', '/api/x' => 'SAMEORIGIN'], $this->frameOptions());
+
+        config(['foundation.security.areas.api.frame-ancestors' => []]);
+        $this->assertSame('DENY', $this->get('/api/x')->headers->get('X-Frame-Options'));
+    }
+
     public function test_allows_vite_dev_server_only_when_hot_file_exists(): void
     {
         $without = $this->get('/plain')->headers->get('Content-Security-Policy');

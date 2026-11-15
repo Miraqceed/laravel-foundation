@@ -11,7 +11,8 @@ return [
     'security' => [
         // 偽のあいだ、別名 foundation.security-headers は何もしない
         'enabled' => false,
-        // true にすると CSP を Report-Only で出す（X-Frame-Options は付いたまま）
+        // true にすると CSP を Report-Only で出す（X-Frame-Options は区分の frame-ancestors から付いたまま：
+        // 'none' か未指定なら DENY、'self' だけなら SAMEORIGIN、ほかの元を含めば付けない）
         'report_only' => false,
         'hsts' => false,
         'permissions_policy' => 'camera=(), microphone=(), geolocation=()',

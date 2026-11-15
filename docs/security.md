@@ -4,7 +4,17 @@
 
 ## いつ使うか
 
-画面を返すアプリに、CSP（Content-Security-Policy）と防御のヘッダーを付けるとき。付くヘッダー：`Content-Security-Policy`（`report_only` なら `-Report-Only`）・`X-Content-Type-Options: nosniff`・`Referrer-Policy: strict-origin-when-cross-origin`・`Permissions-Policy`・`X-Frame-Options: DENY`・（`hsts` が真で https のとき）`Strict-Transport-Security`。応答がすでに決めている見出しは上書きしない。
+画面を返すアプリに、CSP（Content-Security-Policy）と防御のヘッダーを付けるとき。付くヘッダー：`Content-Security-Policy`（`report_only` なら `-Report-Only`）・`X-Content-Type-Options: nosniff`・`Referrer-Policy: strict-origin-when-cross-origin`・`Permissions-Policy`・`X-Frame-Options`（下）・（`hsts` が真で https のとき）`Strict-Transport-Security`。応答がすでに決めている見出しは上書きしない。
+
+**`X-Frame-Options` は、その要求の区分の CSP の `frame-ancestors` から決める**（強制・`report_only` のどちらでも同じ決まり。Report-Only の CSP では `frame-ancestors` が効かないので、移行の間も同じ埋め込みの決まりを効かせるため）：
+
+| 区分の `frame-ancestors` | `X-Frame-Options` |
+|---|---|
+| `'none'`（空の並びも同じ）・書いていない | `DENY` |
+| `'self'` だけ | `SAMEORIGIN` |
+| ほかの元を含む（`'self' https://partner.example` など） | 付けない（`X-Frame-Options` では表せない。強制の CSP の `frame-ancestors` に任せる） |
+
+同じオリジンの iframe（PDF のプレビューなど）を許すなら、その区分の `frame-ancestors` を `["'self'"]` にする。`X-Frame-Options` は自分で付けない（付けると、応答の値が優先されて区分の決まりとずれる）。
 
 ## 最短の手順
 
@@ -97,5 +107,5 @@ nginx なら、その `location = /csp-report` に `client_max_body_size 16k;`�
 
 ## 限界
 
-- `report_only` のときも、`X-Frame-Options` は付いたまま。`report_only`・例外の画面では、土台の指示（`object-src`・`base-uri`・`form-action`）の強制は残らない。
+- `report_only` のときも、`X-Frame-Options` は区分の `frame-ancestors` から付く（ほかの元を含む区分では付かないので、`report_only` の間はほかの元からの埋め込みを止めない）。`report_only`・例外の画面では、土台の指示（`object-src`・`base-uri`・`form-action`）の強制は残らない。
 - CSP の `style-src-attr 'unsafe-inline'` を知らない古いブラウザ（Safari 15.4 未満・Firefox 108 未満）では `style` 属性が止まる。
