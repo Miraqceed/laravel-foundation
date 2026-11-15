@@ -72,4 +72,64 @@ class CsvWriterTest extends TestCase
             unlink($path);
         }
     }
+
+    public function test_bom_write_failure_throws_and_bom_is_retried(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'csv');
+        $ro = fopen($path, 'r');
+        $writer = new CsvWriter($ro, Encoding::Utf8Bom);
+        try {
+            $writer->writeRow(['a']);
+            $this->fail('例外になるはず');
+        } catch (CsvWriteException) {
+        }
+        fclose($ro);
+
+        // 失敗を握りつぶして続けても、BOM なしの UTF-8 にならない（また BOM から書く）
+        $rw = fopen('php://memory', 'w+');
+        $ref = new \ReflectionProperty($writer, 'stream');
+        $ref->setValue($writer, $rw);
+        $writer->writeRow(['a']);
+        rewind($rw);
+        $this->assertSame("\xEF\xBB\xBFa\r\n", stream_get_contents($rw));
+        unlink($path);
+    }
+
+    public function test_short_write_throws(): void
+    {
+        LimitedStream::$limit = 5;
+        LimitedStream::$data = '';
+        stream_wrapper_register('limited', LimitedStream::class);
+        try {
+            $s = fopen('limited://x', 'w');
+            $this->expectException(CsvWriteException::class);
+            (new CsvWriter($s, Encoding::ShiftJis))->writeRow(['abcdefghij']);
+        } finally {
+            stream_wrapper_unregister('limited');
+        }
+    }
+}
+
+/** 書ける量を制限したストリーム */
+class LimitedStream
+{
+    public static int $limit = 0;
+
+    public static string $data = '';
+
+    public $context;
+
+    public function stream_open($path, $mode, $options, &$opened): bool
+    {
+        return true;
+    }
+
+    public function stream_write(string $data): int
+    {
+        $room = max(0, self::$limit - strlen(self::$data));
+        $take = substr($data, 0, $room);
+        self::$data .= $take;
+
+        return strlen($take);
+    }
 }
