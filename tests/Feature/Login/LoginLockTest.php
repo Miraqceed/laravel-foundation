@@ -227,7 +227,7 @@ class LoginLockTest extends TestCase
         config(['foundation.login.email_only' => true]);
         $lock = $this->lock();
 
-        // 接続元が変わっても同じメールは同じ枠で数える。接続元ごとの枠は使わない
+        // 接続元が変わっても同じメールは同じ枠で数える
         for ($i = 1; $i <= 10; $i++) {
             $this->assertFalse($lock->attempt($this->request("198.51.100.{$i}"), 'a@example.test', $this->failing()));
         }
@@ -239,8 +239,20 @@ class LoginLockTest extends TestCase
             $this->assertGreaterThan(60, $e->retryAfter);
             $this->assertLessThanOrEqual(1800, $e->retryAfter);
         }
+    }
 
-        $this->assertSame(0, RateLimiter::attempts($this->clientKey('198.51.100.1')));
+    public function test_email_only_mode_keeps_client_bucket(): void
+    {
+        config(['foundation.login.email_only' => true]);
+        $lock = $this->lock();
+        $request = $this->request();
+
+        for ($i = 1; $i <= 20; $i++) {
+            $this->assertFalse($lock->attempt($request, "user{$i}@example.test", $this->failing()));
+        }
+
+        $this->expectException(LoginLockedOut::class);
+        $lock->attempt($request, 'user21@example.test', $this->refuse());
     }
 
     public function test_works_with_database_cache_store(): void

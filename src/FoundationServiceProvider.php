@@ -30,6 +30,11 @@ class FoundationServiceProvider extends ServiceProvider
     private static function mergeDefaults(array $defaults, array $overrides): array
     {
         foreach ($overrides as $key => $value) {
+            // 空の配列（雛形の `'login' => []` など）は、既定が連想配列なら既定を保つ
+            if ($value === [] && is_array($defaults[$key] ?? null) && ! array_is_list($defaults[$key])) {
+                continue;
+            }
+
             if (is_array($value) && isset($defaults[$key]) && is_array($defaults[$key])
                 && ! array_is_list($value) && ! array_is_list($defaults[$key])) {
                 $defaults[$key] = self::mergeDefaults($defaults[$key], $value);

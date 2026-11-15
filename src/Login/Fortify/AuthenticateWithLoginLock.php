@@ -7,16 +7,27 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Timebox;
 use Illuminate\Validation\ValidationException;
+use Laravel\Fortify\Actions\AttemptToAuthenticate;
+use Laravel\Fortify\Actions\CanonicalizeUsername;
+use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
+use Laravel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
+use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 use Miraqceed\Foundation\Login\LoginLock;
 use Miraqceed\Foundation\Login\LoginLockedOut;
 
 /**
- * Fortify::authenticateUsing() に渡す。
+ * Fortify への差し込み。手順は3つ：
+ *
+ *   // config/fortify.php：経路の throttle を外す
+ *   'limiters' => ['login' => null],
+ *
+ *   // 同じ回数の制限が Fortify のログインの流れに入らないようにする
+ *   // （limiters.login が null だと、Fortify は EnsureLoginIsNotThrottled を流れに入れる）
+ *   Fortify::authenticateThrough(fn () => AuthenticateWithLoginLock::loginPipeline());
  *
  *   Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new NormalizedEmailKey)));
- *
- * Fortify 自身の回数の制限は外す（二重に数えない）：config('fortify.limiters.login') を null にする。
+ *   // LoginLock と EmailKey をコンテナに結んでいれば app(AuthenticateWithLoginLock::class) でもよい
  *
  * 二段階認証を有効にすると、Fortify はこの関数を RedirectIfTwoFactorAuthenticatable と
  * AttemptToAuthenticate で続けて2回呼ぶ（二段階認証のない利用者）。失敗は1回目で終わるので1回しか数えず、
@@ -25,6 +36,22 @@ use Miraqceed\Foundation\Login\LoginLockedOut;
 final class AuthenticateWithLoginLock
 {
     public function __construct(private readonly LoginLock $lock) {}
+
+    /**
+     * Fortify の既定のログインの流れ（AuthenticatedSessionController::loginPipeline と同じ順・同じ条件）から、
+     * Fortify 自身の回数の制限 EnsureLoginIsNotThrottled だけを除いたもの。
+     *
+     * @return list<class-string>
+     */
+    public static function loginPipeline(): array
+    {
+        return array_values(array_filter([
+            config('fortify.lowercase_usernames') ? CanonicalizeUsername::class : null,
+            Features::enabled(Features::twoFactorAuthentication()) ? RedirectsIfTwoFactorAuthenticatable::class : null,
+            AttemptToAuthenticate::class,
+            PrepareAuthenticatedSession::class,
+        ]));
+    }
 
     /**
      * @throws ValidationException ロック中（429。Fortify の auth.throttle の文言）

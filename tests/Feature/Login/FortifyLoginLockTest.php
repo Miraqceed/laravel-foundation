@@ -57,6 +57,7 @@ class FortifyLoginLockTest extends TestCase
     protected function tearDown(): void
     {
         Fortify::$authenticateUsingCallback = null;
+        Fortify::$authenticateThroughCallback = null;
         Schema::dropIfExists('users');
 
         parent::tearDown();
@@ -66,6 +67,9 @@ class FortifyLoginLockTest extends TestCase
     {
         $inner = new AuthenticateWithLoginLock(new LoginLock(new NormalizedEmailKey));
         $calls = 0;
+
+        // Fortify 自身の回数の制限（EnsureLoginIsNotThrottled）を流れから除く
+        Fortify::authenticateThrough(fn () => AuthenticateWithLoginLock::loginPipeline());
 
         Fortify::authenticateUsing(function ($request) use ($inner, &$calls) {
             $calls++;
@@ -83,18 +87,29 @@ class FortifyLoginLockTest extends TestCase
     {
         $this->useLock();
 
-        for ($i = 0; $i < 5; $i++) {
-            $this->postJson('/login', ['email' => 'a@example.test', 'password' => 'wrong'])
+        // Fortify 自身の制限は username|ip で5回なので、メールを変える20回では止まらない。
+        // 止めるのは LoginLock の接続元の枠だけ
+        for ($i = 1; $i <= 20; $i++) {
+            $this->postJson('/login', ['email' => "user{$i}@example.test", 'password' => 'wrong'])
                 ->assertStatus(422)
                 ->assertJsonValidationErrors('email');
         }
 
-        // 6回目は正しいパスワードでもロック中
         $response = $this->postJson('/login', ['email' => 'a@example.test', 'password' => 'correct-password']);
 
         $response->assertStatus(429)->assertJsonValidationErrors('email');
         $this->assertStringStartsWith('Too many login attempts', $response->json('errors.email.0'));
         $this->assertGuest();
+    }
+
+    public function test_fortify_own_throttle_is_not_in_pipeline(): void
+    {
+        $this->assertNotContains(\Laravel\Fortify\Actions\EnsureLoginIsNotThrottled::class, AuthenticateWithLoginLock::loginPipeline());
+        $this->assertContains(\Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable::class, array_map(
+            fn ($c) => $c === \Laravel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable::class
+                ? \Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable::class : $c,
+            AuthenticateWithLoginLock::loginPipeline(),
+        ));
     }
 
     public function test_fortify_with_two_factor_counts_once(): void

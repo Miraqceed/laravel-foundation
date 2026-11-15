@@ -36,17 +36,16 @@ final class LoginLock
     {
         $emailKey = $this->emailKey->key($email);
 
+        $ipBucket = IpBucket::of($request);
+        $client = new Bucket("foundation-login:{$this->scope}:client:{$ipBucket}", (int) $this->config('client_max'), (int) $this->config('decay_seconds'));
+
         if ($this->config('email_only')) {
+            // メールアドレスと接続元の組の枠を、メールアドレスだけの枠に置き換える。接続元の枠は残す
             $account = new Bucket("foundation-login:{$this->scope}:email:{$emailKey}", (int) $this->config('email_only_max'), (int) $this->config('email_only_decay_seconds'));
-            $buckets = [$account];
-            $client = null;
         } else {
-            $ipBucket = IpBucket::of($request);
-            $decay = (int) $this->config('decay_seconds');
-            $account = new Bucket("foundation-login:{$this->scope}:account:".sha1($emailKey.'|'.$ipBucket), (int) $this->config('account_max'), $decay);
-            $client = new Bucket("foundation-login:{$this->scope}:client:{$ipBucket}", (int) $this->config('client_max'), $decay);
-            $buckets = [$account, $client];
+            $account = new Bucket("foundation-login:{$this->scope}:account:".sha1($emailKey.'|'.$ipBucket), (int) $this->config('account_max'), (int) $this->config('decay_seconds'));
         }
+        $buckets = [$account, $client];
 
         if (! $this->reserve($buckets)) {
             // reserve が投げる。ここには来ない
@@ -57,9 +56,7 @@ final class LoginLock
 
         if ($ok) {
             RateLimiter::clear($account->key);
-            if ($client !== null) {
-                $this->release($client);
-            }
+            $this->release($client);
         }
 
         return $ok;

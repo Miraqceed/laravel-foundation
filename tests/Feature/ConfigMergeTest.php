@@ -34,4 +34,14 @@ class ConfigMergeTest extends TestCase
     {
         $this->assertSame(['staging'], config('foundation.test_safety.markers'));
     }
+
+    public function test_empty_array_keeps_defaults(): void
+    {
+        config(['foundation' => ['login' => [], 'security' => []]]);
+        (new FoundationServiceProvider($this->app))->register();
+
+        $this->assertSame(5, config('foundation.login.account_max'));
+        $this->assertSame(20, config('foundation.login.client_max'));
+        $this->assertFalse(config('foundation.security.enabled'));
+    }
 }
