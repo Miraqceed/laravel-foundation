@@ -307,6 +307,11 @@ class AlertSenderTest extends TestCase
 
     public function test_write_failure_does_not_abort_outer_transaction(): void
     {
+        // 意味を持つのは PostgreSQL だけ（MySQL は DDL が暗黙に確定してトランザクションの記録が崩れる）
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('savepoint の確かめは PostgreSQL の組み合わせだけ');
+        }
+
         $this->channels(['log']);
         Log::spy();
         $handler = Mockery::mock(ExceptionHandler::class);
