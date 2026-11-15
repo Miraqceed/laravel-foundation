@@ -10,12 +10,16 @@ use Illuminate\Support\Facades\Schema;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\FortifyServiceProvider;
+use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
+use Laravel\Fortify\Http\Requests\LoginRequest;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Miraqceed\Foundation\Login\Fortify\AuthenticateWithLoginLock;
 use Miraqceed\Foundation\Login\IpBucket;
 use Miraqceed\Foundation\Login\LoginLock;
 use Miraqceed\Foundation\Login\NormalizedEmailKey;
 use Miraqceed\Foundation\Tests\TestCase;
+use ReflectionMethod;
+use ReflectionProperty;
 
 class FortifyLoginLockTest extends TestCase
 {
@@ -82,6 +86,41 @@ class FortifyLoginLockTest extends TestCase
     private function accountKey(): string
     {
         return 'foundation-login:user:account:'.sha1((new NormalizedEmailKey)->key('a@example.test').'|'.IpBucket::forIp('127.0.0.1'));
+    }
+
+    /**
+     * Fortify 自身の既定の流れ（AuthenticatedSessionController::loginPipeline）を取り出す。
+     * limiters.login を null 以外にすると、Fortify は EnsureLoginIsNotThrottled を入れない（写しが除いた段と同じ形になる）。
+     *
+     * @return list<string>
+     */
+    private function fortifyOwnPipeline(): array
+    {
+        Fortify::$authenticateThroughCallback = null;
+        config()->set('fortify.pipelines.login', null);
+
+        $method = new ReflectionMethod(AuthenticatedSessionController::class, 'loginPipeline');
+        $pipeline = $method->invoke($this->app->make(AuthenticatedSessionController::class), LoginRequest::create('/login', 'POST'));
+
+        return array_values((new ReflectionProperty($pipeline, 'pipes'))->getValue($pipeline));
+    }
+
+    /** 写し（loginPipeline）が Fortify の流れと食い違ったら落ちる。二段階認証 × lowercase_usernames の4通り */
+    public function test_login_pipeline_matches_fortify_own_pipeline(): void
+    {
+        foreach ([true, false] as $twoFactor) {
+            foreach ([true, false] as $lowercase) {
+                config()->set('fortify.limiters.login', 'login');
+                config()->set('fortify.features', $twoFactor ? [Features::twoFactorAuthentication()] : []);
+                config()->set('fortify.lowercase_usernames', $lowercase);
+
+                $this->assertSame(
+                    $this->fortifyOwnPipeline(),
+                    AuthenticateWithLoginLock::loginPipeline(),
+                    sprintf('二段階認証 %s・lowercase_usernames %s', $twoFactor ? 'オン' : 'オフ', $lowercase ? 'オン' : 'オフ'),
+                );
+            }
+        }
     }
 
     public function test_fortify_login_is_locked_with_throttle_message(): void
