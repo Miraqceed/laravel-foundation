@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\DB;
  * テストの中でつなぐ DB は、名前にテスト用の印（既定は test・testing）を語として含むものだけにする。
  *
  * コンテナの環境変数は `$_SERVER` に入り、Laravel は `$_SERVER` を先に読むので、phpunit.xml の
- * `<env name="DB_DATABASE" … force="true"/>`（phpunit は `$_ENV` と putenv にしか入れない）より勝つ。フォーム担当で、
- * `docker run --env-file .env … php artisan test --filter=…` で1本だけ流したら、テストが開発用 DB（`otonai`）に向き、
- * RefreshDatabase が中身をすべて消した（2026-11-07。#834）。
+ * `<env name="DB_DATABASE" … force="true"/>`（phpunit は `$_ENV` と putenv にしか入れない）より勝つ。
+ * `docker run --env-file .env … php artisan test --filter=…` で1本だけ流すと、テストが開発用 DB に向き、
+ * RefreshDatabase が中身をすべて消す。
  *
  * 確かめるのは接続を作る前（db.factory を包んだ GuardedConnectionFactory::make）で、PDO を開く前に止まる。
  * DB::connection・reconnect・connectUsing・build・`::read` はどれも factory を通り、Event::fake() にも左右されない。

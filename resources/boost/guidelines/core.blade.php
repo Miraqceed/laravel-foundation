@@ -56,7 +56,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 ### 見張りと知らせ（`docs/monitoring.md`）
 
 - `foundation.monitoring.enabled` を真にして `php artisan migrate`。schedule の処理には `->watched('名前', 許す古さ（分）)`。`->environments()` で絞った処理はその環境の外では見張らないが、`->when()`・`->skip()` で止まる処理は見張る（条件で止まる処理に `->watched()` を付けない）。schedule の外の処理は終わりに `php artisan foundation:record 名前` を呼び、`foundation.monitoring.external` に書く。
-- 知らせの送り先は `foundation.monitoring.alerts.channels`（用意した5つから選ぶ）。MiraqStudio の顧客のアプリは `log` を使い、`monitoring.alerts.log.channel` を `stderr` にする。`monitoring.alerts.log.level`（既定 `error`）がチャネルの `LOG_LEVEL` より低いと、ログは捨てられるのに送れた扱いになる。
+- 知らせの送り先は `foundation.monitoring.alerts.channels`（用意した5つから選ぶ）。コンテナの標準エラーを集めて運ぶ環境では `log` を使い、`monitoring.alerts.log.channel` を `stderr` にする。`monitoring.alerts.log.level`（既定 `error`）がチャネルの `LOG_LEVEL` より低いと、ログは捨てられるのに送れた扱いになる。
 - `foundation:watch` の知らせの鍵は止まっている処理の名前の組ごと（`foundation.watch:` ＋ 名前を並べ替えて `,` でつないだものの sha1）。新しく止まった処理はすぐ知らせ、同じ組は間引く。間引きは `throttle_minutes` が10より大きいとき `throttle_minutes - 5` 分（既定で55分）。鍵を `foundation.watch` の1つと思って読まない。
 - 知らせの表は自動では消えない。`model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\Monitoring\Alerts\Alert` を指す（`--model` なしでは `app/Models` しか見ない）。送れたか諦めて `monitoring.alerts.prune_days`（既定 90）日たった知らせが消える。
 - `foundation:install` で、この節を `AGENTS.md`・`CLAUDE.md` に写せる。
