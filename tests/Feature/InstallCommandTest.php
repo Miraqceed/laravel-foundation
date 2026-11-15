@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Tests\Feature;
 
 use Illuminate\Support\Facades\Artisan;
+use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Tests\TestCase;
 
 class InstallCommandTest extends TestCase
@@ -70,6 +71,47 @@ class InstallCommandTest extends TestCase
         $this->assertFileExists($this->dir.'/AGENTS.md');
         $this->assertSame(1, $this->sections(file_get_contents($this->dir.'/AGENTS.md')));
         $this->assertFileDoesNotExist($this->dir.'/CLAUDE.md');
+    }
+
+    /**
+     * 指針（Boost が読む）と foundation:install が書く節は同じ原本から作る。
+     * どちらにも欠かせない語が入っていることを確かめる（欠けると、そのとおりに組んだアプリで守りが外れる）。
+     */
+    public function test_guideline_and_installed_section_share_required_words(): void
+    {
+        $guideline = (string) file_get_contents(InstallCommand::GUIDELINE);
+        $section = InstallCommand::section();
+
+        $required = [
+            // テストの守りは入れた時点で効く
+            'test-safety.md', 'ignore_connections', '入れた時点で効く',
+            // CSV
+            'CsvResponse::download', 'Rows::keyset', 'CsvReader::parse',
+            // ログイン（3つとも要る。authenticateUsing が抜けると回数の制限が消える）
+            'limiters', 'authenticateThrough', 'authenticateUsing', 'trustProxies',
+            // CSP
+            'foundation.security.enabled', 'foundation.security-headers', 'Nonce::get', 'Vite::cspNonce()', 'report_route',
+            // 見張り
+            'foundation.monitoring.enabled', 'migrate', 'watched', 'foundation:record', 'monitoring.alerts.log.channel', 'stderr',
+        ];
+        foreach ($required as $word) {
+            $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
+            $this->assertStringContainsString($word, $section, "install の節に {$word} がない");
+        }
+    }
+
+    public function test_installed_section_is_plain_markdown(): void
+    {
+        $section = InstallCommand::section();
+
+        // Blade・Boost の書き方は残さない
+        foreach (['@verbatim', '@endverbatim', '<code-snippet', '</code-snippet>', '@{{'] as $blade) {
+            $this->assertStringNotContainsString($blade, $section);
+        }
+        // 日本語の文字を割らない（\R を /u なしで使うと \x85 で切れる）
+        $this->assertTrue(mb_check_encoding($section, 'UTF-8'));
+        $this->assertStringContainsString("```php\n", $section);
+        $this->assertSame(substr_count($section, '```') % 2, 0);
     }
 
     public function test_install_works_with_parts_disabled(): void

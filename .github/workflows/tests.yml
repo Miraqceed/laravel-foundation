@@ -57,7 +57,7 @@ jobs:
       - name: Laravel の版を固定
         run: |
           composer require --no-update --no-interaction \
-            "illuminate/support:^${{ matrix.laravel }}.0" \
+            "laravel/framework:^${{ matrix.laravel }}.0" \
             "orchestra/testbench:${{ matrix.laravel == '12' && '^10.0' || '^11.0' }}"
       - name: 依存を入れる
         run: composer update --${{ matrix.stability }} --prefer-dist --no-interaction --no-progress

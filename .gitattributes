@@ -1,0 +1,7 @@
+# Packagist の配布物（composer の dist）に入れないもの。docs/*.md は入れる（指針と foundation:install が指す）
+/tests export-ignore
+/.github export-ignore
+/phpunit.xml.dist export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+/docs/superpowers export-ignore

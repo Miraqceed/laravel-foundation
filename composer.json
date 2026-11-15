@@ -4,18 +4,21 @@
     "type": "library",
     "license": "MIT",
     "keywords": ["laravel", "csv", "csp", "monitoring", "testing"],
+    "homepage": "https://github.com/Miraqceed/laravel-foundation",
+    "authors": [
+        {
+            "name": "MIRAQCEED"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/Miraqceed/laravel-foundation/issues",
+        "source": "https://github.com/Miraqceed/laravel-foundation"
+    },
     "require": {
         "php": "^8.3",
-        "ext-mbstring": "*",
         "ext-intl": "*",
-        "illuminate/support": "^12.0|^13.0",
-        "illuminate/database": "^12.0|^13.0",
-        "illuminate/http": "^12.0|^13.0",
-        "illuminate/console": "^12.0|^13.0",
-        "illuminate/routing": "^12.0|^13.0",
-        "illuminate/cache": "^12.0|^13.0",
-        "illuminate/mail": "^12.0|^13.0",
-        "illuminate/testing": "^12.0|^13.0"
+        "ext-mbstring": "*",
+        "laravel/framework": "^12.0|^13.0"
     },
     "require-dev": {
         "orchestra/testbench": "^10.0|^11.0",

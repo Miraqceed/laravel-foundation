@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 
 /**
  * アプリの AGENTS.md・CLAUDE.md に、このパッケージの使い方の節を書く。
+ * 節の中身は Boost の指針（resources/boost/guidelines/core.blade.php）から作る（原本は1つ）。
  * 節は <!-- foundation:start --> と <!-- foundation:end --> の間だけを置き換えるので、何度流しても1つ。
  * どちらのファイルもなければ AGENTS.md を作る。部品が無効でも流せる（いつも登録する）。
  */
@@ -55,19 +56,39 @@ class InstallCommand extends Command
 
     public static function section(): string
     {
-        return self::START."\n".self::BODY."\n".self::END;
+        return self::START."\n".self::body()."\n".self::END;
     }
 
-    private const BODY = <<<'MD'
-## miraqceed/laravel-foundation
+    /**
+     * 節の本文。原本は Boost が読む指針（GUIDELINE）の1つだけで、ここでは Blade・Boost の書き方を
+     * ふつうの Markdown に直すだけ（@verbatim を外す・<code-snippet> を ``` にする・@{{ を {{ にする）。
+     * 2つを別々に書くと、片方だけ直して手順が欠ける（Fortify の authenticateUsing が抜けた）。
+     */
+    public static function body(): string
+    {
+        $lines = [];
+        // \R は /u なしだとバイトの \x85 でも切れ、日本語の文字を割る。改行だけで切る
+        foreach (preg_split('/\r\n|\n|\r/', (string) file_get_contents(self::GUIDELINE)) as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '@verbatim' || $trimmed === '@endverbatim') {
+                continue;
+            }
+            if (str_starts_with($trimmed, '<code-snippet') && str_ends_with($trimmed, '>')) {
+                $lines[] = '```'.(preg_match('/\blang="([^"]*)"/', $trimmed, $m) ? $m[1] : '');
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張り）。部品は `config/foundation.php` で有効にする（入れただけでは挙動は変わらない）。
-詳しい手順は `vendor/miraqceed/laravel-foundation/docs/` の `test-safety.md`・`csv.md`・`login.md`・`security.md`・`monitoring.md`。**自前で書き直す前に読む。**
+                continue;
+            }
+            if ($trimmed === '</code-snippet>') {
+                $lines[] = '```';
 
-- **テストの守り**：テスト用 DB の名前に `test` か `testing` を語として入れる（`app_test`）。環境変数で接続先を渡さない。外の DB は `foundation.test_safety.ignore_connections` に接続名を挙げる（名前を偽らない）。
-- **CSV**：書き出しは `CsvResponse::download()`。式の守りを自前で書かない。`lazy()`・`chunk()` で読まない。大きな表は `Rows::keyset()`（一意の列を非修飾の名前で渡す）。読み込みは `CsvReader::parse()`（Shift_JIS 対応）。
-- **ログイン**：失敗の数えを自前で作らない。`LoginLock` を使う。Fortify では `fortify.limiters.login` を `null` にし、`Fortify::authenticateThrough(fn () => AuthenticateWithLoginLock::loginPipeline())` と `Fortify::authenticateUsing(...)` を渡す。
-- **CSP**：`'unsafe-inline'` を足して済ませない。外の元は `foundation.security.areas` に足す。ミドルウェア `foundation.security-headers` は自分で `web` のグループに足す。報告の口（`report_route`）は `web` のグループに入れない。
-- **見張り**：schedule の処理には `->watched('名前', 許す古さ（分）)`。schedule の外の処理は終わりに `php artisan foundation:record 名前` を呼び、`foundation.monitoring.external` に書く。知らせの送り先は `foundation.monitoring.alerts.channels`（MiraqStudio の顧客のアプリは `log`）。
-MD;
+                continue;
+            }
+            $lines[] = str_replace('@{{', '{{', $line);
+        }
+
+        return trim((string) preg_replace("/\n{3,}/", "\n\n", implode("\n", $lines)));
+    }
+
+    /** AI 向けの指針の原本（Laravel Boost が boost:install で読む置き場所） */
+    public const GUIDELINE = __DIR__.'/../../resources/boost/guidelines/core.blade.php';
 }

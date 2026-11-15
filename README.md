@@ -2,7 +2,9 @@
 
 どの Laravel のアプリにも要る部品を1つにまとめたパッケージです。Laravel 12〜13、PHP 8.3 以上、PostgreSQL 16 以上・MySQL 8.4・SQLite（試しのみ）に対応します。Redis や常駐のプロセスには頼らず、`database` のドライバーで動きます。
 
-**入れただけではアプリの挙動は変わりません。** 部品は既定で無効です（テストの守りと CSV は設定なしで使えます）。マクロ・ミドルウェアの別名・コマンドはいつも登録され、無効なら何もしません。ミドルウェアをグループへ自動で足すことはしません。
+**入れただけではアプリの挙動は変わりません。ただしテストの DB の守りだけは、入れた時点で効きます。** テストがつなぐ DB の名前に `test` か `testing` が語として入っていないと（`app_test` は可、`latest` は不可）、テストは DB に触れる前に止まります。止まったときの直し方は [docs/test-safety.md](docs/test-safety.md) にあります。
+
+ほかの部品は既定で無効です（CSV は設定なしで使えます）。マクロ・ミドルウェアの別名・コマンドはいつも登録され、無効なら何もしません。ミドルウェアをグループへ自動で足すことはしません。
 
 ## 入れ方
 
@@ -12,7 +14,9 @@ php artisan vendor:publish --tag=foundation-config   # config/foundation.php（�
 php artisan foundation:install                       # AGENTS.md / CLAUDE.md に AI 向けの節を書く
 ```
 
-`foundation:install` は `<!-- foundation:start -->` と `<!-- foundation:end -->` の間だけを書くので、何度流しても節は1つです。`AGENTS.md`・`CLAUDE.md` のうちあるものすべてに書き、どちらもなければ `AGENTS.md` を作ります。[Laravel Boost](https://laravel.com/docs/boost) を使うアプリには、`boost:install` がこのパッケージの指針（`resources/boost/guidelines/core.blade.php`）を自動で読みます。
+入れた時点で、テストの DB の守りが効きます（上の注意）。`composer require` の後にテストが `UnsafeTestDatabase` で止まったら、テスト用 DB の名前に `test` か `testing` を入れます（[docs/test-safety.md](docs/test-safety.md)）。
+
+`foundation:install` は `<!-- foundation:start -->` と `<!-- foundation:end -->` の間だけを書くので、何度流しても節は1つです。`AGENTS.md`・`CLAUDE.md` のうちあるものすべてに書き、どちらもなければ `AGENTS.md` を作ります。節の中身は Boost の指針と同じ原本から作ります。[Laravel Boost](https://laravel.com/docs/boost) を使うアプリには、`boost:install` がこのパッケージの指針（`resources/boost/guidelines/core.blade.php`）を自動で読みます。
 
 ## 部品
 
@@ -36,7 +40,14 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 ```
 
 ```bash
-./backup.sh && php artisan foundation:record backup || php artisan foundation:record backup --failed
+# 失敗も記録したうえで、台本の終了コードを残す（1行の && … || … だと終了コードがいつも 0 になる）
+if ./backup.sh; then
+    php artisan foundation:record backup
+else
+    status=$?
+    php artisan foundation:record backup --failed
+    exit "$status"
+fi
 ```
 
 ## 命名
