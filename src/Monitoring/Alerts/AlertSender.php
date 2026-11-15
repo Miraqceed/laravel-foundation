@@ -32,7 +32,9 @@ class AlertSender
         'slack' => SlackChannel::class,
     ];
 
-    /** 同じ鍵の知らせを throttle_minutes 以内に作っていれば（送れたかは問わない）作らず null */
+    /**
+     * 同じ鍵の知らせを間引きの間（throttleWindow()）に作っていれば（送れたかは問わない）作らず null
+     */
     public function send(string $key, string $subject, string $body): ?Alert
     {
         if (! config('foundation.monitoring.enabled')) {
@@ -47,8 +49,7 @@ class AlertSender
 
         try {
             [$alert, $deliveries] = DB::transaction(function () use ($key, $subject, $body) {
-                $throttle = (int) config('foundation.monitoring.alerts.throttle_minutes', 60);
-                if (Alert::where('key', $key)->where('created_at', '>', now()->subMinutes($throttle))->exists()) {
+                if (Alert::where('key', $key)->where('created_at', '>', now()->subMinutes(self::throttleWindow()))->exists()) {
                     return [null, []];
                 }
 
@@ -187,6 +188,17 @@ class AlertSender
         } catch (Throwable $e) {
             report($e);
         }
+    }
+
+    /**
+     * 間引きで見る長さ（分）。throttle_minutes が10より大きいときは5分短くする：
+     * 毎時の見張りと60分の間引きでは、送り直しで前の回の作成が数分遅れると、次の回が間引かれて1時間おきに抜けるため。
+     */
+    public static function throttleWindow(): int
+    {
+        $throttle = (int) config('foundation.monitoring.alerts.throttle_minutes', 60);
+
+        return $throttle > 10 ? $throttle - 5 : $throttle;
     }
 
     private static function scrub(string $text): string

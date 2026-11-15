@@ -215,6 +215,36 @@ class AlertSenderTest extends TestCase
         $this->assertSame(3, Alert::count());
     }
 
+    public function test_long_throttle_keeps_a_five_minute_margin(): void
+    {
+        $this->channels(['webhook']);
+        Http::fake(['*' => Http::response('', 500)]);
+
+        Carbon::setTestNow('2026-11-15 10:03:20');
+        $this->assertNotNull($this->sender()->send('k', 'a', 'b'));
+
+        // 毎時の見張り：送り直しで前の回の作成が 3分20秒遅れても、次の回（11:00:05）でまた作る
+        Carbon::setTestNow('2026-11-15 10:58:19');
+        $this->assertNull($this->sender()->send('k', 'a', 'b'), '60-5=55分以内は間引く');
+        Carbon::setTestNow('2026-11-15 11:00:05');
+        $this->assertNotNull($this->sender()->send('k', 'a', 'b'), '55分を過ぎれば作る');
+        $this->assertSame(2, Alert::count());
+    }
+
+    public function test_short_throttle_has_no_margin(): void
+    {
+        $this->channels(['webhook']);
+        config()->set('foundation.monitoring.alerts.throttle_minutes', 10);
+        Http::fake(['*' => Http::response('', 500)]);
+
+        Carbon::setTestNow('2026-11-15 10:00:00');
+        $this->assertNotNull($this->sender()->send('k', 'a', 'b'));
+        Carbon::setTestNow('2026-11-15 10:09:59');
+        $this->assertNull($this->sender()->send('k', 'a', 'b'), '10分以下は幅を持たせない');
+        Carbon::setTestNow('2026-11-15 10:10:01');
+        $this->assertNotNull($this->sender()->send('k', 'a', 'b'));
+    }
+
     public function test_long_key_is_throttled_like_the_stored_key(): void
     {
         $this->channels(['webhook']);

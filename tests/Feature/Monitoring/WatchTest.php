@@ -92,7 +92,7 @@ class WatchTest extends TestCase
         Carbon::setTestNow('2026-11-15 11:10:00');
         $this->assertSame(1, Artisan::call('foundation:watch'));
         $alert = Alert::first();
-        $this->assertSame('foundation.watch', $alert->key);
+        $this->assertSame('foundation.watch:'.sha1('job-a'), $alert->key);
         $this->assertStringContainsString('job-a', $alert->body);
     }
 
@@ -113,6 +113,48 @@ class WatchTest extends TestCase
         Carbon::setTestNow('2026-11-15 11:01:00');
         $this->assertSame(1, Artisan::call('foundation:watch'));
         $this->assertSame(1, Alert::count());
+    }
+
+    /** 止まった処理を作る：$at に一度成功させ、許す古さは60分 */
+    private function succeededAt(string $name, string $at): void
+    {
+        Carbon::setTestNow($at);
+        Artisan::call('foundation:record', ['name' => $name]);
+    }
+
+    public function test_newly_stalled_task_is_reported_within_throttle(): void
+    {
+        config()->set('foundation.monitoring.external', [
+            'job-b' => ['max_age_minutes' => 60],
+            'job-a' => ['max_age_minutes' => 60],
+        ]);
+        $this->succeededAt('job-a', '2026-11-15 09:00:00');
+        $this->succeededAt('job-b', '2026-11-15 09:30:00');
+
+        // 10:10 は A だけが止まっている
+        Carbon::setTestNow('2026-11-15 10:10:00');
+        $this->assertSame(1, Artisan::call('foundation:watch'));
+        $this->assertSame(1, Alert::count());
+        $this->assertSame('foundation.watch:'.sha1('job-a'), Alert::latest('id')->first()->key);
+
+        // 30分後に B も止まった：間引きの間でも、新しい組なのですぐ知らせる
+        Carbon::setTestNow('2026-11-15 10:40:00');
+        $this->assertSame(1, Artisan::call('foundation:watch'));
+        $this->assertSame(2, Alert::count());
+        $alert = Alert::latest('id')->first();
+        // 鍵の名前は並べ替えてつなぐ（設定の順によらない）
+        $this->assertSame('foundation.watch:'.sha1('job-a,job-b'), $alert->key);
+        $this->assertStringContainsString('job-b', $alert->body);
+
+        // 同じ組の30分後は間引く
+        Carbon::setTestNow('2026-11-15 11:10:00');
+        $this->assertSame(1, Artisan::call('foundation:watch'));
+        $this->assertSame(2, Alert::count());
+
+        // 同じ組で59分後（送り直しで秒がずれた形）にはまた知らせる
+        Carbon::setTestNow('2026-11-15 11:39:00');
+        $this->assertSame(1, Artisan::call('foundation:watch'));
+        $this->assertSame(3, Alert::count());
     }
 
     public function test_external_task_recorded_by_command(): void

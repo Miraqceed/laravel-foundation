@@ -64,14 +64,14 @@ fi
 
 ## 見張りの判定
 
-`foundation:watch` は、見張る名前ごとに：最後の成功が許す古さより前なら問題。一度も成功していなければ、**初めて見てから**許す古さがたつまでは問題にしない。問題があれば運営へ知らせ（鍵 `foundation.watch`）、終了コード 1。なければ `heartbeat_url`（あれば）へ GET して 0。送れなくても失敗にしない。
+`foundation:watch` は、見張る名前ごとに：最後の成功が許す古さより前なら問題。一度も成功していなければ、**初めて見てから**許す古さがたつまでは問題にしない。問題があれば運営へ知らせ（鍵は止まっている処理の名前の組ごと。下の「間引きの鍵」）、終了コード 1。なければ `heartbeat_url`（あれば）へ GET して 0。送れなくても失敗にしない。
 
 ## 運営への知らせ
 
 ```php
 'alerts' => [
     'channels' => ['log'],          // log・mail・webhook・chatwork・slack
-    'throttle_minutes' => 60,       // 同じ鍵の知らせを作らない間
+    'throttle_minutes' => 60,       // 同じ鍵の知らせを作らない間（10より大きいときは5分短く見る）
     'max_attempts' => 10,           // 送り先ごとの試す回数の上限
     'log' => ['channel' => null, 'level' => 'error'], // null はアプリの既定のチャネル
     'mail' => ['to' => 'ops@example.com'],
@@ -94,7 +94,8 @@ fi
 - `log.channel` が `null`（既定）なら、アプリの既定のチャネル（`LOG_CHANNEL`）に書く。`log.level`（既定 `error`）は書く重さ。**チャネルの `level`（`LOG_LEVEL`）より低い重さにすると、Monolog が行を捨てるのに、知らせは送れた扱いになる**（送り直さない）。`LOG_LEVEL` を `error` より高くしているアプリは `log.level` も上げる。
 - 自分のコードから知らせるとき：`app(AlertSender::class)->send('鍵', '件名', '本文')`。**投げない**（送り先の失敗も書き込みの失敗も飲む。DB への書き込みは savepoint で包み、PostgreSQL のトランザクションを中断させない）。戻りは `Alert`、間引かれたら `null`。
 - 知らせは先に DB へ書いてから送る。送れなかった行は `foundation:watch`（毎回）と `php artisan foundation:alerts:retry --limit=20` で送り直す。`max_attempts` に達したら諦め、`foundation.alert.abandoned` を `Log::error` に残して `report()` する。
-- **間引きの鍵は1つ。** 60分の間は、同じ鍵（`foundation.watch`）の知らせは作らない。そのため、別のタスクが後から止まっても、間引きの間は**別の知らせにならない**（次の知らせに新しい停止も入る）。
+- **間引きの鍵**：`foundation:watch` の鍵は `foundation.watch:` ＋ `sha1(止まっている処理の名前を並べ替えて ',' でつないだもの)`（例：`daily-report` だけなら `foundation.watch:7e5b43f6d13236348a716779f9ef19b9939f886d`）。**新しく止まった処理は、間引きの間でもすぐ知らせる**（組が変わるので鍵が変わる）。同じ組のままなら間引く。
+- **間引きの幅**：同じ鍵の知らせを作っていれば作らない間は、`throttle_minutes` が10より大きいときは `throttle_minutes - 5` 分（既定の60なら55分）、10以下ならそのまま。毎時の見張りと60分の間引きでは、送り直し（最大20行）で前の回の作成が数分遅れると、次の回が間引かれて1時間おきに抜けるため。止まったままなら、毎時の見張りのたびに知らせる。
 - **外のトランザクションの中で `send()` を呼ぶと**、その外側が rollback されたとき知らせの行ごと消える。トランザクションの外で呼ぶ。
 - メールの `timeout` は mailer の設定に任せる。
 
@@ -103,7 +104,7 @@ fi
 `log` の送り先は、`log.channel` のチャネルに `log.level` の重さで次の1行を書く。**文は `foundation.alert ` ＋ 1行の JSON**（改行は `\n` に直る。日本語・スラッシュはそのまま。不正な UTF-8 は U+FFFD に置き換える）：
 
 ```
-foundation.alert {"v":1,"key":"foundation.watch","subject":"定期の処理が止まっています","body":"定期の処理が止まっているか、動いていません。\n\n・daily-report：一度も成功していません","app":"MyApp","at":"2026-11-15T03:00:00+09:00"}
+foundation.alert {"v":1,"key":"foundation.watch:7e5b43f6d13236348a716779f9ef19b9939f886d","subject":"定期の処理が止まっています","body":"定期の処理が止まっているか、動いていません。\n\n・daily-report：一度も成功していません","app":"MyApp","at":"2026-11-15T03:00:00+09:00"}
 ```
 
 - キー：`v`（形の版。いまは 1）・`key`・`subject`・`body`（4000 文字まで）・`app`（`config('app.name')`）・`at`（知らせを作った時刻、ISO 8601）。

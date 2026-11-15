@@ -27,6 +27,7 @@ class WatchCommand extends Command
         $sender->retry();
 
         $problems = [];
+        $stalled = [];
         foreach ($list->all() as $name => $task) {
             TaskRuns::seen($name);
             $row = DB::table('foundation_task_runs')->where('name', $name)->first();
@@ -35,6 +36,7 @@ class WatchCommand extends Command
             if ($row->last_succeeded_at !== null) {
                 $last = Carbon::parse($row->last_succeeded_at);
                 if ($last->lt($allowed)) {
+                    $stalled[] = (string) $name;
                     $problems[] = "{$task['label']}：最後の成功が{$task['max']}分より前です（{$last->toIso8601String()}）";
                 }
 
@@ -43,6 +45,7 @@ class WatchCommand extends Command
 
             // 一度も成功していなくても、初めて見てから許す古さがたっていなければ、まだ予定の時刻を迎えていないだけ
             if (Carbon::parse($row->first_seen_at)->lt($allowed)) {
+                $stalled[] = (string) $name;
                 $problems[] = "{$task['label']}：一度も成功していません";
             }
         }
@@ -51,7 +54,7 @@ class WatchCommand extends Command
             foreach ($problems as $problem) {
                 $this->warn($problem);
             }
-            $sender->send('foundation.watch', '定期の処理が止まっています', "定期の処理が止まっているか、動いていません。\n\n・".implode("\n・", $problems));
+            $sender->send(self::alertKey($stalled), '定期の処理が止まっています', "定期の処理が止まっているか、動いていません。\n\n・".implode("\n・", $problems));
 
             return self::FAILURE;
         }
@@ -60,6 +63,19 @@ class WatchCommand extends Command
         $this->info('定期の処理はすべて動いています');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * 知らせの鍵は止まっている処理の名前の組ごと（並べ替えて ',' でつないだものの sha1）。
+     * 新しく止まった処理は間引きの間でもすぐ知らせ、同じ組は間引く。
+     *
+     * @param  list<string>  $names
+     */
+    public static function alertKey(array $names): string
+    {
+        sort($names, SORT_STRING);
+
+        return 'foundation.watch:'.sha1(implode(',', $names));
     }
 
     /** 外の死活監視へ合図を送る。送れなくても失敗にしない（送り先の URL は鍵にあたるので出さない） */
