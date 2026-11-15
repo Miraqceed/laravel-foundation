@@ -8,6 +8,7 @@ use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
 use Miraqceed\Foundation\Security\CspReportController;
 use Miraqceed\Foundation\Security\Nonce;
 use Miraqceed\Foundation\Security\SecurityHeaders;
@@ -76,10 +77,17 @@ class FoundationServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../config/foundation.php' => config_path('foundation.php'),
             ], 'foundation-config');
+
+            $this->publishes([
+                __DIR__.'/../database/migrations' => database_path('migrations'),
+            ], 'foundation-migrations');
+
+            // コマンドはいつも登録する（monitoring が無効なら何もしない）
+            $this->commands([RetryAlertsCommand::class]);
         }
 
         // マイグレーションは monitoring が有効なときだけ読み込む。
-        // 無効でも `vendor:publish --tag=foundation-migrations` で写せる（Task 7 で中身を足す）。
+        // 無効でも `vendor:publish --tag=foundation-migrations` で写せる。
         if (config('foundation.monitoring.enabled')) {
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
         }

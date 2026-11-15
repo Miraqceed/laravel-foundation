@@ -65,6 +65,20 @@ return [
     // 見張りと知らせ（Task 7・8）
     'monitoring' => [
         'enabled' => false,
+
+        // 運営への知らせ（AlertSender）
+        'alerts' => [
+            // 同じ鍵の知らせを作らない間（分）。作った時刻で見る（送れたかは問わない）
+            'throttle_minutes' => 60,
+            // 送り先ごとの試す回数の上限。達したら諦める
+            'max_attempts' => 10,
+            // log・mail・webhook・chatwork・slack
+            'channels' => ['log'],
+            'mail' => ['to' => null],
+            'webhook' => ['url' => null, 'secret' => null],
+            'chatwork' => ['token' => null, 'room_id' => null],
+            'slack' => ['webhook_url' => null],
+        ],
     ],
 
     // ログインのロック（LoginLock）
