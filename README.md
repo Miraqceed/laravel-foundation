@@ -16,7 +16,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 
 入れた時点で、テストの DB の守りが効きます（上の注意）。`composer require` の後にテストが `UnsafeTestDatabase` で止まったら、テスト用 DB の名前に `test` か `testing` を入れます（[docs/test-safety.md](docs/test-safety.md)）。
 
-`foundation:install` は `<!-- foundation:start -->` と `<!-- foundation:end -->` の間だけを書くので、何度流しても節は1つです。`AGENTS.md`・`CLAUDE.md` のうちあるものすべてに書き、どちらもなければ `AGENTS.md` を作ります。節の中身は Boost の指針と同じ原本から作ります。[Laravel Boost](https://laravel.com/docs/boost) を使うアプリには、`boost:install` がこのパッケージの指針（`resources/boost/guidelines/core.blade.php`）を自動で読みます。
+`foundation:install` は `<!-- foundation:start -->` と `<!-- foundation:end -->` の間だけを書くので、何度流しても節は1つです。`AGENTS.md`・`CLAUDE.md` のうちあるものすべてに書き、どちらもなければ `AGENTS.md` を作ります。節の中身は Boost の指針と同じ原本から作ります。[Laravel Boost](https://laravel.com/docs/boost) を使うアプリでは、`boost:install` がこのパッケージの指針（`resources/boost/guidelines/core.blade.php`）を見つけ、「Which third-party AI guidelines/skills would you like to install?」の一覧に `miraqceed/laravel-foundation` を出します。**選んだときだけ入ります**（Boost の第三者の指針は選んで入れる形）。`--no-interaction` で流すときは、先に `boost.json` の `packages` に `"miraqceed/laravel-foundation"` を書いておきます。Boost の節と `foundation:install` の節は、同じファイルに並んでも互いを消しません。
 
 ## 部品
 
