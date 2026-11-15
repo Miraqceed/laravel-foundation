@@ -50,6 +50,13 @@ else
 fi
 ```
 
+知らせの表（`foundation_alerts`・`foundation_alert_deliveries`）は自動では消えません。送れたか諦めて `monitoring.alerts.prune_days`（既定 90）日たった知らせを消すには、`model:prune` を schedule に入れ、パッケージのモデルを `--model` で指します（`--model` なしの `model:prune` は `app/Models` しか見ません）：
+
+```php
+// routes/console.php
+Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\Monitoring\Alerts\Alert::class]])->daily();
+```
+
 ## 命名
 
 表は `foundation_`、設定は `foundation.*`、コマンドは `foundation:*`。パッケージは秘密の値を持たず、設定（`.env`）から読むだけです。

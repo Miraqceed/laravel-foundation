@@ -75,6 +75,7 @@ fi
     'channels' => ['log'],          // log・mail・webhook・chatwork・slack
     'throttle_minutes' => 60,       // 同じ鍵の知らせを作らない間（10より大きいときは5分短く見る）
     'max_attempts' => 10,           // 送り先ごとの試す回数の上限
+    'prune_days' => 90,             // 送れたか諦めてこの日数がたった知らせを model:prune で消す
     'log' => ['channel' => null, 'level' => 'error'], // null はアプリの既定のチャネル
     'mail' => ['to' => 'ops@example.com'],
     'webhook' => ['url' => '…', 'secret' => env('FOUNDATION_WEBHOOK_SECRET')],
@@ -98,6 +99,16 @@ fi
 - 知らせは先に DB へ書いてから送る。送れなかった行は `foundation:watch`（毎回）と `php artisan foundation:alerts:retry --limit=20` で送り直す。`max_attempts` に達したら諦め、`foundation.alert.abandoned` を `Log::error` に残して `report()` する。
 - **間引きの鍵**：`foundation:watch` の鍵は `foundation.watch:` ＋ `sha1(止まっている処理の名前を並べ替えて ',' でつないだもの)`（例：`daily-report` だけなら `foundation.watch:7e5b43f6d13236348a716779f9ef19b9939f886d`）。**新しく止まった処理は、間引きの間でもすぐ知らせる**（組が変わるので鍵が変わる）。同じ組のままなら間引く。
 - **間引きの幅**：同じ鍵の知らせを作っていれば作らない間は、`throttle_minutes` が10より大きいときは `throttle_minutes - 5` 分（既定の60なら55分）、10以下ならそのまま。毎時の見張りと60分の間引きでは、送り直し（最大20行）で前の回の作成が数分遅れると、次の回が間引かれて1時間おきに抜けるため。止まったままなら、毎時の見張りのたびに知らせる。
+- **知らせの表は自動では消えない。** `Alert` は `MassPrunable` で、すべての送り先が送れたか諦めて `prune_days`（既定 90）日たった知らせを、送り先の行ごと（外部キーの cascade）消す。まだ送り直す送り先が残る知らせは消さない。**`model:prune` を schedule に入れるのはアプリ**（`--model` なしの `model:prune` は `app/Models` しか見ないので、パッケージのモデルを `--model` で指す。アプリのモデルも消すなら、それも並べる）：
+
+```php
+// routes/console.php
+Schedule::command('model:prune', ['--model' => [
+    \Miraqceed\Foundation\Monitoring\Alerts\Alert::class,
+    // \App\Models\…::class,
+]])->daily();
+```
+
 - **外のトランザクションの中で `send()` を呼ぶと**、その外側が rollback されたとき知らせの行ごと消える。トランザクションの外で呼ぶ。
 - メールの `timeout` は mailer の設定に任せる。
 
@@ -169,6 +180,7 @@ $ok = $fresh && hash_equals($expected, $signatureHeader);
 - `->watched()` の名前を重複させない（同じ名前は1つの記録を共有する）。
 - 秘密（`webhook.secret`・各トークン）をコードに書かない。`.env` から `env()` で設定に読む。
 - 外の処理を `external` に書いて `foundation:record` を呼び忘れない。
+- `model:prune` を `--model` なしで schedule に入れて、知らせの表も消えると思わない（パッケージのモデルは `--model` で指す）。
 
 ## 限界
 

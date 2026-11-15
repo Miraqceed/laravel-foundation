@@ -90,9 +90,12 @@ class InstallCommandTest extends TestCase
             // ログイン（3つとも要る。authenticateUsing が抜けると回数の制限が消える）
             'limiters', 'authenticateThrough', 'authenticateUsing', 'trustProxies',
             // CSP
-            'foundation.security.enabled', 'foundation.security-headers', 'Nonce::get', 'Vite::cspNonce()', 'report_route',
+            'foundation.security.enabled', 'foundation.security-headers', 'Nonce::get', 'Vite::cspNonce()', 'report_route', 'frame-ancestors',
             // 見張り
             'foundation.monitoring.enabled', 'migrate', 'watched', 'foundation:record', 'monitoring.alerts.log.channel', 'stderr',
+            'environments()', 'foundation.watch:', 'throttle_minutes - 5',
+            // 知らせの表は model:prune で消す（アプリが schedule に入れる）
+            'model:prune', '--model', 'prune_days',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");

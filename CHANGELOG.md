@@ -12,5 +12,5 @@
 - CSV：`CsvResponse::download()`（式の守り・BOM・Shift_JIS・途中で失敗した印）、`CsvReader::parse()`（UTF-8・BOM 付き・Shift_JIS）、ずれない読み方 `Rows::cursor()`・`Rows::keyset()`。`docs/csv.md`
 - ログインのロック：`LoginLock`（メールアドレスと接続元の組・接続元の2つの枠、IPv6 は /64）と Fortify への差し込み `AuthenticateWithLoginLock`。`docs/login.md`
 - CSP・セキュリティヘッダー：ミドルウェア `foundation.security-headers`（既定は無効）、nonce、区分ごとの方針、違反の報告の口。`docs/security.md`
-- 定期の処理の見張りと知らせ：`->watched()`・`foundation:record`・`foundation:watch`・`foundation:alerts:retry`、送り先は log・mail・webhook（HMAC の署名）・chatwork・slack の5つ（既定は無効）。`docs/monitoring.md`
+- 定期の処理の見張りと知らせ：`->watched()`・`foundation:record`・`foundation:watch`・`foundation:alerts:retry`、送り先は log・mail・webhook（HMAC の署名）・chatwork・slack の5つ（既定は無効）。知らせの表は `model:prune` で消す（設定 `monitoring.alerts.prune_days`、既定 90 日。**アプリが `model:prune --model=…Alert` を schedule に入れる**）。`docs/monitoring.md`
 - AI 向けの指針（Laravel Boost の `resources/boost/guidelines/core.blade.php`）と、同じ原本から `AGENTS.md`・`CLAUDE.md` に節を書く `foundation:install`

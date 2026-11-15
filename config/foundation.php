@@ -82,6 +82,9 @@ return [
             'throttle_minutes' => 60,
             // 送り先ごとの試す回数の上限。達したら諦める
             'max_attempts' => 10,
+            // 送れたか諦めてこの日数がたった知らせを model:prune で消す（アプリが schedule に入れる：
+            // Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\Monitoring\Alerts\Alert::class]])->daily();）
+            'prune_days' => 90,
             // log・mail・webhook・chatwork・slack
             'channels' => ['log'],
             // log の送り先：チャネル（null ならアプリの既定のチャネル）と重さ。
