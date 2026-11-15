@@ -2,6 +2,10 @@
 
 ## 未公開
 
+## 0.1.1
+
+- composer.json のキーワードから `testing` を外した。Packagist が試し用のパッケージとみなし、入れ方を `composer require --dev` と案内していた。`--dev` で入れると本番に入らず、CSV・ログインのロック・CSP・見張りが動かない。入れ方は `composer require miraqceed/laravel-foundation`（`--dev` を付けない）。コードは 0.1.0 と同じ。
+
 ## 0.1.0
 
 最初の版。Laravel 12〜13・PHP 8.3 以上。PostgreSQL 16 以上・MySQL 8.4・SQLite（試しのため）。Redis と常駐のプロセスに頼らない。
