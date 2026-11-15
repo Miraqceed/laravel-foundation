@@ -12,6 +12,7 @@ use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
 use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
@@ -116,7 +117,7 @@ class FoundationServiceProvider extends ServiceProvider
             ], 'foundation-migrations');
 
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
-            $this->commands([RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
+            $this->commands([InstallCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
         }
 
         // マイグレーションは monitoring が有効なときだけ読み込む。
