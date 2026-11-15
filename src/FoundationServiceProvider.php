@@ -2,13 +2,19 @@
 
 namespace Miraqceed\Foundation;
 
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\CachesConfiguration;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
+use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
+use Miraqceed\Foundation\Monitoring\TaskRuns;
+use Miraqceed\Foundation\Monitoring\WatchList;
 use Miraqceed\Foundation\Security\CspReportController;
 use Miraqceed\Foundation\Security\Nonce;
 use Miraqceed\Foundation\Security\SecurityHeaders;
@@ -18,6 +24,7 @@ class FoundationServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(Nonce::class);
+        $this->app->singleton(WatchList::class);
 
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
@@ -73,6 +80,17 @@ class FoundationServiceProvider extends ServiceProvider
             ConvertEmptyStringsToNull::skipWhen($skip);
         }
 
+        // watched() はいつも登録する。無効のあいだは印を付けるだけで、記録も見張りもしない
+        Event::macro('watched', function (string $name, int $maxAgeMinutes) {
+            /** @var Event $this */
+            app(WatchList::class)->mark($this, $name, $maxAgeMinutes);
+
+            return $this
+                ->before(fn () => TaskRuns::started($name))
+                ->onSuccess(fn () => TaskRuns::finished($name, true))
+                ->onFailure(fn () => TaskRuns::finished($name, false));
+        });
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__.'/../config/foundation.php' => config_path('foundation.php'),
@@ -83,13 +101,20 @@ class FoundationServiceProvider extends ServiceProvider
             ], 'foundation-migrations');
 
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
-            $this->commands([RetryAlertsCommand::class]);
+            $this->commands([RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
         }
 
         // マイグレーションは monitoring が有効なときだけ読み込む。
         // 無効でも `vendor:publish --tag=foundation-migrations` で写せる。
         if (config('foundation.monitoring.enabled')) {
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+
+            // 見張りを入れ忘れると見張りが働かないので自動で入れる
+            $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+                $schedule->command('foundation:watch')
+                    ->cron((string) config('foundation.monitoring.watch_cron', '0 * * * *'))
+                    ->withoutOverlapping();
+            });
         }
     }
 }
