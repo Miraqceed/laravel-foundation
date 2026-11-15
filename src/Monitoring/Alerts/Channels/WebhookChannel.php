@@ -22,15 +22,16 @@ class WebhookChannel implements Channel
         }
 
         $body = LogChannel::payload($alert);
-        $headers = [];
+        // 署名なしの知らせは受け取る側で偽物と見分けられない。秘密がなければ送らない
         $secret = (string) config('foundation.monitoring.alerts.webhook.secret');
-        if ($secret !== '') {
-            $timestamp = (string) now()->timestamp;
-            $headers = [
-                'X-Foundation-Timestamp' => $timestamp,
-                'X-Foundation-Signature' => self::sign($secret, $timestamp, $body),
-            ];
+        if ($secret === '') {
+            throw new RuntimeException('webhook.secret が設定されていません');
         }
+        $timestamp = (string) now()->timestamp;
+        $headers = [
+            'X-Foundation-Timestamp' => $timestamp,
+            'X-Foundation-Signature' => self::sign($secret, $timestamp, $body),
+        ];
 
         $response = Http::withHeaders($headers)
             ->connectTimeout(10)->timeout(10)

@@ -326,4 +326,59 @@ class AlertSenderTest extends TestCase
         $this->assertSame(1, (int) DB::selectOne('select 1 as one')->one);
         DB::rollBack();
     }
+
+    public function test_webhook_without_secret_fails_instead_of_sending_unsigned(): void
+    {
+        $this->channels(['webhook']);
+        config()->set('foundation.monitoring.alerts.webhook.secret', null);
+        Http::fake();
+
+        $alert = $this->sender()->send('k', 's', 'b');
+
+        $this->assertNotNull($alert);
+        Http::assertNothingSent();
+        $delivery = AlertDelivery::first();
+        $this->assertNull($delivery->sent_at);
+        $this->assertStringContainsString('webhook.secret', $delivery->last_error);
+    }
+
+    public function test_send_does_not_throw_when_database_goes_away_after_creation(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('表を落とす確かめは sqlite だけ');
+        }
+        $this->channels(['webhook']);
+        $handler = Mockery::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report');
+        $this->app->instance(ExceptionHandler::class, $handler);
+        Http::fake(function () {
+            Schema::dropIfExists('foundation_alert_deliveries');
+            Schema::dropIfExists('foundation_alerts');
+
+            return Http::response('', 200);
+        });
+
+        $this->assertNotNull($this->sender()->send('k', 's', 'b'));
+    }
+
+    public function test_send_does_not_throw_when_database_is_unreachable(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('接続先を壊す確かめは sqlite だけ');
+        }
+        $this->channels(['log']);
+        $handler = Mockery::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report');
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $original = config('database.connections.sqlite.database');
+        config()->set('database.connections.sqlite.database', '/nonexistent/dir/x.sqlite');
+        DB::purge();
+
+        try {
+            $this->assertNull($this->sender()->send('k', 's', 'b'));
+        } finally {
+            config()->set('database.connections.sqlite.database', $original);
+            DB::purge();
+        }
+    }
 }

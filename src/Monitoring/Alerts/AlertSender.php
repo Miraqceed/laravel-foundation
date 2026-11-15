@@ -40,10 +40,10 @@ class AlertSender
         }
 
         try {
-            $alert = DB::transaction(function () use ($key, $subject, $body) {
+            [$alert, $deliveries] = DB::transaction(function () use ($key, $subject, $body) {
                 $throttle = (int) config('foundation.monitoring.alerts.throttle_minutes', 60);
                 if (Alert::where('key', $key)->where('created_at', '>', now()->subMinutes($throttle))->exists()) {
-                    return null;
+                    return [null, []];
                 }
 
                 $alert = Alert::create([
@@ -52,11 +52,12 @@ class AlertSender
                     'body' => mb_substr($body, 0, self::BODY_LIMIT),
                     'created_at' => now(),
                 ]);
+                $deliveries = [];
                 foreach (array_keys($this->channels()) as $name) {
-                    $alert->deliveries()->create(['channel' => $name]);
+                    $deliveries[] = $alert->deliveries()->create(['channel' => $name]);
                 }
 
-                return $alert;
+                return [$alert, $deliveries];
             });
         } catch (Throwable $e) {
             report($e);
@@ -68,9 +69,14 @@ class AlertSender
             return null;
         }
 
-        foreach ($alert->deliveries()->get() as $delivery) {
-            $delivery->setRelation('alert', $alert);
-            $this->attempt($delivery);
+        // 作成時に得た行を使い、読み直さない（読み直しが投げても呼び出し元を落とさない）
+        foreach ($deliveries as $delivery) {
+            try {
+                $delivery->setRelation('alert', $alert);
+                $this->attempt($delivery);
+            } catch (Throwable $e) {
+                report($e);
+            }
         }
 
         return $alert;
