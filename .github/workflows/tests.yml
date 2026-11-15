@@ -1,0 +1,65 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    name: L${{ matrix.laravel }} / PHP ${{ matrix.php }} / ${{ matrix.db }}${{ matrix.stability == 'prefer-lowest' && ' / lowest' || '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        laravel: ['12', '13']
+        php: ['8.3', '8.4', '8.5']
+        db: [pgsql, mysql]
+        stability: [prefer-stable]
+        include:
+          - { laravel: '12', php: '8.3', db: pgsql, stability: prefer-lowest }
+          - { laravel: '12', php: '8.3', db: sqlite, stability: prefer-stable }
+    services:
+      postgres:
+        image: ${{ matrix.db == 'pgsql' && 'postgres:16' || '' }}
+        env:
+          POSTGRES_USER: foundation
+          POSTGRES_PASSWORD: foundation
+          POSTGRES_DB: foundation
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U foundation" --health-interval 5s --health-timeout 5s --health-retries 10
+      mysql:
+        image: ${{ matrix.db == 'mysql' && 'mysql:8.4' || '' }}
+        env:
+          MYSQL_USER: foundation
+          MYSQL_PASSWORD: foundation
+          MYSQL_DATABASE: foundation
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DB_CONNECTION: ${{ matrix.db }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: ${{ matrix.db == 'pgsql' && '5432' || '3306' }}
+      DB_DATABASE: ${{ matrix.db == 'sqlite' && ':memory:' || 'foundation' }}
+      DB_USERNAME: foundation
+      DB_PASSWORD: foundation
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, intl, pdo_sqlite, pdo_pgsql, pdo_mysql
+          coverage: none
+      - name: Laravel の版を固定
+        run: |
+          composer require --no-update --no-interaction \
+            "illuminate/support:^${{ matrix.laravel }}.0" \
+            "orchestra/testbench:${{ matrix.laravel == '12' && '^10.0' || '^11.0' }}"
+      - name: 依存を入れる
+        run: composer update --${{ matrix.stability }} --prefer-dist --no-interaction --no-progress
+      - name: 試し
+        run: vendor/bin/phpunit
