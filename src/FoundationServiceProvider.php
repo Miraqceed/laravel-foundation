@@ -3,12 +3,18 @@
 namespace Miraqceed\Foundation;
 
 use Illuminate\Contracts\Foundation\CachesConfiguration;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Miraqceed\Foundation\Security\CspReportController;
+use Miraqceed\Foundation\Security\Nonce;
+use Miraqceed\Foundation\Security\SecurityHeaders;
 
 class FoundationServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->scoped(Nonce::class);
+
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
         if (! ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached())) {
@@ -48,6 +54,15 @@ class FoundationServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // 別名はいつも登録する（無効のあいだは何もしない）。グループへは足さない
+        $this->app['router']->aliasMiddleware('foundation.security-headers', SecurityHeaders::class);
+
+        // 報告の口は web のグループの外（セッション・CSRF なし）。決めたときだけ登録する
+        $report = config('foundation.security.report_route');
+        if (is_string($report) && $report !== '' && ! $this->app->routesAreCached()) {
+            Route::post($report, CspReportController::class)->name('foundation.csp-report');
+        }
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__.'/../config/foundation.php' => config_path('foundation.php'),
