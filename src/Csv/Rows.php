@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Csv;
 
 use Generator;
+use LogicException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -47,12 +48,14 @@ class Rows
     public static function keyset(Builder $query, string $column = 'id', int $page = 500): Generator
     {
         $last = null;
+        $qualified = $query->qualifyColumn($column);
 
         while (true) {
             $q = clone $query;
-            $q->reorder($column);
+            // 呼び出し側の offset・limit は毎ページに効いてしまうので外す
+            $q->offset(null)->limit(null)->reorder($qualified);
             if ($last !== null) {
-                $q->where($column, '>', $last);
+                $q->where($qualified, '>', $last);
             }
 
             $models = $q->limit($page)->get();
@@ -70,6 +73,11 @@ class Rows
             }
 
             $last = $models->last()->getAttribute($column);
+
+            if ($last === null) {
+                // 列を select から外したクエリでは先頭ページを読み直し続けて終わらない
+                throw new LogicException("keyset の列 {$column} が結果に含まれていません。");
+            }
         }
     }
 }
