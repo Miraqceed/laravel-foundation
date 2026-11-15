@@ -3,7 +3,7 @@
     "description": "どの Laravel のアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張り）",
     "type": "library",
     "license": "MIT",
-    "keywords": ["laravel", "csv", "csp", "monitoring", "testing"],
+    "keywords": ["laravel", "csv", "csp", "monitoring"],
     "homepage": "https://github.com/Miraqceed/laravel-foundation",
     "authors": [
         {
