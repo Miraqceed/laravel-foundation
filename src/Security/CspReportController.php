@@ -55,7 +55,14 @@ class CspReportController
         return response()->noContent();
     }
 
-    /** 上限を1バイト超えるところまでだけ読む（Content-Length がない要求に備える）。超えたら null */
+    /**
+     * 上限を1バイト超えるところまでだけ読む（Content-Length がない要求に備える）。超えたら null。
+     *
+     * 限界：Content-Type が JSON（application/json・application/reports+json）のとき、Laravel 自身が
+     * Request::createFromBase() の中で本文を丸ごと解く（ミドルウェアより前）。ここで守れるのは
+     * csp-report などの JSON でない型だけで、JSON の型の巨大な本文は Web サーバー（Caddy・nginx）の本文の上限と
+     * PHP の post_max_size で止める。全体の TrimStrings・ConvertEmptyStringsToNull の二重の処理だけは、プロバイダーが飛ばす
+     */
     private static function readBody(Request $request): ?string
     {
         $stream = $request->getContent(true);

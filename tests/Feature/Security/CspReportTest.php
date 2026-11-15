@@ -3,7 +3,10 @@
 namespace Miraqceed\Foundation\Tests\Feature\Security;
 
 use Illuminate\Support\Facades\Log;
+use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
+use Miraqceed\Foundation\Tests\Support\JsonProbe;
 use Miraqceed\Foundation\Tests\TestCase;
 
 class CspReportTest extends TestCase
@@ -75,5 +78,42 @@ class CspReportTest extends TestCase
             $this->report($this->legacy())->assertNoContent();
         }
         $this->report($this->legacy())->assertStatus(429);
+    }
+
+    public function test_report_route_is_outside_web_group_and_sets_no_cookie(): void
+    {
+        $route = Route::getRoutes()->getByName('foundation.csp-report');
+        $this->assertNotNull($route);
+
+        $middleware = implode(' ', array_map(fn ($m) => is_string($m) ? $m : get_debug_type($m), $route->gatherMiddleware()));
+        foreach (['web', 'Session', 'VerifyCsrfToken', 'PreventRequestForgery', 'EncryptCookies', 'AddQueuedCookies'] as $needle) {
+            $this->assertStringNotContainsString($needle, $middleware, $needle);
+        }
+
+        Log::shouldReceive('warning')->once();
+        $res = $this->report($this->legacy());
+        $res->assertNoContent();
+        $this->assertCount(0, $res->headers->getCookies());
+        $this->assertFalse($res->headers->has('Set-Cookie'));
+    }
+
+    public function test_global_transforms_are_skipped_and_large_json_still_gets_413(): void
+    {
+        // ふつうの Laravel アプリのグローバルのミドルウェア（Testbench は空なので足す）
+        $kernel = $this->app[Kernel::class];
+        $kernel->pushMiddleware(\Illuminate\Foundation\Http\Middleware\TrimStrings::class);
+        $kernel->pushMiddleware(\Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class);
+        $kernel->pushMiddleware(JsonProbe::class);
+
+        // TrimStrings・ConvertEmptyStringsToNull は JSON の本文の全体を作り替える。この経路では飛ばす
+        Log::shouldReceive('warning')->once();
+        $this->report(json_encode(['csp-report' => ['blocked-uri' => '  x  ', 'document-uri' => '']]), 'application/json')
+            ->assertNoContent();
+        $this->assertSame(['blocked-uri' => '  x  ', 'document-uri' => ''], JsonProbe::$json['csp-report']);
+
+        $body = json_encode(['csp-report' => ['blocked-uri' => str_repeat('a', 200000)]]);
+        foreach (['application/json', 'application/reports+json'] as $type) {
+            $this->report($body, $type)->assertStatus(413);
+        }
     }
 }

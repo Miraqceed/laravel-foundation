@@ -3,6 +3,9 @@
 namespace Miraqceed\Foundation;
 
 use Illuminate\Contracts\Foundation\CachesConfiguration;
+use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Illuminate\Foundation\Http\Middleware\TrimStrings;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Miraqceed\Foundation\Security\CspReportController;
@@ -61,6 +64,12 @@ class FoundationServiceProvider extends ServiceProvider
         $report = config('foundation.security.report_route');
         if (is_string($report) && $report !== '' && ! $this->app->routesAreCached()) {
             Route::post($report, CspReportController::class)->name('foundation.csp-report');
+
+            // 全体の TrimStrings・ConvertEmptyStringsToNull は JSON の本文を丸ごと解く（$request->json()）。
+            // 8KB の上限より前に大きな本文を読ませないよう、この経路は飛ばす
+            $skip = fn (Request $request) => $request->is(ltrim($report, '/'));
+            TrimStrings::skipWhen($skip);
+            ConvertEmptyStringsToNull::skipWhen($skip);
         }
 
         if ($this->app->runningInConsole()) {
