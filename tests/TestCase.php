@@ -27,11 +27,14 @@ abstract class TestCase extends Orchestra
             return;
         }
 
+        // ポートは環境変数があるときだけ上書きする（nullで上書きするとドライバーの既定が消える）
+        $port = env('DB_PORT') !== null ? ['port' => env('DB_PORT')] : [];
+
         $app['config']->set("database.connections.{$connection}", array_merge(
             $app['config']->get("database.connections.{$connection}", []),
+            $port,
             [
                 'host' => env('DB_HOST', '127.0.0.1'),
-                'port' => env('DB_PORT'),
                 'database' => env('DB_DATABASE', 'foundation'),
                 'username' => env('DB_USERNAME', 'foundation'),
                 'password' => env('DB_PASSWORD', 'foundation'),
