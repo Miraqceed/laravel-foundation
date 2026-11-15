@@ -42,6 +42,8 @@ class Rows
      *
      * `$column` は一意で並べられる列であること（重複があると行を飛ばす）。
      * 並びは `$column` の昇順に置き換える。
+     * 受け取ったクエリの条件は括弧でくくってから `$column > 前の最後` を足す（`orWhere` を含んでも終わる）。
+     * 受け取ったクエリは書き換えない。
      *
      * @return Generator<int, \Illuminate\Database\Eloquent\Model>
      */
@@ -49,6 +51,7 @@ class Rows
     {
         $last = null;
         $qualified = $query->qualifyColumn($column);
+        $query = self::groupWheres(clone $query);
 
         while (true) {
             $q = clone $query;
@@ -79,5 +82,28 @@ class Rows
                 throw new LogicException("keyset の列 {$column} が結果に含まれていません。");
             }
         }
+    }
+
+    /**
+     * 条件を1つの括弧にくくる。くくらずに AND で足すと `a = 1 or b = 2 and id > ?` になり、
+     * AND が先に結び付いて `a = 1` の行が毎ページ返る（`chunkById` と同じ落とし穴）。
+     * グローバルスコープは get の時に足されるのでここには入らず、Laravel が別の括弧にくくる。
+     */
+    private static function groupWheres(Builder $query): Builder
+    {
+        $base = $query->getQuery();
+        if ($base->wheres === []) {
+            return $query;
+        }
+
+        $nested = $base->forNestedWhere();
+        $nested->wheres = $base->wheres;
+        $nested->bindings['where'] = $base->bindings['where'];
+
+        $base->wheres = [];
+        $base->bindings['where'] = [];
+        $base->addNestedWhereQuery($nested);
+
+        return $query;
     }
 }
