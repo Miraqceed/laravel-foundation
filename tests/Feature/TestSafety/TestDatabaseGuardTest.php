@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Tests\Feature\TestSafety;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Miraqceed\Foundation\TestSafety\TestDatabaseGuard;
 use Miraqceed\Foundation\TestSafety\UnsafeTestDatabase;
 use Miraqceed\Foundation\Tests\Support\SkeletonApp;
@@ -15,6 +16,8 @@ class TestDatabaseGuardTest extends TestCase
 
     private ?SkeletonApp $skeleton = null;
 
+    private ?string $directory = null;
+
     protected function setUp(): void
     {
         $this->server = $_SERVER;
@@ -26,6 +29,10 @@ class TestDatabaseGuardTest extends TestCase
         parent::tearDown();
         $_SERVER = $this->server;
         $this->skeleton?->remove();
+        if ($this->directory !== null) {
+            array_map('unlink', glob($this->directory.'/*') ?: []);
+            rmdir($this->directory);
+        }
     }
 
     public function test_throws_when_env_overrides_database(): void
@@ -238,6 +245,76 @@ class TestDatabaseGuardTest extends TestCase
         $output = $process->getOutput().$process->getErrorOutput();
         $this->assertSame(0, $process->getExitCode(), $output);
         $this->assertStringContainsString('OK (1 test', $output);
+    }
+
+    public function test_reconnect_to_another_database_is_stopped(): void
+    {
+        // DB::reconnect() は手元の接続に新しい設定の PDO を差し込み、接続の設定は古いまま知らせを出す
+        $directory = $this->directory();
+        touch("{$directory}/app_test.sqlite");
+        touch("{$directory}/dev.sqlite");
+        config(['database.connections.other' => ['driver' => 'sqlite', 'database' => "{$directory}/app_test.sqlite", 'prefix' => '']]);
+        DB::connection('other')->select('select 1');
+
+        config(['database.connections.other.database' => "{$directory}/dev.sqlite"]);
+        try {
+            DB::reconnect('other');
+            $this->fail('止まらなかった');
+        } catch (UnsafeTestDatabase) {
+        }
+
+        // 受け止めて続けても、次の呼び出しで印のない DB へ書けない
+        try {
+            DB::connection('other')->statement('create table wiped (id int)');
+            $this->fail('2 回目が止まらなかった');
+        } catch (UnsafeTestDatabase) {
+        }
+        $this->assertArrayNotHasKey('other', DB::getConnections());
+        $tables = (new \PDO("sqlite:{$directory}/dev.sqlite"))->query('select name from sqlite_master')->fetchAll(\PDO::FETCH_COLUMN);
+        $this->assertSame([], $tables);
+    }
+
+    public function test_connection_after_event_fake_is_stopped(): void
+    {
+        // DatabaseManager は app['events'] から知らせを出すので、Event::fake() の後は聞き手が呼ばれない
+        Event::fake();
+        $this->connectionConfig('other', ['database' => 'app']);
+
+        $this->expectException(UnsafeTestDatabase::class);
+        DB::connection('other');
+    }
+
+    public function test_read_connection_is_stopped_before_opening(): void
+    {
+        // 誰も待っていない番号。PDO を開けば守りより先に接続の失敗になる
+        $this->connectionConfig('other', ['database' => 'app', 'port' => 1]);
+        try {
+            DB::connection('other::read')->select('select 1');
+            $this->fail('止まらなかった');
+        } catch (UnsafeTestDatabase $e) {
+            $this->assertNull($e->getPrevious());
+        }
+
+        // 読み取り用の設定の database だけが印なしのときも止める
+        $this->connectionConfig('second', ['database' => 'app_test', 'port' => 1, 'read' => ['database' => 'app']]);
+        try {
+            DB::connection('second::read')->select('select 1');
+            $this->fail('読み取り用の設定で止まらなかった');
+        } catch (UnsafeTestDatabase $e) {
+            $this->assertNull($e->getPrevious());
+        }
+        $this->assertSame([], array_values(array_filter(
+            array_keys(DB::getConnections()),
+            fn (string $name) => str_starts_with($name, 'other') || str_starts_with($name, 'second'),
+        )));
+    }
+
+    private function directory(): string
+    {
+        $this->directory = sys_get_temp_dir().'/foundation-guard-'.bin2hex(random_bytes(6));
+        mkdir($this->directory);
+
+        return $this->directory;
     }
 
     /** @param array<string, mixed> $overrides */

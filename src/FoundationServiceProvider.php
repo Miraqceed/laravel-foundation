@@ -5,6 +5,7 @@ namespace Miraqceed\Foundation;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\CachesConfiguration;
+use Illuminate\Database\Connectors\ConnectionFactory;
 use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
@@ -19,6 +20,7 @@ use Miraqceed\Foundation\Monitoring\WatchList;
 use Miraqceed\Foundation\Security\CspReportController;
 use Miraqceed\Foundation\Security\Nonce;
 use Miraqceed\Foundation\Security\SecurityHeaders;
+use Miraqceed\Foundation\TestSafety\GuardedConnectionFactory;
 use Miraqceed\Foundation\TestSafety\TestDatabaseGuard;
 
 class FoundationServiceProvider extends ServiceProvider
@@ -38,8 +40,11 @@ class FoundationServiceProvider extends ServiceProvider
             ));
         }
 
-        // テストの DB の守り。聞き手はいつも登録し、テストの中のときだけ確かめる。
-        // ほかのプロバイダーの boot が DB へつなぐ前に効くよう、register で登録する
+        // テストの DB の守り。いつも登録し、テストの中のときだけ確かめる。
+        // ほかのプロバイダーの boot が DB へつなぐ前に効くよう、register で登録する。
+        // 主な口は接続を作る前の factory（reconnect・Event::fake()・::read でも PDO を開く前に止まる）
+        $this->app->extend('db.factory', fn (ConnectionFactory $factory, $app) => new GuardedConnectionFactory($app, $factory));
+        // 控え：factory を通らない接続（DB::extend の独自のドライバーなど）
         $this->app['events']->listen(ConnectionEstablished::class, function (ConnectionEstablished $event) {
             if (TestDatabaseGuard::runningTests()) {
                 TestDatabaseGuard::check($event->connection);

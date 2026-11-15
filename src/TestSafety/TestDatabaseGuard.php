@@ -2,7 +2,9 @@
 
 namespace Miraqceed\Foundation\TestSafety;
 
+use Illuminate\Container\Container;
 use Illuminate\Database\Connection;
+use Illuminate\Support\ConfigurationUrlParser;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -13,7 +15,9 @@ use Illuminate\Support\Facades\DB;
  * `docker run --env-file .env … php artisan test --filter=…` で1本だけ流したら、テストが開発用 DB（`otonai`）に向き、
  * RefreshDatabase が中身をすべて消した（2026-11-07。#834）。
  *
- * 確かめるのは接続ができたときの知らせ（ConnectionEstablished）で、PDO を作る前（接続の設定ができた時点）。
+ * 確かめるのは接続を作る前（db.factory を包んだ GuardedConnectionFactory::make）で、PDO を開く前に止まる。
+ * DB::connection・reconnect・connectUsing・build・`::read` はどれも factory を通り、Event::fake() にも左右されない。
+ * factory を通らない接続（DB::extend の独自のドライバーなど）のため、接続ができたときの知らせ（ConnectionEstablished）でも確かめる。
  * TestCase を通さないので、アプリの TestCase の形・Pest・paratest の親プロセスのどれでも同じに働く。
  */
 final class TestDatabaseGuard
@@ -62,39 +66,88 @@ final class TestDatabaseGuard
     }
 
     /**
-     * 接続の設定（DB_URL を読んだ後の値）で確かめ、印がなければ接続を捨ててから投げる。
-     * 接続ができるたびに毎回確かめる（つなぎ先を替えてつなぎ直したときも）。
+     * 接続を作る前の設定の配列で確かめ、印がなければ投げる（GuardedConnectionFactory::make から呼ぶ。主な口）。
+     * `url` は読んだ後の値で見る。`read`・`write`・`direct` の下位の設定に database があればそれも見る。
+     * 接続を作るたびに毎回確かめる（DB::reconnect でつなぎ先を替えたときも factory を通る）。
+     *
+     * @param  array<string, mixed>  $config
      */
-    public static function check(Connection $connection): void
+    public static function checkConfig(array $config, string $name): void
     {
-        $name = (string) $connection->getName();
         if (in_array($name, (array) config('foundation.test_safety.ignore_connections', []), true)) {
             return;
         }
 
         $markers = (array) config('foundation.test_safety.markers', ['test', 'testing']);
-        $driver = (string) $connection->getDriverName();
-        $database = (string) $connection->getConfig('database');
+        $config = (new ConfigurationUrlParser)->parseConfiguration($config);
+        $driver = (string) ($config['driver'] ?? '');
 
-        if (self::isTestDatabase($driver, $database, $markers)) {
-            return;
+        foreach (self::targets($config) as $target) {
+            $database = (string) ($target['database'] ?? '');
+            if (! self::isTestDatabase($driver, $database, $markers)) {
+                self::purge($name);
+
+                throw new UnsafeTestDatabase(self::message($target, $name, $driver, $database, $markers));
+            }
+        }
+    }
+
+    /**
+     * できた接続で確かめる控え（ConnectionEstablished の聞き手から呼ぶ）。DB::extend の独自のドライバーなど、
+     * factory を通らずに作られた接続のため。
+     */
+    public static function check(Connection $connection): void
+    {
+        self::checkConfig((array) $connection->getConfig(), (string) $connection->getName());
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @return list<array<string, mixed>>
+     */
+    private static function targets(array $config): array
+    {
+        $targets = [$config];
+        foreach (['read', 'write', 'direct'] as $type) {
+            $sub = $config[$type] ?? null;
+            if (! is_array($sub) || $sub === []) {
+                continue;
+            }
+            foreach (array_is_list($sub) ? $sub : [$sub] as $item) {
+                if (is_array($item) && array_key_exists('database', $item)) {
+                    $targets[] = $item + $config;
+                }
+            }
         }
 
-        // 枠組みは接続を手元に入れてから知らせを出す。捨てないと、例外を受け止めて続ける経路で、
-        // 次の DB::connection() が知らせなしにこの接続を返す
+        return $targets;
+    }
+
+    /**
+     * 手元に残った同じ名前の接続を捨てる。DB::reconnect では古い接続が手元に残っており、
+     * 知らせの控えの経路では枠組みが接続を手元に入れてから知らせを出す。捨てないと、例外を受け止めて続ける経路で、
+     * 次の DB::connection() がその接続を返す
+     */
+    private static function purge(string $name): void
+    {
+        if (! Container::getInstance()->resolved('db')) {
+            return;
+        }
         foreach ([$name, "{$name}::read", "{$name}::write"] as $connectionName) {
             DB::purge($connectionName);
         }
-
-        throw new UnsafeTestDatabase(self::message($connection, $name, $driver, $database, $markers));
     }
 
-    /** @param  list<string>  $markers */
-    private static function message(Connection $connection, string $name, string $driver, string $database, array $markers): string
+    /**
+     * @param  array<string, mixed>  $target
+     * @param  list<string>  $markers
+     */
+    private static function message(array $target, string $name, string $driver, string $database, array $markers): string
     {
+        $host = $target['host'] ?? '';
         $where = $driver === 'sqlite'
             ? $database
-            : sprintf('%s:%s/%s', (string) $connection->getConfig('host'), (string) $connection->getConfig('port'), $database);
+            : sprintf('%s:%s/%s', is_array($host) ? implode(',', $host) : (string) $host, (string) ($target['port'] ?? ''), $database);
 
         return sprintf(
             'テストが、名前にテスト用の印（%s）のない DB につなごうとしています。DB に触れる前に止めました（接続 %s：%s %s）。'
