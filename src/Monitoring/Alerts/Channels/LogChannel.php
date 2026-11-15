@@ -24,11 +24,13 @@ class LogChannel implements Channel
             ->log($level, 'foundation.alert '.self::payload($alert));
     }
 
-    /** ログと Webhook で共通の1行の JSON（改行は \n に直る。不正な UTF-8 は U+FFFD に置き換える） */
+    /** ログと Webhook で共通の1行の JSON（v1。改行は \n に直る。不正な UTF-8 は U+FFFD に置き換える） */
     public static function payload(Alert $alert): string
     {
         return json_encode([
             'v' => 1,
+            // 送り直しのたびに Webhook の時刻と署名は変わるので、受け取る側はこの id で同じ知らせを見分ける
+            'id' => $alert->id,
             'key' => $alert->key,
             'subject' => $alert->subject,
             'body' => $alert->body,

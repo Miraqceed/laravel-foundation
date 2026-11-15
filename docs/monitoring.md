@@ -117,10 +117,11 @@ Schedule::command('model:prune', ['--model' => [
 `log` の送り先は、`log.channel` のチャネルに `log.level` の重さで次の1行を書く。**文は `foundation.alert ` ＋ 1行の JSON**（改行は `\n` に直る。日本語・スラッシュはそのまま。不正な UTF-8 は U+FFFD に置き換える）：
 
 ```
-foundation.alert {"v":1,"key":"foundation.watch:7e5b43f6d13236348a716779f9ef19b9939f886d","subject":"定期の処理が止まっています","body":"定期の処理が止まっているか、動いていません。\n\n・daily-report：一度も成功していません","app":"MyApp","at":"2026-11-15T03:00:00+09:00"}
+foundation.alert {"v":1,"id":123,"key":"foundation.watch:7e5b43f6d13236348a716779f9ef19b9939f886d","subject":"定期の処理が止まっています","body":"定期の処理が止まっているか、動いていません。\n\n・daily-report：一度も成功していません","app":"MyApp","at":"2026-11-15T03:00:00+09:00"}
 ```
 
-- キー：`v`（形の版。いまは 1）・`key`・`subject`・`body`（4000 文字まで）・`app`（`config('app.name')`）・`at`（知らせを作った時刻、ISO 8601）。
+- キー：`v`（形の版。いまは 1）・`id`（知らせの id。同じ知らせの送り直しでは変わらない）・`key`・`subject`・`body`（4000 文字まで）・`app`（`config('app.name')`）・`at`（知らせを作った時刻、ISO 8601）。
+- **`id` で重複を除く**：Webhook は送り直しのたびに時刻と署名を新しくするので、受け取る側が処理を済ませた後に時間切れになると、同じ知らせが2回届く。同じ `id` は同じ知らせ（`key` が同じでも `id` が違えば新しい知らせ）。読む側はキーを足されても読めるように、知らないキーは無視する（v1 のうちはキーを足すだけで、消したり意味を変えたりしない）。
 - パッケージは Monolog の context と extra を**いつも空で渡す**（文の中の `{…}` も置き換わらない）。
 
 ### 読み方（読む側はこのとおりに読む）
@@ -142,7 +143,7 @@ Monolog の整形で、文の前に飾り（`[日時] 環境.重さ: `）が付�
 本文に `}` を含む例（`body` が `閉じ括弧 } と [] [] を含む`）：
 
 ```
-[2026-11-15 03:00:00] production.ERROR: foundation.alert {"v":1,"key":"k","subject":"件名","body":"閉じ括弧 } と [] [] を含む","app":"MyApp","at":"2026-11-15T03:00:00+09:00"} [] []
+[2026-11-15 03:00:00] production.ERROR: foundation.alert {"v":1,"id":124,"key":"k","subject":"件名","body":"閉じ括弧 } と [] [] を含む","app":"MyApp","at":"2026-11-15T03:00:00+09:00"} [] []
 ```
 
 手順2〜3で ` [] []` だけが落ち、`body` は元のまま読める。試し `tests/Feature/Monitoring/LogChannelTest.php` が、本物の Monolog の2つの整形でこの読み方を確かめる。
@@ -156,7 +157,7 @@ Monolog の整形で、文の前に飾り（`[日時] 環境.重さ: `）が付�
 - `X-Foundation-Timestamp`：送った時刻（UNIX 秒）
 - `X-Foundation-Signature`：`v1=` ＋ `hex(hmac_sha256(secret, timestamp + "." + body))`
 
-**受け取る側の確かめ**：①`abs(now - timestamp) <= 300`（秒。許容幅は 300 秒）、②受け取った**生の本文**（再エンコードしない）で署名を計算し、`hash_equals` 相当の定数時間の比較で `X-Foundation-Signature` と比べる。両方通ったときだけ受け付ける。
+**受け取る側の確かめ**：①`abs(now - timestamp) <= 300`（秒。許容幅は 300 秒）、②受け取った**生の本文**（再エンコードしない）で署名を計算し、`hash_equals` 相当の定数時間の比較で `X-Foundation-Signature` と比べる。両方通ったときだけ受け付ける。③処理を済ませた知らせの `id` を覚えておき、同じ `id` がまた届いたら処理せずに 2xx を返す（送り直しの重複）。
 
 例（試し `tests/Unit/Monitoring/WebhookSignatureTest.php` が同じ値を確かめる）：
 

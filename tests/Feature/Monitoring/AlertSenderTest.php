@@ -270,15 +270,16 @@ class AlertSenderTest extends TestCase
         }));
         Log::shouldReceive('channel')->once()->with(null)->andReturn($logger);
 
-        $alert = new Alert(['key' => 'k', 'subject' => '件名', 'body' => "1行目\n2行目\r\n3行目", 'created_at' => Carbon::parse('2026-11-15 10:00:00')]);
+        $alert = new Alert(['id' => 7, 'key' => 'k', 'subject' => '件名', 'body' => "1行目\n2行目\r\n3行目", 'created_at' => Carbon::parse('2026-11-15 10:00:00')]);
         (new LogChannel)->deliver($alert);
 
         $this->assertStringStartsWith('foundation.alert {', $captured);
         $this->assertStringNotContainsString("\n", $captured);
         $this->assertStringNotContainsString("\r", $captured);
         $data = json_decode(substr($captured, strlen('foundation.alert ')), true);
-        $this->assertSame(['v', 'key', 'subject', 'body', 'app', 'at'], array_keys($data));
+        $this->assertSame(['v', 'id', 'key', 'subject', 'body', 'app', 'at'], array_keys($data));
         $this->assertSame(1, $data['v']);
+        $this->assertSame(7, $data['id']);
         $this->assertSame("1行目\n2行目\r\n3行目", $data['body']);
         $this->assertSame('TestApp', $data['app']);
         $this->assertSame('2026-11-15T10:00:00+00:00', $data['at']);
@@ -305,16 +306,18 @@ class AlertSenderTest extends TestCase
         Carbon::setTestNow(Carbon::createFromTimestamp(1700000000));
         Http::fake();
 
-        $this->sender()->send('k', '件名', '本文');
+        $alert = $this->sender()->send('k', '件名', '本文');
 
-        Http::assertSent(function (Request $request) {
+        Http::assertSent(function (Request $request) use ($alert) {
             $timestamp = $request->header('X-Foundation-Timestamp')[0];
             $signature = $request->header('X-Foundation-Signature')[0];
 
             return $timestamp === '1700000000'
                 && $signature === WebhookChannel::sign('secret', '1700000000', $request->body())
                 && $signature === 'v1='.hash_hmac('sha256', '1700000000.'.$request->body(), 'secret')
-                && json_decode($request->body(), true)['key'] === 'k';
+                && json_decode($request->body(), true)['key'] === 'k'
+                // 送り直しで時刻と署名は変わるが、id は同じ知らせで変わらない（受け取る側の重複の除き）
+                && json_decode($request->body(), true)['id'] === $alert->id;
         });
     }
 

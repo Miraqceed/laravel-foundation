@@ -97,7 +97,7 @@ class LogChannelTest extends TestCase
 
     private function alert(string $body): Alert
     {
-        return new Alert(['key' => 'k', 'subject' => '件名 {x}', 'body' => $body, 'created_at' => Carbon::parse('2026-11-15 10:00:00')]);
+        return new Alert(['id' => 42, 'key' => 'k', 'subject' => '件名 {x}', 'body' => $body, 'created_at' => Carbon::parse('2026-11-15 10:00:00')]);
     }
 
     public function test_default_is_app_default_channel_at_error_level(): void
@@ -135,7 +135,8 @@ class LogChannelTest extends TestCase
             $lines = $this->lines($channel);
             $this->assertCount(1, $lines, $channel);
             $data = self::readLine($lines[0]);
-            $this->assertSame(['v', 'key', 'subject', 'body', 'app', 'at'], array_keys($data), $channel);
+            $this->assertSame(['v', 'id', 'key', 'subject', 'body', 'app', 'at'], array_keys($data), $channel);
+            $this->assertSame(42, $data['id'], $channel);
             $this->assertSame($body, $data['body'], $channel);
             // {x} は Monolog の置き換え（PsrLogMessageProcessor）の対象にならない（context を渡さない）
             $this->assertSame('件名 {x}', $data['subject'], $channel);
@@ -171,6 +172,19 @@ class LogChannelTest extends TestCase
         $this->assertTrue(mb_check_encoding($data['body'], 'UTF-8'));
         $this->assertStringStartsWith('本文', $data['body']);
         $this->assertStringEndsWith('です', $data['body']);
+    }
+
+    public function test_line_carries_the_stored_alert_id(): void
+    {
+        config()->set('foundation.monitoring.alerts.log.channel', 'probe_laravel');
+
+        $first = app(AlertSender::class)->send('k1', '件名', '本文');
+        $second = app(AlertSender::class)->send('k2', '件名', '本文');
+
+        // 同じ鍵の新しい知らせと、同じ知らせの送り直しを、受け取る側が id で見分けられる
+        $ids = array_map(fn ($line) => self::readLine($line)['id'], $this->lines('probe_laravel'));
+        $this->assertSame([$first->id, $second->id], $ids);
+        $this->assertIsInt($ids[0]);
     }
 
     public function test_payload_does_not_throw_on_invalid_utf8(): void
