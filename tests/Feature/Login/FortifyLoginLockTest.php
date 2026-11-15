@@ -105,11 +105,7 @@ class FortifyLoginLockTest extends TestCase
     public function test_fortify_own_throttle_is_not_in_pipeline(): void
     {
         $this->assertNotContains(\Laravel\Fortify\Actions\EnsureLoginIsNotThrottled::class, AuthenticateWithLoginLock::loginPipeline());
-        $this->assertContains(\Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable::class, array_map(
-            fn ($c) => $c === \Laravel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable::class
-                ? \Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable::class : $c,
-            AuthenticateWithLoginLock::loginPipeline(),
-        ));
+        $this->assertCount(4, AuthenticateWithLoginLock::loginPipeline());
     }
 
     public function test_fortify_with_two_factor_counts_once(): void

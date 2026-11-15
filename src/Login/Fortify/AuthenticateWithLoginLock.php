@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Actions\AttemptToAuthenticate;
 use Laravel\Fortify\Actions\CanonicalizeUsername;
 use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
+use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
 use Laravel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
@@ -47,10 +48,20 @@ final class AuthenticateWithLoginLock
     {
         return array_values(array_filter([
             config('fortify.lowercase_usernames') ? CanonicalizeUsername::class : null,
-            Features::enabled(Features::twoFactorAuthentication()) ? RedirectsIfTwoFactorAuthenticatable::class : null,
+            Features::enabled(Features::twoFactorAuthentication()) ? self::twoFactorRedirect() : null,
             AttemptToAuthenticate::class,
             PrepareAuthenticatedSession::class,
         ]));
+    }
+
+    /**
+     * 古い Fortify には差し替え用の契約がなく、動作クラスを直に使う。
+     */
+    private static function twoFactorRedirect(): string
+    {
+        return interface_exists(RedirectsIfTwoFactorAuthenticatable::class)
+            ? RedirectsIfTwoFactorAuthenticatable::class
+            : RedirectIfTwoFactorAuthenticatable::class;
     }
 
     /**
