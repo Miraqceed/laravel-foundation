@@ -29,6 +29,19 @@
 <script nonce="{{ \Miraqceed\Foundation\Security\Nonce::get() }}">…</script>
 ```
 
+Laravel 12・13 の **Vue・React の starter kit** は、`resources/views/app.blade.php` にインラインの `<script>`（ダークモードの切り替え）と `<style>`（背景色）を持つ。CSP を有効にすると、どちらも nonce がないと止まる。**両方に `nonce="{{ Vite::cspNonce() }}"` を付ける**（ミドルウェアが Vite に同じ nonce を渡すので、`Nonce::get()` と同じ値になる）：
+
+```blade
+{{-- resources/views/app.blade.php（starter kit） --}}
+<script nonce="{{ Vite::cspNonce() }}">
+    (function () { /* ダークモードの切り替え（starter kit のまま） */ })();
+</script>
+
+<style nonce="{{ Vite::cspNonce() }}">
+    html { background-color: oklch(1 0 0); } /* starter kit のまま */
+</style>
+```
+
 4. まず `report_only` を真にして、ブラウザのコンソールで違反が出ないかを見てから強制に切り替える。**CSP で止められた読み込みは、テストにも画面の例外にも出ない**（ブラウザのコンソールにしか出ない）。実際のブラウザで開いて確かめる。
 
 ## 外の元を足す（決済・書体・Turnstile など）
@@ -58,7 +71,10 @@
 'security' => ['report_route' => 'csp-report'],
 ```
 
-決めたときだけ `POST /csp-report` を登録し、方針に `report-uri` を足す。報告は保存せず、`csp.violation` のログ（指示・止めた元・ページ。クエリとフラグメントは落とす）に書いて 204 を返す。1分に30回（接続元ごと）と 8KB までに絞る。
+決めたときだけ `POST /csp-report` を登録し、方針に `report-uri` を足す。報告は保存せず、`csp.violation` のログ（指示・止めた元・ページ。クエリとフラグメントは落とす）に書いて 204 を返す。1分に30回（接続元ごと。IPv6 は `/64` に丸める。ログインのロックと同じ数え方）と 8KB までに絞る。
+
+- **逆プロキシの後ろでは `bootstrap/app.php` の `$middleware->trustProxies(at: …)` が前提**（`docs/login.md`）。設定しないと全員が同じ接続元になり、誰か1人の報告で全員の報告が 429 になる。
+- `route:cache` のときも、この経路で全体の `TrimStrings`・`ConvertEmptyStringsToNull` を飛ばす設定は効く（経路はキャッシュから読まれる）。
 
 - **この口は `web` のグループに入れない**（セッション・CSRF がない。パッケージが経路を `web` の外に登録する。自分で同じパスの経路を足さない）。
 - **限界：** Content-Type が JSON（`application/json`・`application/reports+json`）の報告は、Laravel 自身が本文を丸ごと解く（`Request::createFromBase` が、ミドルウェアより前）ので、パッケージは 8KB で止められない。8KB の上限が効くのは `application/csp-report` など JSON でない型だけ。**JSON の型の巨大な本文は、Web サーバーの本文上限と PHP の `post_max_size` で止める。** 例（Caddy）：
@@ -77,6 +93,7 @@ nginx なら、その `location = /csp-report` に `client_max_body_size 16k;`�
 - `'unsafe-inline'`・`'unsafe-eval'` を `web` の `script-src` に足して済ませない（nonce が無効になる）。
 - ミドルウェアを `web` のグループへ足し忘れない（足さないと、有効にしても何も付かない）。
 - 報告の口を `web` のグループに入れない。
+- starter kit の `app.blade.php` のインラインの `<script>`・`<style>` に nonce を付け忘れない。
 
 ## 限界
 

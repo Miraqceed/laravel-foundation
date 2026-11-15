@@ -86,11 +86,15 @@ class FoundationServiceProvider extends ServiceProvider
 
         // 報告の口は web のグループの外（セッション・CSRF なし）。決めたときだけ登録する
         $report = config('foundation.security.report_route');
-        if (is_string($report) && $report !== '' && ! $this->app->routesAreCached()) {
-            Route::post($report, CspReportController::class)->name('foundation.csp-report');
+        if (is_string($report) && $report !== '') {
+            // route:cache の後は経路がキャッシュから読まれるので登録しない
+            if (! $this->app->routesAreCached()) {
+                Route::post($report, CspReportController::class)->name('foundation.csp-report');
+            }
 
             // 全体の TrimStrings・ConvertEmptyStringsToNull は JSON の本文を丸ごと解く（$request->json()）。
-            // 8KB の上限より前に大きな本文を読ませないよう、この経路は飛ばす
+            // 8KB の上限より前に大きな本文を読ませないよう、この経路は飛ばす。
+            // これはキャッシュされないので、route:cache のときもいつも登録する
             $skip = fn (Request $request) => $request->is(ltrim($report, '/'));
             TrimStrings::skipWhen($skip);
             ConvertEmptyStringsToNull::skipWhen($skip);

@@ -11,6 +11,20 @@
 - IPv6 は上位 64 ビット（`/64`）に丸めて数える。IPv4 にマップされた形は IPv4 として数える。
 - 設定（`foundation.login`）：`account_max`=5・`decay_seconds`=60・`client_max`=20。`email_only`=true にすると①をメールアドレスだけの枠（`email_only_max`=10・`email_only_decay_seconds`=1800）に置き換える（接続元の枠は残る）。
 
+## 逆プロキシの後ろでは `trustProxies` が必須
+
+ロードバランサー・Caddy・nginx・Cloudflare などの逆プロキシの後ろで動かすときは、**`bootstrap/app.php` で信頼するプロキシを必ず設定する**。設定しないと `$request->ip()` がすべてプロキシの IP になり、全員が同じ接続元に数えられる。接続元の枠（`client_max`）がサイト全体のロックになり、1人がパスワードを間違え続けるだけで誰もログインできなくなる。
+
+```php
+// bootstrap/app.php
+->withMiddleware(function (Middleware $middleware) {
+    // プロキシの IP・範囲を挙げる。アプリへ直に届かない（プロキシからしか届かない）構成なら '*' でもよい
+    $middleware->trustProxies(at: ['10.0.0.0/8']);
+})
+```
+
+`'*'` は、アプリへ直に届く口があると `X-Forwarded-For` を偽って枠を避けられるので、プロキシからしか届かない構成でだけ使う。CSP の違反の報告の口（`docs/security.md`）の回数の制限も、同じ接続元の数え方なので同じ前提。
+
 ## Fortify と組み合わせる（3つとも要る）
 
 ```php
@@ -59,6 +73,7 @@ try {
 - 失敗の数えを自前で作らない（照合の後に足す形だと並列の要求が通り抜ける）。
 - 照合が例外を投げても足した分は返らない（意図）。例外で数えを減らそうとしない。
 - ミドルウェアの `throttle:login` と併用して二重に数えない。
+- 逆プロキシの後ろで `trustProxies` を設定せずに使わない（全員が同じ接続元になる）。
 
 ## 限界
 

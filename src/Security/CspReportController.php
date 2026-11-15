@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Miraqceed\Foundation\Login\IpBucket;
 
 /**
  * ブラウザが CSP の違反を報告する口。何も保存せず、204 を返し、指示・止めた元・ページ（クエリとフラグメントなし）を
@@ -20,7 +21,8 @@ class CspReportController
 
     public function __invoke(Request $request): Response
     {
-        $key = 'foundation-csp-report:'.$request->ip();
+        // 接続元の単位はログインのロックと同じ（IPv6 は /64 に丸める。アドレスを変えるだけで避けられない）
+        $key = 'foundation-csp-report:'.IpBucket::of($request);
         if (RateLimiter::tooManyAttempts($key, self::PER_MINUTE)) {
             return response('', 429);
         }

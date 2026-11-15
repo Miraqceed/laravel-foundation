@@ -49,6 +49,7 @@ return CsvResponse::download(
 
 ```php
 use Miraqceed\Foundation\Csv\CsvReader;
+use Miraqceed\Foundation\Csv\SourceEncoding;
 
 $bytes = file_get_contents($path);
 $rows = CsvReader::parse($bytes);          // 文字コードを自動判定。list<list<string>>（見出しも1行目）
@@ -56,8 +57,9 @@ $rows = CsvReader::parse($bytes);          // 文字コードを自動判定。l
 $rows = CsvReader::parse($bytes, SourceEncoding::ShiftJis);
 ```
 
-- UTF-8・BOM 付き UTF-8・Shift_JIS（CP932）。`CsvReader::detect($bytes)` は判定できなければ `null`。
-- BOM と空行は落とし、各セルは `trim` する。書き出しが式の印として足した `'` は外す（`CellGuard::unguard`）。
+- UTF-8・BOM 付き UTF-8・Shift_JIS（CP932）。`CsvReader::detect($bytes)` は判定できなければ `null`。**`parse()` は、文字コードを渡されず判定もできないとき、UTF-8 として続ける**（読めない並びはそのまま残る）。取り込みの前に `detect()` が `null` なら利用者に文字コードを選ばせる。
+- `SourceEncoding::Utf8` を明示しても、先頭に BOM があれば落とす（先頭のセルに BOM が残らない）。
+- 空行は落とし、各セルは `trim` する。書き出しが式の印として足した `'` は外す（`CellGuard::unguard`）。
 - NUL バイトを含むと `CsvReadException`。
 - 行数・大きさの上限は持たない。**アップロードの大きさの上限はアプリが掛ける。**
 

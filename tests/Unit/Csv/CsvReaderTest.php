@@ -45,6 +45,22 @@ class CsvReaderTest extends TestCase
         );
     }
 
+    public function test_drops_bom_even_when_utf8_is_given_explicitly(): void
+    {
+        // 利用者が「UTF-8」を選んでも、BOM 付きのファイルなら先頭のセルに BOM を残さない
+        $this->assertSame(
+            [['会社名', 'URL'], ['a', 'b']],
+            CsvReader::parse("\xEF\xBB\xBF会社名,URL\na,b\n", SourceEncoding::Utf8),
+        );
+    }
+
+    public function test_undetectable_bytes_are_read_as_utf8(): void
+    {
+        // detect() が null のとき、parse() は UTF-8 として続ける（説明書の約束）
+        $this->assertNull(CsvReader::detect("a,\xFF"));
+        $this->assertSame([['a', "\xFF"]], CsvReader::parse("a,\xFF\n"));
+    }
+
     public function test_unguards_cells(): void
     {
         $this->assertSame([['=1+1']], CsvReader::parse("'=1+1\n"));

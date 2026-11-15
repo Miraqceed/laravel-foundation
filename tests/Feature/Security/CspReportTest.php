@@ -80,6 +80,22 @@ class CspReportTest extends TestCase
         $this->report($this->legacy())->assertStatus(429);
     }
 
+    public function test_csp_report_throttles_ipv6_by_64_bucket(): void
+    {
+        // ログインと同じ接続元の単位（IpBucket）で数える。/64 の中でアドレスを変えても避けられない
+        Log::shouldReceive('warning');
+
+        for ($i = 0; $i < 30; $i++) {
+            $this->call('POST', '/csp-report', [], [], [], ['CONTENT_TYPE' => 'application/csp-report', 'REMOTE_ADDR' => '2001:db8:1:2::'.dechex($i + 1)], $this->legacy())
+                ->assertNoContent();
+        }
+        $this->call('POST', '/csp-report', [], [], [], ['CONTENT_TYPE' => 'application/csp-report', 'REMOTE_ADDR' => '2001:db8:1:2::ffff'], $this->legacy())
+            ->assertStatus(429);
+        // 別の /64 は数えが別
+        $this->call('POST', '/csp-report', [], [], [], ['CONTENT_TYPE' => 'application/csp-report', 'REMOTE_ADDR' => '2001:db8:1:3::1'], $this->legacy())
+            ->assertNoContent();
+    }
+
     public function test_report_route_is_outside_web_group_and_sets_no_cookie(): void
     {
         $route = Route::getRoutes()->getByName('foundation.csp-report');

@@ -36,6 +36,7 @@ class CsvReader
 
     /**
      * 行の配列へ変換する（見出しも1行目としてそのまま返す）。BOM は落とし、空行は飛ばす。
+     * 文字コードを渡さず、判定もできない（detect() が null）ときは UTF-8 として続ける。
      * 書き出しが式の印として足した「'」は外す（CellGuard）。
      *
      * @return list<list<string>>
@@ -50,8 +51,9 @@ class CsvReader
 
         $encoding ??= self::detect($bytes) ?? SourceEncoding::Utf8;
 
-        if ($encoding === SourceEncoding::Utf8Bom) {
-            $bytes = str_starts_with($bytes, "\xEF\xBB\xBF") ? substr($bytes, 3) : $bytes;
+        // UTF-8 を明示されても、先頭に BOM があれば落とす（先頭のセルに BOM を残さない）
+        if ($encoding !== SourceEncoding::ShiftJis && str_starts_with($bytes, "\xEF\xBB\xBF")) {
+            $bytes = substr($bytes, 3);
         } elseif ($encoding === SourceEncoding::ShiftJis) {
             $bytes = mb_convert_encoding($bytes, 'UTF-8', 'SJIS-win');
         }

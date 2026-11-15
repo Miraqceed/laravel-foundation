@@ -147,6 +147,22 @@ class LoginLockTest extends TestCase
         $this->assertLessThanOrEqual($max, RateLimiter::attempts($this->accountKey('a@example.test')));
     }
 
+    public function test_failure_is_kept_when_verify_throws(): void
+    {
+        // 照合が投げたら足した分を返さない（例外を誘発して数えさせない抜け道を作らない。fail-closed）
+        $lock = $this->lock();
+
+        try {
+            $lock->attempt($this->request(), 'a@example.test', fn () => throw new \RuntimeException('DB が落ちた'));
+            $this->fail('照合の例外はそのまま投げる');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('DB が落ちた', $e->getMessage());
+        }
+
+        $this->assertSame(1, RateLimiter::attempts($this->accountKey('a@example.test')));
+        $this->assertSame(1, RateLimiter::attempts($this->clientKey()));
+    }
+
     public function test_scopes_count_separately(): void
     {
         $request = $this->request();
