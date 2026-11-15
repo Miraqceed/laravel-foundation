@@ -85,7 +85,7 @@ fi
 ```
 
 - **送り先は用意した5つ（`log`・`mail`・`webhook`・`chatwork`・`slack`）で固定。** 第1段ではアプリが送り先を足す口はない（`Channel` は内部の interface で、0.x のうちに変わりうる）。
-- **MiraqStudio の顧客のアプリは `log` の送り先を使い、`log.channel` を `stderr` にする**（Runtime Agent がコンテナの標準エラーを読んで運営に届ける）：
+- **コンテナの標準エラーを集めて運ぶ環境では、`log` の送り先を使い、`log.channel` を `stderr` にする**（集める側がログの1行を読んで運営に届ける）：
 
 ```php
 'alerts' => [
@@ -126,7 +126,7 @@ foundation.alert {"v":1,"id":123,"key":"foundation.watch:7e5b43f6d13236348a71677
 
 ### 読み方（読む側はこのとおりに読む）
 
-Monolog の整形で、文の前に飾り（`[日時] 環境.重さ: `）が付き、後ろに空の context と extra が付くことがある。読む側（Runtime Agent など）は：
+Monolog の整形で、文の前に飾り（`[日時] 環境.重さ: `）が付き、後ろに空の context と extra が付くことがある。読む側（ログを集めて運ぶ仕組み）は：
 
 1. 行の中で最初の `foundation.alert `（後ろの空白まで）を探す（**行頭では探さない**）。
 2. その後ろから**行末まで**を取る。

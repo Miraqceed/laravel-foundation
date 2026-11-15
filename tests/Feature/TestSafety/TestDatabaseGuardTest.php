@@ -37,7 +37,7 @@ class TestDatabaseGuardTest extends TestCase
 
     public function test_throws_when_env_overrides_database(): void
     {
-        // フォーム担当 #834：コンテナの環境変数は $_SERVER に入り、phpunit.xml の force より勝つ
+        // 事故の形：コンテナの環境変数は $_SERVER に入り、phpunit.xml の force より勝つ
         $_SERVER['DB_DATABASE'] = 'app';
         $this->refreshApplication();
 

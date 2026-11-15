@@ -9,7 +9,7 @@ use Miraqceed\Foundation\Tests\TestCase;
 /**
  * 本物の `php artisan test`（単独・`--parallel`）を、使い捨てのアプリで流して確かめる。
  *
- * フォーム担当 #834 の事故の形：開発用の DB を環境変数で渡して流すと、テストがそこへつなぎ、RefreshDatabase が中身を消した。
+ * 事故の形：開発用の DB を環境変数で渡して流すと、テストがそこへつなぎ、RefreshDatabase が中身を消した。
  * ここでは目印の行を入れた使い捨ての DB（名前に印がない）を環境変数で渡し、親プロセス・子プロセスとも、その DB に触れずに止まり、
  * 目印の行が残っていることを確かめる。PostgreSQL・MySQL の組み合わせで流す（sqlite では飛ばす）。
  */
