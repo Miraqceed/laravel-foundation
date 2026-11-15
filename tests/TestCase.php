@@ -35,7 +35,7 @@ abstract class TestCase extends Orchestra
             $port,
             [
                 'host' => env('DB_HOST', '127.0.0.1'),
-                'database' => env('DB_DATABASE', 'foundation'),
+                'database' => env('DB_DATABASE', 'foundation_test'),
                 'username' => env('DB_USERNAME', 'foundation'),
                 'password' => env('DB_PASSWORD', 'foundation'),
             ],

@@ -371,7 +371,7 @@ class AlertSenderTest extends TestCase
         $handler->shouldReceive('report');
         $this->app->instance(ExceptionHandler::class, $handler);
         $original = config('database.connections.sqlite.database');
-        config()->set('database.connections.sqlite.database', '/nonexistent/dir/x.sqlite');
+        config()->set('database.connections.sqlite.database', '/nonexistent/dir/x_test.sqlite');
         DB::purge();
 
         try {

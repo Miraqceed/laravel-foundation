@@ -5,6 +5,7 @@ namespace Miraqceed\Foundation;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\CachesConfiguration;
+use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ use Miraqceed\Foundation\Monitoring\WatchList;
 use Miraqceed\Foundation\Security\CspReportController;
 use Miraqceed\Foundation\Security\Nonce;
 use Miraqceed\Foundation\Security\SecurityHeaders;
+use Miraqceed\Foundation\TestSafety\TestDatabaseGuard;
 
 class FoundationServiceProvider extends ServiceProvider
 {
@@ -35,6 +37,14 @@ class FoundationServiceProvider extends ServiceProvider
                 $config->get('foundation', []),
             ));
         }
+
+        // テストの DB の守り。聞き手はいつも登録し、テストの中のときだけ確かめる。
+        // ほかのプロバイダーの boot が DB へつなぐ前に効くよう、register で登録する
+        $this->app['events']->listen(ConnectionEstablished::class, function (ConnectionEstablished $event) {
+            if (TestDatabaseGuard::runningTests()) {
+                TestDatabaseGuard::check($event->connection);
+            }
+        });
     }
 
     /**
