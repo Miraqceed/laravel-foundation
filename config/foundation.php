@@ -66,10 +66,9 @@ return [
     'monitoring' => [
         'enabled' => false,
 
-        // schedule の外の処理（バックアップなど）。foundation:record {name} で終わりを記録する
-        'external' => [
-            'backup' => ['max_age_minutes' => 1560, 'label' => '日次のバックアップ'],
-        ],
+        // schedule の外の処理。既定は空（アプリが書いた分だけ見張る）。foundation:record {name} で終わりを記録する。
+        // 例：'external' => ['backup' => ['max_age_minutes' => 1560, 'label' => '日次のバックアップ']]
+        'external' => [],
         // 見張りがすべて健全だったときに GET する外の死活監視の URL（空なら送らない）
         'heartbeat_url' => null,
         // foundation:watch を回す cron の式（monitoring が有効なときだけ schedule に入る）

@@ -199,6 +199,7 @@ class WatchTest extends TestCase
         $this->assertCount(1, $commands());
         $this->assertSame('0 * * * *', $commands()->first()->expression);
         $this->assertTrue($commands()->first()->withoutOverlapping);
+        $this->assertSame(10, $commands()->first()->expiresAt);
     }
 
     public function test_watch_retries_unsent_alerts_first(): void

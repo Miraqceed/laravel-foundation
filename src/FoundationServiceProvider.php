@@ -113,7 +113,8 @@ class FoundationServiceProvider extends ServiceProvider
             $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
                 $schedule->command('foundation:watch')
                     ->cron((string) config('foundation.monitoring.watch_cron', '0 * * * *'))
-                    ->withoutOverlapping();
+                    // 落ちたとき（kill・OOM）にロックが24時間残らないよう、期限は短くする（分）
+                    ->withoutOverlapping(10);
             });
         }
     }
