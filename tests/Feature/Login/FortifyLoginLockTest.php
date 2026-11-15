@@ -33,6 +33,7 @@ class FortifyLoginLockTest extends TestCase
         $app['config']->set('auth.providers.users.model', FortifyTestUser::class);
         // Fortify 自身の回数の制限は外す（二重に数えない）
         $app['config']->set('fortify.limiters.login', null);
+        $app['config']->set('fortify.lowercase_usernames', true);
         // 二段階認証を有効にすると、Fortify は認証の関数を RedirectIfTwoFactorAuthenticatable でも呼ぶ
         $app['config']->set('fortify.features', [Features::twoFactorAuthentication()]);
     }
@@ -105,7 +106,10 @@ class FortifyLoginLockTest extends TestCase
     public function test_fortify_own_throttle_is_not_in_pipeline(): void
     {
         $this->assertNotContains(\Laravel\Fortify\Actions\EnsureLoginIsNotThrottled::class, AuthenticateWithLoginLock::loginPipeline());
-        $this->assertCount(4, AuthenticateWithLoginLock::loginPipeline());
+        $pipeline = AuthenticateWithLoginLock::loginPipeline();
+        $this->assertCount(4, $pipeline);
+        $this->assertSame(\Laravel\Fortify\Actions\CanonicalizeUsername::class, $pipeline[0]);
+        $this->assertSame(\Laravel\Fortify\Actions\AttemptToAuthenticate::class, $pipeline[2]);
     }
 
     public function test_fortify_with_two_factor_counts_once(): void
