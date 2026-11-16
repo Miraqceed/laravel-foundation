@@ -7,6 +7,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\CachesConfiguration;
 use Illuminate\Database\Connectors\ConnectionFactory;
 use Illuminate\Database\Events\ConnectionEstablished;
+use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -27,6 +28,7 @@ use Miraqceed\Foundation\Attempts\Attempts;
 use Miraqceed\Foundation\Commands\CachePruneCommand;
 use Miraqceed\Foundation\Commands\DbTimezoneCommand;
 use Miraqceed\Foundation\Commands\InstallCommand;
+use Miraqceed\Foundation\Health\ConfiguredChecks;
 use Miraqceed\Foundation\Mail\DropReservedRecipients;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
@@ -140,6 +142,12 @@ class FoundationServiceProvider extends ServiceProvider
 
         // 実在しない宛先を送る前に外す聞き手。いつも登録し、送るときに設定を読む（偽なら何もしない）
         $this->app['events']->listen(MessageSending::class, [DropReservedRecipients::class, 'handle']);
+
+        // 稼働の確かめで見るもの。書いたときだけ聞き手を足す（Laravel の既定の /up も DiagnosingHealth を出すので、そちらでも効く）。
+        // 名前は起動のときに見ない（書き損じで本番の全部の要求を落とさない。確かめの中で NG になる）
+        if ((array) config('foundation.health.checks', []) !== []) {
+            $this->app['events']->listen(DiagnosingHealth::class, [ConfiguredChecks::class, 'handle']);
+        }
 
         // 報告の口は web のグループの外（セッション・CSRF なし）。決めたときだけ登録する
         $report = config('foundation.security.report_route');

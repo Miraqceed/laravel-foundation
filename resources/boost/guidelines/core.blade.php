@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`database-timezone.md`・`child-processes.md`・`security.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`database-timezone.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -106,6 +106,12 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - Laravel 12・13 の Vue・React の starter kit は、`resources/views/app.blade.php` にインラインの `<script>`（ダークモード）と `<style>` を持つ。どちらにも `nonce="@{{ Vite::cspNonce() }}"` を付ける（付けないと CSP で止まる）。
 - `X-Frame-Options` は区分の `frame-ancestors` から決まる（`'none'` → DENY、`'self'` だけ → SAMEORIGIN、ほかの元を含む → 付けない）。iframe を許すときは `X-Frame-Options` を自分で付けず、`frame-ancestors` を直す。
 - 違反の報告の口（`report_route`）を `web` のグループに入れない。報告の口の回数の制限（接続元ごと）も、逆プロキシの後ろでは `trustProxies` が前提。
+
+### 稼働の確かめ（`docs/health.md`）
+
+- `withRouting()` の `health: '/up'` を使わず、`then: fn () => Health::route('/up')`（`Miraqceed\Foundation\Health\Health`）にする。既定の `/up` は外の CDN のスクリプトを読む HTML を返し、デバッグ中は原因を画面に出す。この口は text/plain の `OK`（200）／`NG`（500）だけを返す。
+- `health:` を消し忘れない。別の道に残すと、本番でない環境（試しの中を含む）では `Health::route()` が `LogicException` で止める。本番では止めないので、試しで見つける。`Health::route()` は1つの道にだけ使う。`routes/web.php` に書かない（セッションができる）。
+- DB まで確かめるときだけ `foundation.health.checks` に `'database'` を書く（既定は見ない）。ほかのものは `DiagnosingHealth` の聞き手で足す。
 
 ### 見張りと知らせ（`docs/monitoring.md`）
 

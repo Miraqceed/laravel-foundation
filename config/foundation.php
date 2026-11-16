@@ -126,6 +126,13 @@ return [
         'drop_reserved_recipients' => false,
     ],
 
+    // 稼働の確かめ（Health\HealthCheck・Health::route()）。経路はアプリが bootstrap/app.php で登録する
+    'health' => [
+        // 確かめの中で見るもの。'database' は既定の接続で select 1 を流す（DB の一時の不調でも NG になる）。
+        // 空なら何も見ない（Laravel の既定の /up と同じ）。知らない名前は起動を止めず、確かめが NG になる
+        'checks' => [],
+    ],
+
     // AI の費用の上限と記録（laravel/ai を使うアプリだけ）
     'ai' => [
         // 既定で無効。入れただけでは挙動も表も変わらない

@@ -2,6 +2,8 @@
 
 ## 未公開
 
+- 稼働の確かめ：Laravel の既定の `/up` に替える口 `Health\HealthCheck`（text/plain の `OK`（200）／`NG`（500）。外のスクリプトを読まず、デバッグ中も原因を出さない。`Cache-Control: no-store`）と、経路を登録する `Health::route('/up')`（web のグループの外・メンテナンス中も応答。`health:` の消し忘れと別の道への2回の登録は、本番でない環境で `LogicException`）。設定 `foundation.health.checks` に `'database'` で DB も確かめる（既定は見ない。知らない名前は `/up` の `NG`）。入れただけでは経路は増えない。`docs/health.md`
+
 ## 0.7.0
 
 **ログインのロックで現在のパスワードの確かめを使っているアプリは、同じ利用者が30分に10回間違えると、接続元を替えても確かめが止まるようになる。** CSP の違反の報告の口を有効にしているアプリは、版を上げた直後に、報告の口の1分の数えが一度空になる。ほかの新しいもの（`DatabaseTimezone`・`ChildEnvironment`・`prevent_stray_requests`）は、呼んだときか設定したときだけ働く。
