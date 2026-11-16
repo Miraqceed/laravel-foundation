@@ -17,7 +17,7 @@ use Miraqceed\Foundation\Attempts\TooManyAttempts;
  * 揃うと両方が通る。印の鍵はコードだけ（md5）で、利用者によらない。ここでは:
  * - 合った刻みの印を Cache::add（原子的）で立てられたときだけ通す。印の鍵は秘密の鍵と刻みの HMAC（鍵もコードも入れない）
  * - 印の有効の時間は、そのコードが受けられる間の全体より長い (2 × window + 2) × 30 秒
- * - 通ったら、窓の中の前の刻みにも印を置く（通った後に、前の刻みのコードを受けない）
+ * - 通ったら、窓の中の前の刻み（刻み − 2 × window から）にも印を置く（通った後に、前の刻みのコードを受けない）
  * - 間違いを、秘密の鍵の HMAC ごとに続けた失敗で数える（Fortify の契約は利用者を渡さないが、鍵は利用者ごとに違う）。
  *   ロック中は確かめず、429 の誤り（code の欄）で断る
  *
@@ -72,7 +72,7 @@ final class FortifyTwoFactorProvider implements TwoFactorAuthenticationProvider
                     'seconds' => $e->retryAfter,
                     'minutes' => (int) ceil($e->retryAfter / 60),
                 ])],
-            ])->status(429);
+            ])->status(429)->errorBag($this->errorBag());
         }
     }
 
@@ -89,11 +89,19 @@ final class FortifyTwoFactorProvider implements TwoFactorAuthenticationProvider
         if (! Cache::add(self::usedKey($secret, $step), true, $ttl)) {
             return false;
         }
-        for ($earlier = $step - $window; $earlier < $step; $earlier++) {
+        // 窓の中で、この刻みより前のコードは、どれも受けない。先の刻み（今 + window）で通ったときは、今 − window まで窓に残るので、
+        // 刻み − 2 × window から置く
+        for ($earlier = $step - 2 * $window; $earlier < $step; $earlier++) {
             Cache::put(self::usedKey($secret, $earlier), true, $ttl);
         }
 
         return true;
+    }
+
+    /** Fortify の登録の確かめ（two-factor.confirm）は、Fortify と同じ袋に誤りを入れる */
+    private function errorBag(): string
+    {
+        return request()->routeIs('two-factor.confirm') ? 'confirmTwoFactorAuthentication' : 'default';
     }
 
     private static function usedKey(string $secret, int $step): string

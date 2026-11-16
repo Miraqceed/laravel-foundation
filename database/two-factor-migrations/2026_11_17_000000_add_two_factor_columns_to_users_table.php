@@ -12,7 +12,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $table = config('foundation.two_factor.table', 'users');
+        $table = config('foundation.two_factor.table') ?? 'users';
         $columns = config('foundation.two_factor.columns');
 
         Schema::table($table, function (Blueprint $blueprint) use ($table, $columns) {
@@ -31,7 +31,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        $table = config('foundation.two_factor.table', 'users');
+        $table = config('foundation.two_factor.table') ?? 'users';
         $columns = config('foundation.two_factor.columns');
 
         // last_step だけを消す（secret・confirmed_at は Fortify の列でもありうるので残す）

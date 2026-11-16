@@ -168,8 +168,9 @@ return [
         'issuer' => null,
         // 前後に受ける刻みの数（30秒の刻み。時計のずれ）
         'window' => 1,
-        // 手書きのアプリ向けの TwoFactor が使う表と列（vendor:publish --tag=foundation-two-factor-migrations で列を足す）
-        'table' => 'users',
+        // 手書きのアプリ向けの TwoFactor が使う表（null ならモデルの表）と列（vendor:publish --tag=foundation-two-factor-migrations で列を足す。
+        // マイグレーションは table が null なら users に足す）
+        'table' => null,
         'columns' => [
             'secret' => 'two_factor_secret',
             'confirmed_at' => 'two_factor_confirmed_at',

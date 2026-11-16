@@ -5,6 +5,7 @@ namespace Miraqceed\Foundation\TwoFactor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Miraqceed\Foundation\Attempts\AttemptKey;
@@ -45,6 +46,11 @@ final class TwoFactor
      */
     public function confirm(Model $user, string $secret, string $code): bool
     {
+        // 短すぎる鍵（空・80 ビット未満）は、作る側の誤り。数えずに止める
+        if (strlen(Totp::base32Decode($secret)) < self::MIN_SECRET_BYTES) {
+            throw new \InvalidArgumentException('秘密の鍵が短すぎます（80 ビット以上。Totp::generateSecret() で作ってください）');
+        }
+
         return $this->guarded($user, function () use ($user, $secret, $code): bool {
             $step = Totp::verify($secret, $code, now()->getTimestamp(), null, $this->window());
             if ($step === null) {
@@ -123,6 +129,9 @@ final class TwoFactor
 
     private const SESSION_KEY = 'foundation.two_factor.passed';
 
+    /** 受ける秘密の鍵の短さの下限（80 ビット） */
+    private const MIN_SECRET_BYTES = 10;
+
     /** 利用者の id と登録した鍵の HMAC（APP_KEY）。登録していなければ null */
     private function mark(Model $user): ?string
     {
@@ -131,7 +140,7 @@ final class TwoFactor
             return null;
         }
 
-        return hash_hmac('sha256', $user->getKey()."\n".Crypt::decryptString($row->{$this->column('secret')}), (string) config('app.key'));
+        return hash_hmac('sha256', $this->table($user)."\n".$user->getKey()."\n".Crypt::decryptString($row->{$this->column('secret')}), (string) config('app.key'));
     }
 
     /**
@@ -141,13 +150,15 @@ final class TwoFactor
      */
     private function guarded(Model $user, \Closure $verify): bool
     {
-        $limit = ConsecutiveLimit::fromConfig(AttemptKey::for('two-factor', (string) $user->getKey()));
+        $limit = ConsecutiveLimit::fromConfig(AttemptKey::for('two-factor', $this->table($user), (string) $user->getKey()));
 
         $ok = $this->attempts->attemptConsecutive($limit, $verify);
 
         if ($ok) {
             $this->refresh($user);
-        } elseif ($this->attempts->lockedFor($limit) > 0) {
+        } elseif (($lockedFor = $this->attempts->lockedFor($limit)) > 0
+            // 並んだ要求のどれもがロックを見る。出来事は、1 回のロックにつき、印を先に立てた要求だけが出す
+            && Cache::add(AttemptKey::for('two-factor-locked-event', $this->table($user), (string) $user->getKey()), true, $lockedFor)) {
             event(new TwoFactorLocked($user));
         }
 
@@ -157,8 +168,14 @@ final class TwoFactor
     private function query(Model $user): Builder
     {
         return DB::connection($user->getConnectionName())
-            ->table((string) config('foundation.two_factor.table', $user->getTable()))
+            ->table($this->table($user))
             ->where($user->getKeyName(), $user->getKey());
+    }
+
+    /** 表はモデルの表（設定 foundation.two_factor.table で替えたときだけ、その表） */
+    private function table(Model $user): string
+    {
+        return (string) (config('foundation.two_factor.table') ?? $user->getTable());
     }
 
     private function row(Model $user): ?object

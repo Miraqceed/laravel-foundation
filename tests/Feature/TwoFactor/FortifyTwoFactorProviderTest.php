@@ -132,6 +132,11 @@ class FortifyTwoFactorProviderTest extends TestCase
         return ['window 1' => [1], 'window 2' => [2]];
     }
 
+    /**
+     * 印の有効の時間は (2 × window + 2) × 30 秒。窓の全体 (2 × window + 1) × 30 秒より 1 刻み長い。
+     * 余りの 1 刻みは、複数のサーバーの時計のずれを吸うためのもので、1つの時計で動く試しでは確かめられない
+     * （この試しが確かめるのは、窓の全体より短くないことだけ）
+     */
     #[\PHPUnit\Framework\Attributes\DataProvider('windows')]
     public function test_code_is_refused_again_until_the_end_of_the_window(int $window): void
     {
@@ -257,5 +262,136 @@ class FortifyTwoFactorProviderTest extends TestCase
         $url = $this->provider()->qrCodeUrl('架空 & Co', 'a b@example.test', 'JBSWY3DPEHPK3PXP');
 
         $this->assertStringStartsWith('otpauth://totp/'.rawurlencode('架空 & Co').':'.rawurlencode('a b@example.test').'?', $url);
+    }
+
+    /**
+     * 先の刻みのコードで通った後、窓の中の前の刻みのコードは、どれも通らない（手書きの側の「最後に受けた刻み以下は受けない」と同じ）。
+     * 今の刻みが c のとき、c+1 のコードで通ると、c−1 のコードもまだ窓の中にある
+     */
+    public function test_older_steps_in_the_window_are_refused_after_a_future_step_passed(): void
+    {
+        $secret = Totp::generateSecret();
+        $step = intdiv(1795136415, 30);
+        $this->travelToStepStart($step);
+        $this->assertTrue($this->provider()->verify($secret, Totp::codeAt($secret, ($step + 1) * 30)));
+
+        $older = Totp::codeAt($secret, ($step - 1) * 30);
+        // 前提：c−1 のコードは、まだ窓の中にある
+        $this->assertSame($step - 1, Totp::verify($secret, $older, now()->getTimestamp(), null, 1));
+        $this->assertFalse($this->provider()->verify($secret, $older));
+        $this->assertFalse($this->provider()->verify($secret, Totp::codeAt($secret, $step * 30)));
+    }
+
+    /**
+     * 使った刻みの印を、確かめてから立てる2段にすると、同じコードの2つの要求が揃って通る。
+     * database のキャッシュで、1つ目が印を読んだ所（cache の表の SELECT）で、2つ目を最後まで走らせる
+     */
+    public function test_used_step_mark_is_taken_atomically(): void
+    {
+        Schema::dropIfExists('cache');
+        Schema::create('cache', function ($table) {
+            $table->string('key')->primary();
+            $table->mediumText('value');
+            $table->integer('expiration');
+        });
+        config(['cache.default' => 'database']);
+        Cache::forgetDriver('database');
+        $this->app->forgetInstance(\Illuminate\Cache\RateLimiter::class);
+        \Illuminate\Support\Facades\RateLimiter::clearResolvedInstance(\Illuminate\Cache\RateLimiter::class);
+
+        try {
+            $secret = Totp::generateSecret();
+            $code = Totp::codeAt($secret, now()->getTimestamp());
+            $results = [];
+            $raced = false;
+            \Illuminate\Support\Facades\DB::listen(function ($query) use (&$raced, &$results, $secret, $code) {
+                if ($raced || ! str_starts_with(strtolower($query->sql), 'select') || ! str_contains($query->sql, 'cache')) {
+                    return;
+                }
+                foreach ($query->bindings as $binding) {
+                    if (is_string($binding) && str_contains($binding, 'two-factor-used')) {
+                        $raced = true;
+                        $results['second'] = $this->provider()->verify($secret, $code);
+
+                        return;
+                    }
+                }
+            });
+
+            $results['first'] = $this->provider()->verify($secret, $code);
+
+            // 起きたことを先に確かめる：1つ目が印を読んだ所で、2つ目が走った
+            $this->assertTrue($raced);
+            $this->assertSame(1, count(array_filter($results)), json_encode($results));
+        } finally {
+            Schema::dropIfExists('cache');
+        }
+    }
+
+    /**
+     * 別の利用者が同じコードを打っても断られない（印の鍵は秘密の鍵と刻みの HMAC で、コードによらない）。
+     * 下の2つの作り物の鍵は、時刻 1795136415 で同じコード 371969 を出す（総当たりで探した組）
+     */
+    public function test_another_user_with_the_same_code_is_not_refused(): void
+    {
+        $first = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+        $second = 'SYZOYBNZAB6MMWI5JEQKGXMK5VRNPHZC';
+        $this->travelTo(Carbon::createFromTimestamp(1795136415));
+        $code = Totp::codeAt($first, now()->getTimestamp());
+        $this->assertSame($code, Totp::codeAt($second, now()->getTimestamp()));
+
+        $this->assertTrue($this->provider()->verify($first, $code));
+        $this->assertTrue($this->provider()->verify($second, $code));
+    }
+
+    private function lockProvider(string $secret): void
+    {
+        for ($i = 0; $i < 3; $i++) {
+            $this->provider()->verify($secret, sprintf('%06d', $i));
+        }
+    }
+
+    public function test_locked_challenge_is_429_for_json_and_a_redirect_with_the_error_for_forms(): void
+    {
+        $this->app->singleton(ProviderContract::class, FortifyTwoFactorProvider::class);
+        $secret = Totp::generateSecret();
+        $user = FortifyTwoFactorUser::query()->create([
+            'email' => 'a@example.test',
+            'password' => Hash::make('correct-password'),
+            'two_factor_secret' => method_exists(Fortify::class, 'currentEncrypter') ? Fortify::currentEncrypter()->encrypt($secret) : encrypt($secret),
+            'two_factor_confirmed_at' => now(),
+        ]);
+        $this->lockProvider($secret);
+
+        $this->withSession(['login.id' => $user->getKey()])
+            ->postJson('/two-factor-challenge', ['code' => '123456'])
+            ->assertStatus(429)
+            ->assertJsonValidationErrors('code');
+
+        $this->withSession(['login.id' => $user->getKey()])
+            ->post('/two-factor-challenge', ['code' => '123456'])
+            ->assertStatus(302)
+            ->assertSessionHasErrors('code');
+    }
+
+    /** 登録の確かめ（two-factor.confirm）でロックしたときは、Fortify の登録の確かめと同じ袋に誤りを入れる */
+    public function test_locked_confirmation_puts_the_error_in_the_confirmation_bag(): void
+    {
+        $secret = Totp::generateSecret();
+        $this->lockProvider($secret);
+        $request = \Illuminate\Http\Request::create('/user/confirmed-two-factor-authentication', 'POST');
+        $request->setRouteResolver(fn () => (new \Illuminate\Routing\Route('POST', 'user/confirmed-two-factor-authentication', []))->name('two-factor.confirm'));
+        $this->app->instance('request', $request);
+
+        $caught = null;
+        try {
+            $this->provider()->verify($secret, '123456');
+        } catch (ValidationException $e) {
+            $caught = $e;
+        }
+
+        $this->assertNotNull($caught);
+        $this->assertSame('confirmTwoFactorAuthentication', $caught->errorBag);
+        $this->assertArrayHasKey('code', $caught->errors());
     }
 }

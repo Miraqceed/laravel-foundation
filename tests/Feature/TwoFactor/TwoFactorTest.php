@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Miraqceed\Foundation\Attempts\TooManyAttempts;
 use Miraqceed\Foundation\FoundationServiceProvider;
+use Miraqceed\Foundation\Tests\Support\TwoFactorAdmin;
 use Miraqceed\Foundation\Tests\Support\TwoFactorUser;
 use Miraqceed\Foundation\Tests\TestCase;
 use Miraqceed\Foundation\TwoFactor\Totp;
@@ -46,6 +47,7 @@ class TwoFactorTest extends TestCase
 
     protected function tearDown(): void
     {
+        Schema::dropIfExists('admins');
         Schema::dropIfExists('users');
 
         parent::tearDown();
@@ -288,5 +290,113 @@ class TwoFactorTest extends TestCase
         $uri = $this->twoFactor()->uri('a@example.test', 'JBSWY3DPEHPK3PXP');
 
         $this->assertStringContainsString('issuer='.rawurlencode('架空アプリ'), $uri);
+    }
+
+    /** users と別の表（admins）に、同じ列を足す */
+    private function makeAdmins(): void
+    {
+        Schema::dropIfExists('admins');
+        Schema::create('admins', function ($table) {
+            $table->id();
+            $table->string('email');
+            $table->text('two_factor_secret')->nullable();
+            $table->timestamp('two_factor_confirmed_at')->nullable();
+            $table->bigInteger('two_factor_last_step')->nullable();
+        });
+    }
+
+    /**
+     * 表はモデルの表（getTable()）で決める。users と別の表のモデルが、同じ id の users の行を読み書きしない。
+     * 数えと通った印も、表ごとに分かれる
+     */
+    public function test_models_of_different_tables_do_not_share_rows_or_counts(): void
+    {
+        $this->makeAdmins();
+        [$user, $secret] = $this->confirmed();
+        $admin = TwoFactorAdmin::query()->create(['email' => 'admin@example.test']);
+        // 前提：同じ id
+        $this->assertSame($user->getKey(), $admin->getKey());
+
+        $this->assertFalse($this->twoFactor()->isConfirmed($admin));
+        $this->assertFalse($this->twoFactor()->verify($admin, $this->codeAt($secret)));
+
+        // 利用者の失敗の数えは、管理者に効かない
+        $wrong = sprintf('%06d', ((int) $this->codeAt($secret) + 500000) % 1000000);
+        for ($i = 0; $i < 3; $i++) {
+            $this->twoFactor()->verify($user, $wrong);
+        }
+        $adminSecret = Totp::generateSecret();
+        $this->assertTrue($this->twoFactor()->confirm($admin, $adminSecret, $this->codeAt($adminSecret)));
+        $this->assertSame($secret, Crypt::decryptString(DB::table('users')->where('id', $user->getKey())->value('two_factor_secret')));
+    }
+
+    /**
+     * 並んだ総当たりで、1 回のロックにつき、ロックの出来事は1回だけ出る。
+     * 1つ目の要求が照合を始めた所（利用者の表の2回目の SELECT）で、ほかの要求を走らせて上限に届かせ、その後で1つ目が失敗する
+     */
+    public function test_locked_event_is_dispatched_once_per_lock_even_when_attempts_overlap(): void
+    {
+        Event::fake([TwoFactorLocked::class]);
+        [$user] = $this->confirmed();
+        $selects = 0;
+        $raced = false;
+        DB::listen(function ($query) use (&$selects, &$raced, $user) {
+            if ($raced || ! str_starts_with(strtolower($query->sql), 'select') || ! str_contains($query->sql, 'users')) {
+                return;
+            }
+            if (++$selects === 2) {
+                $raced = true;
+                // ほかの2つの要求が失敗し、2つ目で上限に届いてロックする
+                $this->twoFactor()->verify(TwoFactorUser::query()->find($user->getKey()), '000001');
+                $this->twoFactor()->verify(TwoFactorUser::query()->find($user->getKey()), '000002');
+            }
+        });
+
+        $this->assertFalse($this->twoFactor()->verify($user, '000003'));
+
+        $this->assertTrue($raced);
+        Event::assertDispatchedTimes(TwoFactorLocked::class, 1);
+    }
+
+    /** @return array<string, array{0: string}> */
+    public static function tooShortSecrets(): array
+    {
+        return [
+            'empty' => [''],
+            'nine bytes' => [Totp::base32Encode(str_repeat('k', 9))],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('tooShortSecrets')]
+    public function test_confirm_refuses_a_secret_shorter_than_80_bits(string $secret): void
+    {
+        $user = $this->user();
+
+        $this->expectException(\InvalidArgumentException::class);
+        try {
+            $this->twoFactor()->confirm($user, $secret, '123456');
+        } finally {
+            $this->assertNull($this->row($user)->two_factor_secret);
+        }
+    }
+
+    public function test_confirm_accepts_an_80_bit_secret(): void
+    {
+        $secret = Totp::base32Encode(str_repeat('k', 10));
+
+        $this->assertTrue($this->twoFactor()->confirm($this->user(), $secret, $this->codeAt($secret)));
+    }
+
+    public function test_malformed_input_while_confirming_counts_as_a_failure(): void
+    {
+        $user = $this->user();
+        $secret = Totp::generateSecret();
+
+        $this->assertFalse($this->twoFactor()->confirm($user, $secret, '12345'));
+        $this->assertFalse($this->twoFactor()->confirm($user, $secret, 'abcdef'));
+        $this->assertFalse($this->twoFactor()->confirm($user, $secret, ''));
+
+        $this->expectException(TooManyAttempts::class);
+        $this->twoFactor()->confirm($user, $secret, $this->codeAt($secret));
     }
 }
