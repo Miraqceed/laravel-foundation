@@ -91,6 +91,8 @@ class InstallCommandTest extends TestCase
             'reserved-email-domains.md', 'ReservedEmailDomains::isReserved', 'NotReservedEmailDomain', 'drop_reserved_recipients', 'メールアドレスの形の確かめではない',
             // 本番の設定の点検：自前で書き直さず、調べを足す。値を出さない
             'deploy-check.md', 'foundation:deploy-check', 'deploy_check.checks', 'Result::later()', '値なしで書く',
+            // メールの中の安全：訪問者の文は全体を渡して打ち消す。リンクは APP_URL から（既定は無効）。偽の Host は入口で断る
+            'mail-safety.md', "MailText::escape(\$user->name.' さん')", 'links_from_app_url', 'trustHosts()', 'X-Forwarded-Host',
             // ログイン（3つとも要る。authenticateUsing が抜けると回数の制限が消える）
             'limiters', 'authenticateThrough', 'authenticateUsing', 'trustProxies',
             // 逆プロキシ：'*' は 13.20.0 から訪問者の送った X-Forwarded-For を信じる
