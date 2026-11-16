@@ -176,6 +176,15 @@ return [
         ],
     ],
 
+    // 1回だけ使える合言葉（OneTimeCodes）。呼んだときだけ働く
+    'one_time_codes' => [
+        // 既定で無効。真のときだけ表のマイグレーションを読み込む（vendor:publish --tag=foundation-one-time-code-migrations でも写せる）
+        'enabled' => false,
+        // 期限・使った時刻・失効の時刻のどれかがこの日数より前の行を、model:prune で消す（アプリが schedule に入れる：
+        // Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\OneTimeCodes\OneTimeCode::class]])->daily();）
+        'prune_days' => 7,
+    ],
+
     // 二段階の認証（認証アプリの確認コード。TwoFactor・FortifyTwoFactorProvider）。呼んだときだけ働く
     'two_factor' => [
         // 登録の URI の issuer。null なら app.name
