@@ -1,0 +1,143 @@
+# 本番の設定の点検
+
+コマンド `foundation:deploy-check` と、名前空間 `Miraqceed\Foundation\DeployCheck`。本番の設定を1か所で調べ、違う所の id と説明を出して終わりの値 1 で終わる。流したときだけ働く（schedule に入らない。書き込まない）。
+
+## いつ使うか
+
+配置の台本の最後（`migrate` と `up` の後）と、CI で流す。新しいアプリが最初の公開の前に踏む穴（`APP_DEBUG`・長さの違う `APP_KEY`・届かないメールの設定・`view:cache` で外れるメールの守り・残った `public/hot` など）を、まとめて止める。**点検を自前で書き直さず、足りない調べは `Check` で足す。**
+
+```bash
+php artisan foundation:deploy-check            # 1行ずつ。失敗があれば終わりの値 1
+php artisan foundation:deploy-check --json     # 機械向け
+php artisan foundation:deploy-check --strict   # later（まだ要らない）も失敗とみなす（公開の直前）
+```
+
+```
+[ok]    app_debug                APP_DEBUG が偽（訪問者に例外の中身を見せない）
+[FAIL]  mail                     メールが届く設定（…）: MAIL_FROM_ADDRESS が実在しないドメイン（example.com など）
+[FAIL]  migrations               流していないマイグレーションがない: QueryException
+[skip]  boost                    Laravel Boost が切れている（…）: 入っていない
+[later] payment_keys             決済の本番の鍵: 販売を始めるまで
+[info]  trusted_proxies          信頼するプロキシ（…）: 前段の IP・範囲: 2 件
+設定の点検: 失敗 2（docs/deploy-check.md）
+```
+
+- 行の形は `[状態] id 説明: 詳しく`。状態は `ok`・`FAIL`・`later`・`skip`・`info`
+- **id は変えない約束。** 台本で行を読むときは id で読む（`grep -qE '^\[ok\] +migrations '`）。機械で読むなら `--json`
+- 終わりの値：`FAIL` が1つでもあれば 1、なければ 0。`--strict` では `later` も 1
+- `--json`：`{"schema_version": 1, "passed": bool, "checks": [{"id", "status", "label", "detail"}]}`。`status` は `ok`・`fail`・`later`・`skip`・`info`
+
+## 既定の調べ
+
+| id | 満たすこと | 当たらないとき |
+|---|---|---|
+| `app_env` | `APP_ENV` が `production` | |
+| `app_debug` | `APP_DEBUG` が偽 | |
+| `app_url` | `APP_URL` が https の URL | |
+| `app_key` | `APP_KEY`（と `APP_PREVIOUS_KEYS`）が暗号の方式（`app.cipher`）に合う長さ。入っているだけでは足りない（長さが違うと、暗号を使う所で初めて落ちる） | |
+| `boost` | Laravel Boost が切れている（`BOOST_ENABLED=false`）。Boost は `APP_DEBUG` が真だと、どの環境でも口を開く | 入っていない（`composer install --no-dev`） |
+| `session_secure_cookie` | `SESSION_SECURE_COOKIE` が真 | |
+| `drivers` | キャッシュ・セッションが `array` でない（種類の名前を出す） | |
+| `mail` | 送り方が `log`・`array` でない。SMTP のホストが空・`127.0.0.1`・`localhost` でない。`MAIL_FROM_ADDRESS` がメールアドレスで、実在しないドメイン（`example.com`・`.test` など。`docs/reserved-email-domains.md`）でない | |
+| `mail_view_cache` | 通知のメールの画面が `view:cache` でコンパイルされていない（下） | Laravel 12.15 より前・直った版（12.70・13.36 から）か、`Markdown::withSecuredEncoding()` を使っていない |
+| `vite_hot` | `public/hot`（`npm run dev` の印）がない | |
+| `vite_manifest` | `public/build/manifest.json` があり、JSON として読める | `vite.config.*` がない |
+| `writable` | `storage/logs`・`storage/framework/{cache,sessions,views}`・`bootstrap/cache` に書ける | |
+| `migrations` | 流していないマイグレーションがない（既定の接続へつなぐ。読むだけ） | |
+| `attempts_bypass` | `foundation.attempts.bypass` が偽（`production` では効かないが、知らせが1時間に1回出続ける） | |
+| `trusted_proxies` | 下 | |
+
+当たらない調べは `skip`。アプリに当たらない既定の調べは、`config/foundation.php` で外す：
+
+```php
+'deploy_check' => ['skip' => ['session_secure_cookie']],   // 例：画面のない API だけのアプリ
+```
+
+### `mail_view_cache`
+
+`php artisan optimize` を `--except=views` なしで流すと、`view:cache` がメールの画面を素の echo でコンパイルする。直っていない版の Laravel（12.15〜12.69・13.0〜13.35）では、Markdown の描画がそのファイルを使い回し、`Markdown::withSecuredEncoding()`（訪問者が書いた文の `[` `]` `<` を、メールの中でリンクにしない）が、そのメールから外れる。配置の台本では `php artisan optimize --except=views` にし、外れていたら `php artisan view:clear`。
+
+直った版（12.70.0・13.36.0 から）は、echo の形ごとに別のファイルへコンパイルするので外れない。調べは版の番号でなく振る舞い（echo の形を変えると、コンパイル済みのファイルの道が変わるか）で見分け、直った版では `skip` にする。
+
+### `trusted_proxies`
+
+信頼するプロキシ（`bootstrap/app.php` の `$middleware->trustProxies(at:, headers:)`、なければ `config('trustedproxy.proxies')`）を読む。値（アドレス）は出さない。
+
+- 既定は `info` だけ（逆プロキシの後ろかどうかは、パッケージには分からない）
+- **逆プロキシの後ろで、訪問者の本当の IP が要るアプリ**（ログインのロック・CSP の違反の報告の口・`IpBucket` で数える `Attempts` を使う）は `required` にする。前段の IP・範囲を挙げていなければ失敗：
+
+```php
+'deploy_check' => ['proxies' => 'required'],
+```
+
+| 設定 | 既定 | `required` |
+|---|---|---|
+| 未設定 | `info` | `FAIL`（全員がプロキシの IP になる） |
+| `'*'`・`'**'`、`X-Forwarded-For`・`Forwarded` を信頼（既定の見出し） | `info` | `FAIL`（Laravel 13.20 から、訪問者が IP を選べる。13.19 までも、上げた時点でそうなる） |
+| `'*'`、IP を運ぶ見出しを信頼しない（`headers: Request::HEADER_X_FORWARDED_PROTO`） | `info` | `FAIL`（全員がプロキシの IP になる） |
+| 前段の IP・範囲を挙げている | `info`（件数） | `ok` |
+| アプリの `TrustProxies` の子が全体のミドルウェアにある（古い作り） | `info`（読めない） | `FAIL`（確かめられない） |
+
+`'*'` の版の違いと、前段のアドレスの書き方は `docs/login.md`。
+
+## アプリの調べを足す
+
+```php
+namespace App\DeployChecks;
+
+use Miraqceed\Foundation\DeployCheck\Check;
+use Miraqceed\Foundation\DeployCheck\Result;
+
+final class PaymentKeys implements Check
+{
+    public function id(): string
+    {
+        return 'payment_keys';     // 英小文字・数字・_。一度出したら変えない
+    }
+
+    public function label(): string
+    {
+        return '決済の本番の鍵';    // 満たすべきこと。値を入れない
+    }
+
+    public function run(): Result
+    {
+        $secret = (string) config('services.payment.secret');
+
+        // 値が入っていて形が違えば、公開の前でも失敗（テスト用の鍵を本番に入れた）
+        if ($secret !== '' && ! str_starts_with($secret, 'sk_live_')) {
+            return Result::fail('本番の鍵でない');
+        }
+        if ($secret === '') {
+            // 公開の前はまだ要らない。公開のフラグを上げたら必須
+            return config('billing.open') ? Result::fail('入っていない') : Result::later('販売を始めるまで');
+        }
+
+        return Result::ok();
+    }
+}
+```
+
+```php
+// config/foundation.php
+'deploy_check' => [
+    'checks' => [\App\DeployChecks\PaymentKeys::class],   // 容器から作る。既定の調べの後に、この並びで走る
+],
+```
+
+- 結果は `Result::ok()`・`fail()`・`later()`・`skip()`・`info()`。いつ必須になるかは調べが決める（公開のフラグを読む）
+- 公開の前に「上げたら通るか」を見るときは `--strict`
+- 調べは**読むだけ**にする（DB・キャッシュ・ファイルに書かない。ログを書かない）
+
+## 秘密を出さない
+
+- `label()` と `detail` に設定の値（鍵・パスワード・接続先・URL）を入れない。「何が違うか」を値なしで書く（「本番の鍵でない」「SMTP のホストが手元」）
+- 調べが例外を投げたら、その行を失敗にし、**例外のクラス名だけ**を出す（文には DB のユーザー名・ホストが入る）。残りの調べは続く。作るときの例外・見つからないクラス・`Check` でないクラス・重なる id・形の違う id も、その行だけ失敗（`invalid_check`）
+
+## 限界
+
+- このコマンドを流した利用者と PHP（CLI）で見る。Web のサーバーの PHP（拡張・`php.ini`）や利用者（書き込み）が違えば、そちらは見ない
+- `migrations` は DB へつなぐ。つながらないと、接続の待ち（ドライバーの時間切れ）の分だけ遅くなる
+- `mail_view_cache` が見るのは通知のメールの画面（`notifications::email`）だけ
+- `vite_manifest` は manifest の場所を変えたアプリ（`Vite::useBuildDirectory()`・`useManifestFilename()`）を見ない
+- PHP の版・拡張、DB の種類・版、決済・外の API の鍵などは、アプリの調べで足す

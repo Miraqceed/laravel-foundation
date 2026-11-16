@@ -200,4 +200,15 @@ return [
             'last_step' => 'two_factor_last_step',
         ],
     ],
+
+    // 本番の設定の点検（php artisan foundation:deploy-check）。流したときだけ働く
+    'deploy_check' => [
+        // アプリの調べのクラス（Miraqceed\Foundation\DeployCheck\Check。容器から作る）。並びのとおりに、パッケージの既定の調べの後に走る
+        'checks' => [],
+        // このアプリに当たらない既定の調べの id（例：API だけのアプリの session_secure_cookie）
+        'skip' => [],
+        // 'required' にすると、信頼するプロキシ（trusted_proxies）に前段の IP・範囲がなければ失敗にする
+        // （訪問者の本当の IP が要る、逆プロキシの後ろのアプリ）。null なら状態を見せるだけ
+        'proxies' => null,
+    ],
 ];
