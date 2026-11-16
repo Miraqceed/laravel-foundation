@@ -76,6 +76,26 @@ class MailChannelTest extends TestCase
         Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message) => str_contains($message, 'ops@example.com'));
     }
 
+    public function test_名前付きの宛先は判定せずに送る(): void
+    {
+        Mail::fake();
+        Log::spy();
+
+        $delivery = $this->send([['email' => 'ops@company.jp', 'name' => '運営'], 'ops@example.com']);
+
+        $this->assertNotNull($delivery->sent_at);
+        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@company.jp', '運営') && ! $mail->hasTo('ops@example.com'));
+        Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message) => str_contains($message, 'ops@example.com'));
+    }
+
+    public function test_名前付きの宛先だけでも送れたと記録する(): void
+    {
+        Mail::fake();
+
+        $this->assertNotNull($this->send([['email' => 'ops@company.jp', 'name' => '運営']])->sent_at);
+        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@company.jp', '運営'));
+    }
+
     public function test_宛先がすべて届かなければ投げる(): void
     {
         Mail::fake();
