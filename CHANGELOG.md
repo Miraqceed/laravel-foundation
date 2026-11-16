@@ -2,6 +2,10 @@
 
 ## 未公開
 
+## 0.3.0
+
+**入れただけでは変わらない。** 新しい部品は、呼んだときだけ働くか、既定で無効（`foundation.mail.drop_reserved_recipients`）。挙動が変わるのは、見張りの知らせをメールで送っているアプリだけ（下の「実在しないメールアドレス」の項）。CSP・セキュリティヘッダーは、説明書と指針の入れ方だけが変わった（コードは同じ）。
+
 - `Monitoring\StallCheck::stalled()`：止まっている定期の処理を読むだけの口。`foundation:watch` と同じ判断（`foundation:watch` もこれを使う形にした。判断は変えていない）で、何も書かず知らせも送らない。見張りがまだ見ていない処理は止まっていない扱い。`docs/monitoring.md`
 - CSP・セキュリティヘッダー：説明書と AI 向けの指針の入れ方を、`web` のグループからグローバルの先頭（`$middleware->prepend(SecurityHeaders::class)`）に変えた。`web` のグループでは、ルートに合わない 404・メンテナンス中の 503・大きすぎる POST の 413 に付かなかった。**コードは変わらない。** `web` のグループに入れているアプリは、グループから外してグローバルの先頭へ移す（両方に残っても見出しは1つ）。グローバルではルートごとに外せないので、埋め込ませたいページは区分の `frame-ancestors` で扱う。`docs/security.md`
 - 実在しないメールアドレス：判定 `Mail\ReservedEmailDomains::isReserved()`（RFC 2606・RFC 6761 の名前と点のないドメイン。前後の空白・大文字・末尾の点・全角・句点をそろえてから比べる。DNS は引かない）、入力の検証の規則 `Mail\NotReservedEmailDomain`（文は `foundation::validation.reserved_email`、`vendor:publish --tag=foundation-lang` で上書き）、送る前に予約の宛先を To・Cc・Bcc から外し、残らなければ送信を取りやめる差し込み（既定で無効。`foundation.mail.drop_reserved_recipients`）。見張りの知らせのメールは、届かない宛先を外して残りへ送り、残りがなければ送れなかったと記録するようになった（これまでは送れたと記録していた）。`docs/reserved-email-domains.md`
