@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use Miraqceed\Foundation\Tests\Support\WrongTotpCodes;
 use Miraqceed\Foundation\Tests\TestCase;
 use Miraqceed\Foundation\TwoFactor\FortifyTwoFactorProvider;
 use Miraqceed\Foundation\TwoFactor\Totp;
@@ -64,13 +65,14 @@ class TwoFactorDatabaseCacheTest extends TestCase
         $provider = $this->app->make(FortifyTwoFactorProvider::class);
         $secret = Totp::generateSecret();
         $code = Totp::codeAt($secret, now()->getTimestamp());
+        $wrong = WrongTotpCodes::for($secret, 3);
 
         $this->assertTrue($provider->verify($secret, $code));
         $this->assertFalse($provider->verify($secret, $code));
-        $this->assertFalse($provider->verify($secret, '000000'));
-        $this->assertFalse($provider->verify($secret, '000001'));
+        $this->assertFalse($provider->verify($secret, $wrong[0]));
+        $this->assertFalse($provider->verify($secret, $wrong[1]));
 
         $this->expectException(ValidationException::class);
-        $provider->verify($secret, '000002');
+        $provider->verify($secret, $wrong[2]);
     }
 }

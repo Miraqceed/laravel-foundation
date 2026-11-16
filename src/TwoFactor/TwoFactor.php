@@ -154,11 +154,15 @@ final class TwoFactor
 
         $ok = $this->attempts->attemptConsecutive($limit, $verify);
 
+        $eventKey = AttemptKey::for('two-factor-locked-event', $this->table($user), (string) $user->getKey());
+
         if ($ok) {
+            // 通ると数えとロックが空になる。出来事の印も消し、次のロックでまた出来事を出す（並んだ失敗が先にロックしていたとき）
+            Cache::forget($eventKey);
             $this->refresh($user);
         } elseif (($lockedFor = $this->attempts->lockedFor($limit)) > 0
             // 並んだ要求のどれもがロックを見る。出来事は、1 回のロックにつき、印を先に立てた要求だけが出す
-            && Cache::add(AttemptKey::for('two-factor-locked-event', $this->table($user), (string) $user->getKey()), true, $lockedFor)) {
+            && Cache::add($eventKey, true, $lockedFor)) {
             event(new TwoFactorLocked($user));
         }
 

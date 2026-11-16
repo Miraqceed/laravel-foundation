@@ -11,6 +11,7 @@ use Miraqceed\Foundation\Attempts\TooManyAttempts;
 use Miraqceed\Foundation\FoundationServiceProvider;
 use Miraqceed\Foundation\Tests\Support\TwoFactorAdmin;
 use Miraqceed\Foundation\Tests\Support\TwoFactorUser;
+use Miraqceed\Foundation\Tests\Support\WrongTotpCodes;
 use Miraqceed\Foundation\Tests\TestCase;
 use Miraqceed\Foundation\TwoFactor\Totp;
 use Miraqceed\Foundation\TwoFactor\TwoFactor;
@@ -219,7 +220,7 @@ class TwoFactorTest extends TestCase
     public function test_wrong_codes_are_counted_as_consecutive_failures_and_lock(): void
     {
         [$user, $secret] = $this->confirmed();
-        $wrong = sprintf('%06d', ((int) $this->codeAt($secret) + 500000) % 1000000);
+        $wrong = WrongTotpCodes::one($secret);
 
         for ($i = 0; $i < 3; $i++) {
             $this->assertFalse($this->twoFactor()->verify($user, $wrong));
@@ -235,9 +236,9 @@ class TwoFactorTest extends TestCase
         $user = $this->user();
         $secret = Totp::generateSecret();
 
-        $this->assertFalse($this->twoFactor()->confirm($user, $secret, '000000'));
-        $this->assertFalse($this->twoFactor()->confirm($user, $secret, '111111'));
-        $this->assertFalse($this->twoFactor()->confirm($user, $secret, '222222'));
+        foreach (WrongTotpCodes::for($secret, 3) as $code) {
+            $this->assertFalse($this->twoFactor()->confirm($user, $secret, $code));
+        }
 
         $this->expectException(TooManyAttempts::class);
         $this->twoFactor()->confirm($user, $secret, $this->codeAt($secret));
@@ -262,11 +263,12 @@ class TwoFactorTest extends TestCase
     {
         Event::fake([TwoFactorLocked::class]);
         [$user, $secret] = $this->confirmed();
+        $wrong = WrongTotpCodes::for($secret, 3);
 
-        $this->twoFactor()->verify($user, '000001');
-        $this->twoFactor()->verify($user, '000002');
+        $this->twoFactor()->verify($user, $wrong[0]);
+        $this->twoFactor()->verify($user, $wrong[1]);
         Event::assertNotDispatched(TwoFactorLocked::class);
-        $this->twoFactor()->verify($user, '000003');
+        $this->twoFactor()->verify($user, $wrong[2]);
 
         Event::assertDispatched(TwoFactorLocked::class, function (TwoFactorLocked $event) use ($user, $secret): bool {
             $this->assertSame($user->getKey(), $event->user->getKey());
@@ -321,7 +323,7 @@ class TwoFactorTest extends TestCase
         $this->assertFalse($this->twoFactor()->verify($admin, $this->codeAt($secret)));
 
         // 利用者の失敗の数えは、管理者に効かない
-        $wrong = sprintf('%06d', ((int) $this->codeAt($secret) + 500000) % 1000000);
+        $wrong = WrongTotpCodes::one($secret);
         for ($i = 0; $i < 3; $i++) {
             $this->twoFactor()->verify($user, $wrong);
         }
@@ -337,25 +339,62 @@ class TwoFactorTest extends TestCase
     public function test_locked_event_is_dispatched_once_per_lock_even_when_attempts_overlap(): void
     {
         Event::fake([TwoFactorLocked::class]);
-        [$user] = $this->confirmed();
+        [$user, $secret] = $this->confirmed();
+        $wrong = WrongTotpCodes::for($secret, 3);
         $selects = 0;
         $raced = false;
-        DB::listen(function ($query) use (&$selects, &$raced, $user) {
+        DB::listen(function ($query) use (&$selects, &$raced, $user, $wrong) {
             if ($raced || ! str_starts_with(strtolower($query->sql), 'select') || ! str_contains($query->sql, 'users')) {
                 return;
             }
             if (++$selects === 2) {
                 $raced = true;
                 // ほかの2つの要求が失敗し、2つ目で上限に届いてロックする
-                $this->twoFactor()->verify(TwoFactorUser::query()->find($user->getKey()), '000001');
-                $this->twoFactor()->verify(TwoFactorUser::query()->find($user->getKey()), '000002');
+                $this->twoFactor()->verify(TwoFactorUser::query()->find($user->getKey()), $wrong[0]);
+                $this->twoFactor()->verify(TwoFactorUser::query()->find($user->getKey()), $wrong[1]);
             }
         });
 
-        $this->assertFalse($this->twoFactor()->verify($user, '000003'));
+        $this->assertFalse($this->twoFactor()->verify($user, $wrong[2]));
 
         $this->assertTrue($raced);
         Event::assertDispatchedTimes(TwoFactorLocked::class, 1);
+    }
+
+    /**
+     * 並んだ要求の正しいコードが通って、ロックを空にしたら、次のロックでも出来事が出る。
+     * 1つ目の要求（正しいコード）が照合を始めた所で、ほかの要求を走らせてロックさせ（出来事 1 回目）、その後で1つ目が通る。
+     * 通ったときに出来事の印を消さないと、印の残る間（ロックの秒数）に、またロックしても出来事が出ない
+     */
+    public function test_locked_event_is_dispatched_again_after_an_overlapping_success_cleared_the_lock(): void
+    {
+        Event::fake([TwoFactorLocked::class]);
+        [$user, $secret] = $this->confirmed();
+        $wrong = WrongTotpCodes::for($secret, 5);
+        $selects = 0;
+        $raced = false;
+        DB::listen(function ($query) use (&$selects, &$raced, $user, $wrong) {
+            if ($raced || ! str_starts_with(strtolower($query->sql), 'select') || ! str_contains($query->sql, 'users')) {
+                return;
+            }
+            if (++$selects === 2) {
+                $raced = true;
+                // ほかの2つの要求が失敗し、2つ目で上限に届いてロックする
+                $this->twoFactor()->verify(TwoFactorUser::query()->find($user->getKey()), $wrong[0]);
+                $this->twoFactor()->verify(TwoFactorUser::query()->find($user->getKey()), $wrong[1]);
+            }
+        });
+
+        $this->assertTrue($this->twoFactor()->verify($user, $this->codeAt($secret)));
+        $this->assertTrue($raced);
+        Event::assertDispatchedTimes(TwoFactorLocked::class, 1);
+
+        // ロックの秒数（60 秒）の中で、また上限まで間違える
+        foreach (array_slice($wrong, 2) as $code) {
+            $this->assertFalse($this->twoFactor()->verify($user, $code));
+        }
+
+        Event::assertDispatchedTimes(TwoFactorLocked::class, 2);
     }
 
     /** @return array<string, array{0: string}> */
