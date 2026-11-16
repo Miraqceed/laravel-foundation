@@ -31,6 +31,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 試みの数え：ログイン以外の照合（確認コード・合言葉・カードなど）を、照合の前に数えて止める。続けた失敗のロック | 設定なしで呼んで使う | [docs/attempts.md](docs/attempts.md) |
 | 二段階の認証：認証アプリの確認コード（TOTP）を、使い回しと同時の要求を許さずに確かめる（手書きの認証と Fortify の差し替え） | 設定なしで呼んで使う。列は写したマイグレーションで足す | [docs/two-factor.md](docs/two-factor.md) |
 | DB の接続の時間帯：接続の時間帯がアプリの時間帯とずれていないかを確かめる（`foundation:db-timezone`） | 設定なしで呼んで使う（自動では確かめない） | [docs/database-timezone.md](docs/database-timezone.md) |
+| 本番の設定の点検：`APP_DEBUG`・`APP_KEY`・メール・Vite・マイグレーション・信頼するプロキシなどを1つのコマンドで調べる（`foundation:deploy-check`）。アプリの調べを足せる | 流したときだけ働く（自動では流れない） | [docs/deploy-check.md](docs/deploy-check.md) |
 | 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
 | 1回だけ使える合言葉：期限つき・ハッシュだけで持ち、同時の要求でも1回だけ通す（機械にトークンを受け取らせる合言葉・入場券など） | 無効（`foundation.one_time_codes.enabled`。表を作る） | [docs/one-time-codes.md](docs/one-time-codes.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |

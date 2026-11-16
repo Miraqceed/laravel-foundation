@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -90,6 +90,14 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 
 - `config/database.php` の pgsql・mysql の接続に `timezone` を書き、`app.timezone` と同じ値にする。PostgreSQL は時間帯の名前（`Asia/Tokyo`）で書く（`+09:00` と書くと 9 時間西と読まれる）。MySQL を時差（`+09:00`）で書いてよいのは、夏時間の無い時間帯（`Asia/Tokyo`・`UTC` など）だけ。夏時間のある時間帯は名前で書き、MySQL に時間帯の表を読み込む（時差で書くと、一年の片方の季節だけずれる）。
 - 配置の台本や CI で `php artisan foundation:db-timezone` を流す（ずれていれば終わりの値 1、つながらないなど確かめられなければ 2）。
+
+### 本番の設定の点検（`docs/deploy-check.md`）
+
+- 配置の台本の最後（`migrate`・`up` の後）と CI で `php artisan foundation:deploy-check` を流す（失敗があれば終わりの値 1。機械向けは `--json`、公開の直前は `--strict`）。点検を自前で書き直さない。
+- サービス固有の調べ（決済の鍵・運営者の表示など）は `Miraqceed\Foundation\DeployCheck\Check` を実装し、`config/foundation.php` の `deploy_check.checks` に足す。id は変えない。調べは読むだけにする。
+- `label()`・`detail` に設定の値（鍵・パスワード・接続先・URL）を入れない。何が違うかを値なしで書く。
+- 公開の前に要らない値は `Result::later()`。値が入っていて形が違えば、公開の前でも `Result::fail()`。
+- 逆プロキシの後ろで訪問者の本当の IP が要るアプリは、`deploy_check.proxies` を `'required'` にする。
 
 ### 子プロセスの環境変数（`docs/child-processes.md`）
 

@@ -2,6 +2,8 @@
 
 ## 未公開
 
+- コマンド `foundation:deploy-check` と `DeployCheck\Check`：本番の設定を1か所で調べ、違う所の id と説明を出して終わりの値 1 で終わる（`--json`・`--strict`）。既定の調べは15（`APP_ENV`・`APP_DEBUG`・`APP_URL`・暗号の方式に合う `APP_KEY`・Boost・`SESSION_SECURE_COOKIE`・キャッシュとセッションの種類・届くメールの設定・`view:cache` で外れるメールの守り・`public/hot`・Vite の manifest・書き込み・残ったマイグレーション・`foundation.attempts.bypass`・信頼するプロキシ）。アプリは `foundation.deploy_check.checks` に調べのクラスを足す。調べが投げてもその行だけを失敗にし、例外のクラス名だけを出す。設定の値は出さない。流したときだけ働く（schedule に入らない。書き込まない）。`docs/deploy-check.md`
+
 ## 0.8.1
 
 - `TwoFactor`：並んだ要求の正しいコードが通ってロックを空にした後、ロックの秒数の間にまたロックしても、出来事 `TwoFactorLocked` が出なかったのを直した（通ったときに、出来事を出した印も消す）。二段階の認証の試しの「間違ったコード」を、受けられる刻みのコードと重ならないように作る（乱数の鍵に決め打ちのコードを当てていたので、まれに落ちた）

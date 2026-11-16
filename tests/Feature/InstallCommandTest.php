@@ -89,6 +89,8 @@ class InstallCommandTest extends TestCase
             'CsvResponse::download', 'Rows::keyset', 'CsvReader::parse',
             // 実在しないメールアドレス：判定・欄の規則・送る前の差し込み（既定は無効）。形の確かめではない
             'reserved-email-domains.md', 'ReservedEmailDomains::isReserved', 'NotReservedEmailDomain', 'drop_reserved_recipients', 'メールアドレスの形の確かめではない',
+            // 本番の設定の点検：自前で書き直さず、調べを足す。値を出さない
+            'deploy-check.md', 'foundation:deploy-check', 'deploy_check.checks', 'Result::later()', '値なしで書く',
             // ログイン（3つとも要る。authenticateUsing が抜けると回数の制限が消える）
             'limiters', 'authenticateThrough', 'authenticateUsing', 'trustProxies',
             // 逆プロキシ：'*' は 13.20.0 から訪問者の送った X-Forwarded-For を信じる
