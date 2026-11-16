@@ -58,7 +58,8 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 
 ### CSP・セキュリティヘッダー（`docs/security.md`）
 
-- `foundation.security.enabled` を真にし、ミドルウェア `foundation.security-headers` を**自分で** `web` のグループに足す。
+- `foundation.security.enabled` を真にし、ミドルウェアを**自分で**グローバルの先頭に足す：`$middleware->prepend(\Miraqceed\Foundation\Security\SecurityHeaders::class)`。`web` のグループに足すと、ルートに合わない 404・メンテナンス中の 503・大きすぎる POST の 413 に付かない。グローバルでは別名 `foundation.security-headers` は使えない（クラス名で書く）。
+- グローバルに置くと、ルートごとに `withoutMiddleware()` で外せない。埋め込ませたいページは、そのパスを別の区分にして `frame-ancestors` に許す元を書く。
 - `'unsafe-inline'` を足して済ませない。外の元は `foundation.security.areas` に足す。インラインの `<script>`・`<style>` には `Nonce::get()` の nonce を付ける。
 - Laravel 12・13 の Vue・React の starter kit は、`resources/views/app.blade.php` にインラインの `<script>`（ダークモード）と `<style>` を持つ。どちらにも `nonce="@{{ Vite::cspNonce() }}"` を付ける（付けないと CSP で止まる）。
 - `X-Frame-Options` は区分の `frame-ancestors` から決まる（`'none'` → DENY、`'self'` だけ → SAMEORIGIN、ほかの元を含む → 付けない）。iframe を許すときは `X-Frame-Options` を自分で付けず、`frame-ancestors` を直す。
