@@ -5,6 +5,9 @@ return [
     'test_safety' => [
         'markers' => ['test', 'testing'],
         'ignore_connections' => [],
+        // true にすると、テストの中だけ Http::preventStrayRequests() を掛ける（Http::fake() に当たらない要求は送る前に止まる）。
+        // 判定は DB の守りと同じ（テストの中か）。テストの外（本番・artisan）では掛けない
+        'prevent_stray_requests' => false,
     ],
 
     // CSP・セキュリティヘッダー（Task 6）

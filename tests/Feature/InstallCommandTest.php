@@ -83,8 +83,8 @@ class InstallCommandTest extends TestCase
         $section = InstallCommand::section();
 
         $required = [
-            // テストの守りは入れた時点で効く
-            'test-safety.md', 'ignore_connections', '入れた時点で効く',
+            // テストの守りは入れた時点で効く。外への通信の遮断は任意（新しいアプリでは真）
+            'test-safety.md', 'ignore_connections', '入れた時点で効く', 'prevent_stray_requests', 'Unknown database',
             // CSV
             'CsvResponse::download', 'Rows::keyset', 'CsvReader::parse',
             // 実在しないメールアドレス：判定・欄の規則・送る前の差し込み（既定は無効）。形の確かめではない

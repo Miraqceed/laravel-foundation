@@ -11,6 +11,7 @@
 1. テスト用 DB の名前に、**語として** `test` か `testing` を入れる（`app_test`・`testing`・`app-test-1`。`latest`・`contest` は語でないので不可）。区切りは `_` `.` `-`。
 2. 使うアプリの CI の DB 名にも印を付ける。
 3. 並列の試し（`php artisan test --parallel`）でも、プロセスごとの DB 名（`app_test_test_1`）に印が残るので、そのまま通る。
+   **元のテスト用 DB（`app_test`）は先に作っておく。** Laravel はプロセスごとの DB を作るために元の DB へつなぐので、ないとすべての試しが `Unknown database 'app_test'`（PostgreSQL では `database "app_test" does not exist`）で落ちる。新しい開発の環境や CI で、元の DB を作る手順を忘れない。
 4. 印の語を変えるなら `config/foundation.php`：
 
 ```php
@@ -22,6 +23,20 @@
 ```php
 'test_safety' => ['ignore_connections' => ['legacy_readonly']],
 ```
+
+## 外への通信を止める（任意。既定は無効）
+
+`Http::fake()` を書き忘れた試しは、本物の外の API（決済・メール・AI など）を呼ぶ。開発者の `.env` に本物の鍵があれば、試しの中で本当に請求や送信が起きる。
+次の設定を真にすると、**テストの中だけ** `Http::preventStrayRequests()` を掛け、`Http::fake()` に当たらない要求を送る前に `StrayRequestException` で止める：
+
+```php
+'test_safety' => ['prevent_stray_requests' => true],
+```
+
+- 新しいアプリでは真にする。既定が偽なのは、今ある試しのうち本物の通信をするもの（外の試し用の API へつなぐ結合の試しなど）を、版を上げただけで落とさないため。
+- テストの中かは、DB の守りと同じ判定（PHPUnit の `TestCase` が読み込まれているか・並列の印）。本番や `artisan` では掛けない。
+- 本物の通信が要る試しは、その試しの中で `Http::allowStrayRequests()` を呼んで外す（Laravel の新しい版では URL の一覧を渡せる）。
+- **限界：** 止まるのは Laravel の HTTP クライアント（`Http::`）を通る要求だけ。SDK が自分の HTTP クライアントで送る通信は止まらない。試しでは、その SDK の鍵を `phpunit.xml` の `<env name="…" value="" force="true"/>` で空に固定する。
 
 ## してはいけないこと
 

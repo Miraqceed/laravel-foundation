@@ -7,6 +7,8 @@
 - 入れた時点で効く（有効にする設定はない）。テスト用 DB の名前に `test` か `testing` を**語として**入れる（`app_test`）。印のない DB につなごうとしたテストは DB に触れる前に止まる。
 - 接続先を環境変数（`--env-file`・`-e DB_DATABASE=…`）で渡さない。`.env.testing` か `phpunit.xml` に書く。
 - テストで読む外の DB は、名前を偽らずに `foundation.test_safety.ignore_connections` に接続名を挙げる。
+- 並列の試し（`--parallel`）では、元のテスト用 DB を先に作る（ないと `Unknown database` で全部落ちる）。
+- 新しいアプリでは `foundation.test_safety.prevent_stray_requests` を真にする（テストの中だけ、`Http::fake()` に当たらない外への要求を送る前に止める。既定は偽）。本物の通信が要る試しは、その中で `Http::allowStrayRequests()`。SDK が自分で送る通信は止まらないので、試しでは鍵を `phpunit.xml` で空に固定する。
 
 ### CSV（`docs/csv.md`）
 

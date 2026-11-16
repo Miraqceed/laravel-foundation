@@ -9,6 +9,7 @@ use Illuminate\Database\Connectors\ConnectionFactory;
 use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Route;
@@ -119,6 +120,12 @@ class FoundationServiceProvider extends ServiceProvider
     {
         // 別名はいつも登録する（無効のあいだは何もしない）。グループへは足さない
         $this->app['router']->aliasMiddleware('foundation.security-headers', SecurityHeaders::class);
+
+        // テストの中だけ、Http::fake() に当たらない外への要求を送る前に止める（既定は偽。入れただけでは掛けない）。
+        // 判定は DB の守りと同じ関数。試しごとにアプリを作り直すので、起動のたびに掛ける
+        if (config('foundation.test_safety.prevent_stray_requests') && TestDatabaseGuard::runningTests()) {
+            $this->app->make(HttpFactory::class)->preventStrayRequests();
+        }
 
         // 検証の規則の文（foundation::validation.*）。アプリは lang/vendor/foundation で上書きできる
         $this->loadTranslationsFrom(__DIR__.'/../lang', 'foundation');
