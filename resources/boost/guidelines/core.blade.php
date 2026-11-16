@@ -50,7 +50,7 @@ return CsvResponse::download('一覧.csv', ['ID', '会社名'], (function () {
 ### ログインのロック（`docs/login.md`）
 
 - 失敗の数えを自前で作らない。`LoginLock` を使う。Fortify では次の3つが**すべて**要る（1つでも欠けると回数の制限が消えるか二重になる）：①`config/fortify.php` の `limiters` の `login` を `null`、②`Fortify::authenticateThrough(fn () => AuthenticateWithLoginLock::loginPipeline())`、③`Fortify::authenticateUsing(...)` に `AuthenticateWithLoginLock` を渡す。
-- **逆プロキシ（ロードバランサー・Caddy・nginx・Cloudflare）の後ろでは、`bootstrap/app.php` の `$middleware->trustProxies(at: …)` が必須。** 設定しないと全員が同じ IP（プロキシの IP）になり、接続元の枠がサイト全体のロックになる。
+- **逆プロキシ（ロードバランサー・Caddy・nginx・Cloudflare）の後ろでは、`bootstrap/app.php` の `$middleware->trustProxies(at: …)` が必須。** 設定しないと全員が同じ IP（プロキシの IP）になり、接続元の枠がサイト全体のロックになる。`at:` には前段のプロキシの IP・範囲を書き、`'*'` にしない（Laravel 13.20.0 から、`'*'` は訪問者が送った `X-Forwarded-For` を信じ、偽の IP で接続元の枠を避けられる）。前段のアドレスが分からないときの書き方と限界は `docs/login.md`。
 
 @verbatim
 <code-snippet name="Fortify に組み込む（FortifyServiceProvider の boot）" lang="php">

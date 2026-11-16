@@ -91,6 +91,8 @@ class InstallCommandTest extends TestCase
             'reserved-email-domains.md', 'ReservedEmailDomains::isReserved', 'NotReservedEmailDomain', 'drop_reserved_recipients', 'メールアドレスの形の確かめではない',
             // ログイン（3つとも要る。authenticateUsing が抜けると回数の制限が消える）
             'limiters', 'authenticateThrough', 'authenticateUsing', 'trustProxies',
+            // 逆プロキシ：'*' は 13.20.0 から訪問者の送った X-Forwarded-For を信じる
+            "'*'` にしない", '13.20.0',
             // CSP（web のグループでなくグローバルの先頭。web のグループでは 404・503・413 に付かない）
             'foundation.security.enabled', 'foundation.security-headers', 'Nonce::get', 'Vite::cspNonce()', 'report_route', 'frame-ancestors',
             '$middleware->prepend(\\Miraqceed\\Foundation\\Security\\SecurityHeaders::class)', 'withoutMiddleware()',
