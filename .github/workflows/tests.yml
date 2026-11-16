@@ -49,6 +49,9 @@ jobs:
       QUEUE_CONNECTION: database
     steps:
       - uses: actions/checkout@v4
+        with:
+          # CHANGELOG の出した版の節を、その版のタグの時点と比べる試し（ChangelogReleasedSectionsTest）が、タグを読む
+          fetch-depth: 0
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
