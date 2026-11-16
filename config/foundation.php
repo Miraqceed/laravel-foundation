@@ -139,4 +139,15 @@ return [
         // Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\Ai\AiUsage::class]])->daily();）。日ごとの合計は消さない
         'prune_days' => 90,
     ],
+
+    // 文の中の秘密を伏せる（Redactor）。呼んだときだけ働く。漏れを無くすとは約束しない
+    'redaction' => [
+        // 伏せた所に入れる印。どの形にも当たらない字にする（当たると作るときに例外）
+        'marker' => '[REDACTED]',
+        // 使う組み込みの種類。null は全部。例：メールアドレスを残すなら email を外した並び
+        // private_key・aws_key・github_token・api_key・slack_token・jwt・assignment・url_password・email・phone
+        'kinds' => null,
+        // アプリが足す形（種類の名前 => 正規表現）。例：'myapp_token' => '/(?<![A-Za-z0-9])myapp_[A-Za-z0-9]{32}(?![A-Za-z0-9])/'
+        'patterns' => [],
+    ],
 ];
