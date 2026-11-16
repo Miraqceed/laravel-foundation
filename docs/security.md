@@ -24,14 +24,36 @@
 'security' => ['enabled' => true],
 ```
 
-2. **ミドルウェアは自分で `web` のグループに足す**（自動では足さない）。別名は `foundation.security-headers`（いつも登録される。無効のあいだは何もしない）：
+2. **ミドルウェアは自分で、グローバルの一番外（先頭）に足す**（自動では足さない。無効のあいだは何もしない）：
 
 ```php
 // bootstrap/app.php
 ->withMiddleware(function (Middleware $middleware) {
-    $middleware->appendToGroup('web', 'foundation.security-headers');
+    $middleware->prepend(\Miraqceed\Foundation\Security\SecurityHeaders::class);
 })
 ```
+
+- **`web` のグループに足すと、ルートが決まる前に返る応答にヘッダーが付かない。** ルートに合わない URL の 404、メンテナンス中の 503、グローバルの中間処理が返す応答（大きすぎる POST の 413 など）。これらのエラーの画面も HTML なので、`frame-ancestors`・`X-Frame-Options` がないとほかのサイトの枠に入れられる。
+- **グローバルではクラス名で書く。** 別名 `foundation.security-headers` はルートの中間処理でしか解かれないので、`prepend('foundation.security-headers')` は「Target class does not exist」で落ちる。別名は、特定のルートだけに付けたいときに使う。
+- ルートのない応答の区分も、パス（`area_paths`）で決まる（`/api/…` に合わない 404 は `api` の方針になる）。
+- 転送・JSON・ダウンロードを含む、すべての応答に付く（`web` のグループに入れていたときの、グループの中のルートと同じ）。
+- **ルートごとに `withoutMiddleware()` で外すことはできない**（グローバルの中間処理はルートから外せない）。ほかのサイトに埋め込ませたいページがあるなら、外すのではなく、そのパスを別の区分にして `frame-ancestors` に許す元を書く：
+
+```php
+'security' => [
+    'areas' => [
+        // web の指示を写したうえで、frame-ancestors だけを変える
+        'embed' => [/* … */ 'frame-ancestors' => ['https://partner.example']],
+    ],
+    'area_paths' => [
+        'embed' => ['embed/*'],
+        'admin' => ['admin', 'admin/*'],
+        'api' => ['api/*'],
+    ],
+],
+```
+
+- **今 `web` のグループに入れているアプリは、グループから外してグローバルの先頭へ移す。** 移している途中で両方に残っても、見出しは1つで、画面の nonce と CSP の nonce も一致する（内側が付け、外側はすでにある見出しを上書きしない）。
 
 3. インラインの `<script>`・`<style>` には nonce を付ける。Vite のタグは自動で同じ nonce になる：
 
@@ -101,7 +123,7 @@ nginx なら、その `location = /csp-report` に `client_max_body_size 16k;`�
 ## してはいけないこと
 
 - `'unsafe-inline'`・`'unsafe-eval'` を `web` の `script-src` に足して済ませない（nonce が無効になる）。
-- ミドルウェアを `web` のグループへ足し忘れない（足さないと、有効にしても何も付かない）。
+- ミドルウェアをグローバルの先頭へ足し忘れない（足さないと、有効にしても何も付かない）。`web` のグループだけに足さない（404・503・413 に付かない）。
 - 報告の口を `web` のグループに入れない。
 - starter kit の `app.blade.php` のインラインの `<script>`・`<style>` に nonce を付け忘れない。
 
