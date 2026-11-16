@@ -31,6 +31,8 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
 | AI の費用の上限と記録（Laravel AI SDK で呼ぶ AI の1日・1か月の金額と1日の回数に上限、呼び出しごとの使用量と原価） | 無効（`foundation.ai.enabled`）。`laravel/ai` ^1.4 が要る | [docs/ai.md](docs/ai.md) |
 
+利用者が入れた URL をサーバーから開くときの守り（SSRF）は、このパッケージに入れず、別のパッケージ `cboxdk/laravel-ssrf` を使います。使い方と注意は [docs/ssrf.md](docs/ssrf.md) にあります。
+
 ## 例：schedule の外の処理を見張る
 
 ```php

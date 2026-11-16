@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`login.md`・`security.md`・`monitoring.md`・`ai.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`login.md`・`security.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -82,3 +82,12 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 使った額を数えられないとき（単価の表が空・DB が読めないなど）は `foundation.ai.when_uncountable`（既定 `block`＝止める）に従う。
 - 使用量の行は自動で消えない。`model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\Ai\AiUsage` を指す（`foundation.ai.prune_days`、既定 90）。
 - 知らせは `foundation.monitoring.enabled` が真のときだけ届く（日・月に1回）。画像・音声・埋め込みなどは数えず止めない。
+
+### 利用者の URL をサーバーから開く（`docs/ssrf.md`）
+
+- このパッケージは守りを持たない。PHP 8.4 以上のアプリは `cboxdk/laravel-ssrf`（^1.5）を入れ、利用者が入れた URL（Webhook の送り先・画像や記事の取り込みなど）は `Http::ssrf()->get($url)` で開く。保存する前の確かめは検証の規則 `new \Cbox\Ssrf\Rules\PublicUrl`。
+- PHP 8.3 のアプリでは `cboxdk/laravel-ssrf` を入れられない。利用者の URL をサーバーから開く機能を作る前に、PHP を 8.4 へ上げる。上げられない間は、その機能を作らず、作る人（頼んだ人）に知らせる。自前の守りで代わりにしない。
+- `Http::get($url)` で直に開かない。名前を引いて確かめてから `Http::` で開く自前の守りを書かない（つなぐときに名前を引き直すので、DNS の書き換えですり抜ける）。
+- `guzzlehttp/guzzle` は 7.15.2 以上（8 系は 8.0.1 以上）にする（それより前はホストの読み方の食い違いで確かめをすり抜ける）。
+- `HTTP_PROXY` などのプロキシを通すと、つなぐ先の固定が効かない。出口のファイアウォールで社内のアドレスと `169.254.169.254` を止めるのが本筋。
+- `assertSafeRedirect()` は名前を引かず、`127.1` のような書き方を見落とす。サーバーから開く URL の確かめに使わない。
