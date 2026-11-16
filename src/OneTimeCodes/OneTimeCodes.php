@@ -21,6 +21,9 @@ final class OneTimeCodes
 {
     public const TABLE = 'foundation_one_time_codes';
 
+    /** 受け取りのトランザクションを試す回数（行き詰まり・直列化の失敗で試し直す） */
+    private const ATTEMPTS = 3;
+
     /** 表に書く時刻の形（UTC） */
     private const FORMAT = 'Y-m-d H:i:s';
 
@@ -73,7 +76,7 @@ final class OneTimeCodes
      * @param  mixed  $code  送られた値（文字列でなければ断る）
      * @param  ?Closure(ClaimedCode): mixed  $then
      */
-    public function claim(CodeKind $kind, mixed $code, ?Closure $then = null): ?ClaimedCode
+    public function claim(CodeKind $kind, #[\SensitiveParameter] mixed $code, ?Closure $then = null): ?ClaimedCode
     {
         // 形が違えば DB を引かない
         if (! CodeFormat::matches($kind->prefix, $code)) {
@@ -81,6 +84,8 @@ final class OneTimeCodes
         }
         $hash = CodeFormat::hash($code);
 
+        // 行き詰まり・直列化の失敗（PostgreSQL の REPEATABLE READ・SERIALIZABLE で、先に書かれたとき）は試し直す。
+        // 試し直すと条件つきの UPDATE が 0 行になり、競り負けた側は null になる（アプリの外側のトランザクションの中では、Laravel は試し直さない）
         return DB::transaction(function () use ($kind, $hash, $then): ?ClaimedCode {
             $now = self::now()->format(self::FORMAT);
 
@@ -105,7 +110,7 @@ final class OneTimeCodes
             );
 
             return $then === null ? $claimed : $claimed->withResult($then($claimed));
-        });
+        }, self::ATTEMPTS);
     }
 
     /** 同じ種類・同じ対象の、まだ使っていない（効いている）合言葉を失効させ、その数を返す */
@@ -118,12 +123,26 @@ final class OneTimeCodes
     {
         $at = $now->format(self::FORMAT);
 
-        return DB::table(self::TABLE)
+        // 先にロックを取らない読み出しで効いている行の id を引き、あるときだけ id で失効させる。
+        // 対象の条件で UPDATE すると、MySQL は合う行が無くても (kind, subject) の索引の隙間をロックし、
+        // 別々の対象に同時に出す INSERT どうしが互いの隙間を待って行き詰まる（1213 Deadlock）
+        $ids = DB::table(self::TABLE)
             ->where('kind', $kind->name)
             ->where('subject', $subject)
             ->whereNull('claimed_at')
             ->whereNull('revoked_at')
             ->where('expires_at', '>', $at)
+            ->pluck('id')
+            ->all();
+        if ($ids === []) {
+            return 0;
+        }
+
+        // 読んだ後に受け取られたものは失効させない（条件をもう一度入れる）
+        return DB::table(self::TABLE)
+            ->whereIn('id', $ids)
+            ->whereNull('claimed_at')
+            ->whereNull('revoked_at')
             ->update(['revoked_at' => $at]);
     }
 

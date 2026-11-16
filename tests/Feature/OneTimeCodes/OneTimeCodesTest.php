@@ -5,6 +5,7 @@ namespace Miraqceed\Foundation\Tests\Feature\OneTimeCodes;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Miraqceed\Foundation\OneTimeCodes\ClaimedCode;
+use Miraqceed\Foundation\OneTimeCodes\CodeFormat;
 use Miraqceed\Foundation\OneTimeCodes\CodeKind;
 use Miraqceed\Foundation\OneTimeCodes\OneTimeCodes;
 use Miraqceed\Foundation\Tests\Support\RefreshesOneTimeCodeDatabase;
@@ -206,6 +207,95 @@ class OneTimeCodesTest extends TestCase
         $this->assertSame(0, $this->codes->revoke($this->claimKind, 'user:5'));
         $this->assertSame(0, $this->codes->revoke($this->ticketKind, 'user:5'));
         $this->assertNull($this->codes->claim($this->claimKind, $live->code));
+    }
+
+    /** 出すときの失効と書き込みは1つのトランザクション。書き込みが失敗したら、前の合言葉は効いたまま */
+    public function test_failed_insert_keeps_the_previous_code(): void
+    {
+        $previous = $this->codes->issue($this->claimKind, 'user:5');
+        $armed = true;
+        DB::beforeExecuting(function (string $sql) use (&$armed): void {
+            if ($armed && str_starts_with(strtolower(ltrim($sql)), 'insert into')) {
+                $armed = false;
+                throw new \RuntimeException('書き込みの失敗（作り物）');
+            }
+        });
+
+        try {
+            $this->codes->issue($this->claimKind, 'user:5');
+            $this->fail('例外が出なかった');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('書き込みの失敗（作り物）', $e->getMessage());
+        }
+
+        $this->assertFalse($armed);
+        $this->assertNotNull($this->codes->claim($this->claimKind, $previous->code));
+    }
+
+    /**
+     * 対象・種類は、大文字・小文字・アクセント・後ろの空白の違いを別のものとして比べる
+     * （MySQL の既定の照合順序 utf8mb4_unicode_ci・utf8mb4_0900_ai_ci は区別しない。utf8mb4_bin は後ろの空白を区別しない）
+     */
+    public function test_subjects_and_kinds_are_compared_exactly(): void
+    {
+        $others = [];
+        foreach (['USER:ABC', 'usér:abc', 'user:abc '] as $subject) {
+            $others[$subject] = $this->codes->issue($this->claimKind, $subject);
+        }
+
+        $this->codes->issue($this->claimKind, 'user:abc');
+
+        $this->assertSame(1, $this->codes->revoke($this->claimKind, 'user:abc'));
+        foreach ($others as $subject => $issued) {
+            $this->assertNotNull($this->codes->claim($this->claimKind, $issued->code), "[{$subject}]");
+        }
+
+        $code = $this->codes->issue($this->claimKind)->code;
+        $this->assertNull($this->codes->claim(new CodeKind('TOKEN-CLAIM', 'apc_'), $code));
+        $this->assertNotNull($this->codes->claim($this->claimKind, $code));
+    }
+
+    /** 受け取った後の処理が投げても、例外の呼び出しの記録に平文の合言葉が残らない（投げた後も、合言葉はまた使える） */
+    public function test_plain_code_is_not_kept_in_exception_traces(): void
+    {
+        if (filter_var(ini_get('zend.exception_ignore_args'), FILTER_VALIDATE_BOOLEAN)) {
+            $this->markTestSkipped('zend.exception_ignore_args が有効（引数を記録しない）');
+        }
+        $issued = $this->codes->issue($this->claimKind);
+        $body = substr($issued->code, strlen('apc_'));
+
+        try {
+            $this->codes->claim($this->claimKind, $issued->code, function (): never {
+                throw new \RuntimeException('トークンを出せなかった（作り物）');
+            });
+            $this->fail('例外が出なかった');
+        } catch (\RuntimeException $e) {
+            $this->assertStringNotContainsString(substr($issued->code, 0, 15), $e->getTraceAsString());
+            foreach ($e->getTrace() as $frame) {
+                foreach ($frame['args'] ?? [] as $arg) {
+                    if (is_string($arg)) {
+                        $this->assertStringNotContainsString($body, $arg);
+                    }
+                }
+            }
+        }
+    }
+
+    /** 平文を受ける引数には #[\SensitiveParameter] を付ける */
+    public function test_parameters_holding_the_plain_code_are_sensitive(): void
+    {
+        $parameters = [
+            [OneTimeCodes::class, 'claim', 'code'],
+            [CodeFormat::class, 'matches', 'value'],
+            [CodeFormat::class, 'hash', 'code'],
+        ];
+        foreach ($parameters as [$class, $method, $name]) {
+            $parameter = array_values(array_filter(
+                (new \ReflectionMethod($class, $method))->getParameters(),
+                fn (\ReflectionParameter $p) => $p->getName() === $name,
+            ))[0];
+            $this->assertCount(1, $parameter->getAttributes(\SensitiveParameter::class), "{$method}(\${$name})");
+        }
     }
 
     public function test_no_column_holds_the_plain_code(): void

@@ -13,11 +13,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('foundation_one_time_codes', function (Blueprint $table) {
+        // MySQL・MariaDB の既定の照合順序は、大文字・小文字・アクセント（・後ろの空白）を区別せずに比べる。
+        // 種類と対象は、字のとおりに比べる照合順序にする（utf8mb4_bin は後ろの空白を区別しないので使わない）
+        $exact = match (Schema::getConnection()->getDriverName()) {
+            'mysql' => 'utf8mb4_0900_bin',
+            'mariadb' => 'utf8mb4_nopad_bin',
+            default => null,
+        };
+
+        Schema::create('foundation_one_time_codes', function (Blueprint $table) use ($exact) {
             $table->id();
-            $table->string('kind', 64);
+            $kind = $table->string('kind', 64);
             $table->char('code_hash', 64)->unique();
-            $table->string('subject', 255)->nullable();
+            $subject = $table->string('subject', 255)->nullable();
+            if ($exact !== null) {
+                $kind->charset('utf8mb4')->collation($exact);
+                $subject->charset('utf8mb4')->collation($exact);
+            }
             $table->json('data')->nullable();
             $table->dateTime('expires_at');
             $table->dateTime('claimed_at')->nullable();

@@ -119,11 +119,23 @@ class InstallCommandTest extends TestCase
             'auth.session', 'remember_token',
             // 1回だけ使える合言葉（表は有効にしたときだけ。受け取りは Attempts の共有の枠で包む。平文を flash・ログに入れない）
             'one-time-codes.md', 'OneTimeCodes', 'foundation.one_time_codes.enabled', 'FailuresShared', 'no-store',
-            'Miraqceed\\Foundation\\OneTimeCodes\\OneTimeCode', '$claimed->result',
+            'Miraqceed\\Foundation\\OneTimeCodes\\OneTimeCode', '$claimed->result', 'DB::afterCommit()',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
             $this->assertStringContainsString($word, $section, "install の節に {$word} がない");
+        }
+    }
+
+    /** 見出しの前には空の行を置く（無いと、前の箇条書きの続きと読まれる表示がある） */
+    public function test_every_guideline_heading_follows_a_blank_line(): void
+    {
+        $lines = explode("\n", (string) file_get_contents(InstallCommand::GUIDELINE));
+
+        foreach ($lines as $i => $line) {
+            if ($i > 0 && str_starts_with($line, '### ')) {
+                $this->assertSame('', $lines[$i - 1], "{$line} の前に空の行がない");
+            }
         }
     }
 

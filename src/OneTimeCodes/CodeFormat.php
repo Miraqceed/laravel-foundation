@@ -29,7 +29,7 @@ final class CodeFormat
     }
 
     /** 文字列で、頭の印 + 英数字ちょうど40字か（後ろの改行も通さない）。文字列でなければ false */
-    public static function matches(string $prefix, mixed $value): bool
+    public static function matches(string $prefix, #[\SensitiveParameter] mixed $value): bool
     {
         if (! is_string($value)) {
             return false;
@@ -39,7 +39,7 @@ final class CodeFormat
     }
 
     /** DB に持つハッシュ（SHA-256 の16進、64字） */
-    public static function hash(string $code): string
+    public static function hash(#[\SensitiveParameter] string $code): string
     {
         return hash('sha256', $code);
     }

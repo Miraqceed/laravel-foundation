@@ -81,10 +81,11 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 ### 1回だけ使える合言葉（`docs/one-time-codes.md`）
 
 - 一度だけ渡したい秘密（機械にトークンを受け取らせる合言葉・1回限りの入場券・確認のリンクの秘密）を自前で書かない。`Miraqceed\Foundation\OneTimeCodes\OneTimeCodes` の `issue()`・`claim()`・`revoke()` を使う。種類は `new CodeKind(名前, 頭の印, 効く秒数)`。`foundation.one_time_codes.enabled` を真にして `php artisan migrate`（表はアプリの既定の接続に置く）。
-- 受け取れなければ `claim()` は理由を問わず `null`。受け取った後の処理（トークンを出すなど）は `claim()` の3つ目の引数で渡し、同じトランザクションの中で動かす（投げたら巻き戻り、合言葉はまた受け取れる）。戻り値は `$claimed->result`。読んでから印を書く2段の形を自前で書かない（同じ合言葉が同時に2回通る）。
+- 受け取れなければ `claim()` は理由を問わず `null`。受け取った後の処理（トークンを出すなど）は `claim()` の3つ目の引数で渡し、同じトランザクションの中で動かす（投げたら巻き戻り、合言葉はまた受け取れる。巻き戻るのは同じ接続の DB の書き込みだけなので、キュー・メールなど外への作用は `DB::afterCommit()` で後に回す）。戻り値は `$claimed->result`。読んでから印を書く2段の形を自前で書かない（同じ合言葉が同時に2回通る）。
 - 受け取りの口は `Attempts::attempt()` で、接続元ごとの共有の枠（`Counting::FailuresShared`）で包む。合言葉は POST の本文で受け、URL に入れない・GET で消費しない。答えには `Cache-Control: no-store` を付け、断りの文は1つにする。
 - 平文の合言葉を、リダイレクトと flash・ログ・監査の記録に入れない。繰り返し使う API のトークンは Sanctum を使う（この部品で作らない）。
 - 古い行は `model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\OneTimeCodes\OneTimeCode` を指す（`foundation.one_time_codes.prune_days`、既定 7）。
+
 ### DB の接続の時間帯（`docs/database-timezone.md`）
 
 - `config/database.php` の pgsql・mysql の接続に `timezone` を書き、`app.timezone` と同じ値にする。PostgreSQL は時間帯の名前（`Asia/Tokyo`）で書く（`+09:00` と書くと 9 時間西と読まれる）。MySQL を時差（`+09:00`）で書いてよいのは、夏時間の無い時間帯（`Asia/Tokyo`・`UTC` など）だけ。夏時間のある時間帯は名前で書き、MySQL に時間帯の表を読み込む（時差で書くと、一年の片方の季節だけずれる）。
