@@ -12,6 +12,7 @@ use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Miraqceed\Foundation\Ai\AiStore;
 use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
@@ -30,6 +31,7 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->app->scoped(Nonce::class);
         $this->app->singleton(WatchList::class);
+        $this->app->singleton(AiStore::class);
 
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
@@ -120,12 +122,21 @@ class FoundationServiceProvider extends ServiceProvider
                 __DIR__.'/../database/migrations' => database_path('migrations'),
             ], 'foundation-migrations');
 
+            $this->publishes([
+                __DIR__.'/../database/ai-migrations' => database_path('migrations'),
+            ], 'foundation-ai-migrations');
+
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
             $this->commands([InstallCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
         }
 
         // マイグレーションは monitoring が有効なときだけ読み込む。
         // 無効でも `vendor:publish --tag=foundation-migrations` で写せる。
+        // AI の費用の上限と記録の表も、有効なときだけ読み込む
+        if (config('foundation.ai.enabled')) {
+            $this->loadMigrationsFrom(__DIR__.'/../database/ai-migrations');
+        }
+
         if (config('foundation.monitoring.enabled')) {
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
