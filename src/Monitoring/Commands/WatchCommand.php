@@ -3,6 +3,8 @@
 namespace Miraqceed\Foundation\Monitoring\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Miraqceed\Foundation\Monitoring\Alerts\AlertSender;
 use Miraqceed\Foundation\Monitoring\StallCheck;
@@ -13,6 +15,10 @@ use Throwable;
 
 class WatchCommand extends Command
 {
+    private const BEAT_TRIES = 3;
+
+    private const BEAT_RETRY_MS = 2000;
+
     protected $signature = 'foundation:watch';
 
     protected $description = '定期の処理が止まっていないかを確かめ、止まっていれば運営へ知らせる';
@@ -71,7 +77,13 @@ class WatchCommand extends Command
         }
 
         try {
-            Http::timeout(10)->get($url)->throw();
+            // 一瞬の通信の失敗で心拍が抜けると、外の監視が「止まった」と知らせうる。合わせて3回、2秒あけて送る
+            // （最悪でも約34秒で、見張りの重なり止めの10分に収まる）。送り直すのはつながらない・5xx・429 だけで、
+            // 4xx（URL の書き損じ・鍵の誤り）は送り直しても直らないので1回で諦める
+            Http::timeout(10)
+                ->retry(self::BEAT_TRIES, self::BEAT_RETRY_MS, fn (Throwable $e) => $e instanceof ConnectionException
+                    || ($e instanceof RequestException && ($e->response->serverError() || $e->response->status() === 429)))
+                ->get($url);
         } catch (Throwable $e) {
             $this->warn('外部の死活監視へ合図を送れませんでした（'.class_basename($e).'）');
         }
