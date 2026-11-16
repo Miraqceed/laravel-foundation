@@ -2,6 +2,14 @@
 
 ## 未公開
 
+## 0.2.0
+
+**入れただけでは変わらない。** 新しい部品は既定で無効（`foundation.ai.enabled`）。使うには `laravel/ai` ^1.4 が要る（`composer.json` の `suggest`。`<1.4 || >=2.0` は `conflict`）。
+
+- AI の費用の上限と記録：Laravel AI SDK で呼ぶ AI に、アプリ全体の1日・1か月の金額と1日の回数の上限をかけ、上限以上なら送らずに `AiLimitReached` を投げる。呼び出しごとの使用量と原価を `foundation_ai_usages` に、日ごとの合計を `foundation_ai_totals` に残す。単価の表（`foundation.ai.prices`）に既定値はなく、単価のないモデルは0円にせず、いちばん高い単価で数える。使った額を数えられないときは `foundation.ai.when_uncountable`（既定 `block`）に従う。上限に達したことは、見張りが有効なら運営へ知らせる（日・月に1回）。文の生成と分類だけを数え、画像・音声・埋め込みなどは数えず止めない。`docs/ai.md`
+- マイグレーションは `foundation.ai.enabled` のときだけ読まれる。無効でも `vendor:publish --tag=foundation-ai-migrations` で写せる。使用量の行は `model:prune --model=Miraqceed\Foundation\Ai\AiUsage` で消す（`foundation.ai.prune_days`、既定 90）。
+- AI 向けの指針に節を足した（`foundation:install` にも写る）。
+
 ## 0.1.2
 
 - コードのコメント・説明書・AI 向けの指針から、特定のサービスの名前と事故の番号を外し、一般的な書き方にした。振る舞いは 0.1.1 と同じ。

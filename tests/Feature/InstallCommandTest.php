@@ -96,6 +96,8 @@ class InstallCommandTest extends TestCase
             'environments()', 'foundation.watch:', 'throttle_minutes - 5',
             // 知らせの表は model:prune で消す（アプリが schedule に入れる）
             'model:prune', '--model', 'prune_days',
+            // AI の費用の上限
+            'foundation.ai.enabled', 'Laravel AI SDK', 'AiLimitReached', 'when_uncountable', 'Miraqceed\\Foundation\\Ai\\AiUsage',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
