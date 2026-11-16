@@ -99,6 +99,30 @@ class RedactorKindsTest extends TestCase
         $this->assertSame($expected, (new Redactor)->text($text)->value);
     }
 
+    /** @return array<string, array{0: string, 1: string}> */
+    public static function quotedValuesOfAnyCharacters(): array
+    {
+        return [
+            'non-ascii' => ['password: "Pässwörd-LongSecret-99"', 'password: "[REDACTED]"'],
+            'non-ascii in the middle' => ['password: "LongSecret€tail99"', 'password: "[REDACTED]"'],
+            'tab' => ["password: \"Fake\tPass1234\"", 'password: "[REDACTED]"'],
+            'escaped quote near the head' => ['{"password":"p@s\\"w0rdLongSecret99"}', '{"password":"[REDACTED]"}'],
+            'escaped quote in the middle' => ['{"password":"LongSecretHead\\"tail99"}', '{"password":"[REDACTED]"}'],
+            'other quote inside' => ["password: \"it's-FakePass99\"", 'password: "[REDACTED]"'],
+            'japanese inside quotes' => ['password: "ひみつのあいことば123"', 'password: "[REDACTED]"'],
+            'single quotes with escaped quote' => ["'password' => 'it\\'s-FakePass99',", "'password' => '[REDACTED]',"],
+        ];
+    }
+
+    #[DataProvider('quotedValuesOfAnyCharacters')]
+    public function test_redacts_the_whole_quoted_value_whatever_its_characters(string $text, string $expected): void
+    {
+        $result = (new Redactor)->text($text);
+
+        $this->assertSame($expected, $result->value);
+        $this->assertEquals([new Finding('assignment', '')], $result->findings);
+    }
+
     public function test_redacts_a_quoted_value_with_spaces_up_to_the_closing_quote(): void
     {
         $result = (new Redactor)->text('password: "Fake Pass 1234" を使った');
@@ -114,6 +138,9 @@ class RedactorKindsTest extends TestCase
             'mysql ip' => ['mysql://root:FakePass1234@127.0.0.1:3306/x', 'mysql://root:[REDACTED]@127.0.0.1:3306/x'],
             'domain host is not taken as email' => ['postgres://app:FakePass1234@db.example.com/x', 'postgres://app:[REDACTED]@db.example.com/x'],
             'empty user name' => ['redis://:FakePass1234@localhost:6379/0', 'redis://:[REDACTED]@localhost:6379/0'],
+            // パスワードは、ホストの前の最後の @ まで
+            'password with an at sign' => ['mysql://root:P@ssw0rdFake@localhost:3306/db', 'mysql://root:[REDACTED]@localhost:3306/db'],
+            'password with two at signs' => ['redis://:a@b@cFake1@localhost', 'redis://:[REDACTED]@localhost'],
         ];
     }
 
@@ -153,6 +180,14 @@ class RedactorKindsTest extends TestCase
         $this->assertEquals([new Finding('github_token', ''), new Finding('api_key', '')], $result->findings);
     }
 
+    public function test_keeps_a_trailing_label_that_is_not_a_domain(): void
+    {
+        $result = (new Redactor)->text('a@example.com.1 と b@example.co.jp');
+
+        $this->assertSame('[REDACTED].1 と [REDACTED]', $result->value);
+        $this->assertEquals([new Finding('email', ''), new Finding('email', '')], $result->findings);
+    }
+
     public function test_counts_each_match_in_one_text_separately(): void
     {
         $result = (new Redactor)->text('taro@example.com と hanako@example.com に送った');
@@ -178,6 +213,7 @@ class RedactorKindsTest extends TestCase
             'short quoted value' => ['password: "abc" を試した'],
             'short AKIA' => ['AKIA1234 という文字'],
             'long digits that are not a phone number' => ['番号 03-1234-56789 です'],
+            'empty json value does not swallow the rest' => ['{"password":"","note":"hello world"}'],
         ];
     }
 

@@ -90,6 +90,14 @@ class RedactorTruncateTest extends TestCase
         }
     }
 
+    public function test_a_marker_cut_at_the_limit_is_not_counted_again(): void
+    {
+        $result = (new Redactor)->truncate('password=FakePass1234 です', 18);
+
+        $this->assertSame('password=[REDACTED', $result->value);
+        $this->assertEquals([new Finding('assignment', '')], $result->findings);
+    }
+
     public function test_negative_limit_is_rejected(): void
     {
         $this->expectException(\InvalidArgumentException::class);

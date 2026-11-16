@@ -28,6 +28,9 @@ class RedactorSafetyTest extends TestCase
         foreach (RedactorKindsTest::connectionStrings() as $name => [$text]) {
             $texts["connection: {$name}"] = [$text];
         }
+        foreach (RedactorKindsTest::quotedValuesOfAnyCharacters() as $name => [$text]) {
+            $texts["quoted: {$name}"] = [$text];
+        }
 
         return $texts + [
             'marker as an unquoted value' => ['password: [REDACTED]'],
@@ -36,6 +39,7 @@ class RedactorSafetyTest extends TestCase
             'marker in json' => ['{"password":"[REDACTED]"}'],
             'marker as a connection password' => ['postgres://app:[REDACTED]@localhost/db'],
             'marker as a connection password without user' => ['redis://:[REDACTED]@h'],
+            'email followed by a non-domain label' => ['a@example.com.1 に送った'],
         ];
     }
 
@@ -92,6 +96,86 @@ class RedactorSafetyTest extends TestCase
         $this->assertJitIsOn();
 
         $this->assertSame([], (new Redactor)->text($text)->findings);
+    }
+
+    /** @return array<string, array{0: string}> */
+    public static function repeatedKeyNames(): array
+    {
+        return [
+            'token_' => [str_repeat('token_', intdiv(100000, 6))],
+            'secret-' => [str_repeat('secret-', intdiv(100000, 7))],
+            'password ' => [str_repeat('password ', intdiv(100000, 9))],
+        ];
+    }
+
+    /**
+     * 鍵の名前の語が繰り返す文で、かかる時間が字数の二乗で伸びない（利用者の文で重くできない）
+     */
+    #[DataProvider('repeatedKeyNames')]
+    public function test_repeated_key_names_take_linear_time(string $text): void
+    {
+        $started = microtime(true);
+        (new Redactor)->text($text);
+
+        $this->assertLessThan(1.0, microtime(true) - $started);
+    }
+
+    /** @return array<string, array{0: string, 1: int}> 文・見つけるメールアドレスの数 */
+    public static function longDottedEmailDomains(): array
+    {
+        return [
+            'ends with a top level domain' => ['a@'.str_repeat('b.', 25000).'cc', 1],
+            'ends with a digit' => ['a@'.str_repeat('b.', 25000).'1', 0],
+        ];
+    }
+
+    #[DataProvider('longDottedEmailDomains')]
+    public function test_does_not_stop_on_a_long_dotted_email_domain(string $text, int $emails): void
+    {
+        $this->assertJitIsOn();
+
+        $this->assertCount($emails, (new Redactor)->text($text)->findings);
+    }
+
+    /**
+     * 壊れた UTF-8 でない PCRE の失敗（ここでは後戻りの上限）も、素通りさせずに止める
+     */
+    public function test_fails_closed_when_pcre_fails_for_another_reason(): void
+    {
+        $limit = ini_get('pcre.backtrack_limit');
+        ini_set('pcre.backtrack_limit', '1');
+        $caught = null;
+        try {
+            (new Redactor)->text('password=FakePass1234 と taro@example.com');
+        } catch (UnreadableText $e) {
+            $caught = $e;
+        } finally {
+            ini_set('pcre.backtrack_limit', (string) $limit);
+        }
+
+        $this->assertNotNull($caught, 'UnreadableText が投げられなかった');
+        $this->assertStringContainsString('Backtrack limit', $caught->getMessage());
+        $this->assertStringNotContainsString('FakePass1234', $caught->getMessage());
+        $this->assertStringNotContainsString('taro@example.com', $caught->getMessage());
+    }
+
+    /** @return array<string, array{0: string}> */
+    public static function markerFragments(): array
+    {
+        return [
+            'cut marker after a key' => ['password=[REDACTE'],
+            'cut marker one character short' => ['token=[REDACTED'],
+            'cut marker in quotes' => ['password: "[REDACTED'],
+        ];
+    }
+
+    #[DataProvider('markerFragments')]
+    public function test_marker_fragments_are_not_redacted_again(string $text): void
+    {
+        $result = (new Redactor)->text($text);
+
+        $this->assertSame($text, $result->value);
+        $this->assertSame([], $result->findings);
     }
 
     public function test_fails_closed_on_malformed_utf8_without_echoing_the_text(): void

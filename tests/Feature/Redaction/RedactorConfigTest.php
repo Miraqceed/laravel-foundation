@@ -77,6 +77,30 @@ class RedactorConfigTest extends TestCase
         $this->captureConfigError(fn () => new Redactor(marker: 'hidden@example.com'));
     }
 
+    /**
+     * 印を除いた残りで数える守りは、印が秘密の中にもありうる字（短い英数字）だと、秘密を通してしまう
+     */
+    public function test_short_or_alphanumeric_marker_is_rejected(): void
+    {
+        foreach (['x', 'ab', '**', 'REDACTED', 'hidden123'] as $marker) {
+            $this->captureConfigError(fn () => new Redactor(marker: $marker));
+        }
+    }
+
+    public function test_marker_with_a_symbol_is_accepted(): void
+    {
+        foreach (['***', '<hidden>', '［伏せた］'] as $marker) {
+            $this->assertSame($marker, (new Redactor(marker: $marker))->marker());
+        }
+    }
+
+    public function test_redaction_config_that_is_not_an_array_is_rejected(): void
+    {
+        config(['foundation.redaction' => 'oops']);
+
+        $this->captureConfigError(fn () => Redactor::fromConfig());
+    }
+
     public function test_empty_marker_is_rejected(): void
     {
         $this->captureConfigError(fn () => new Redactor(marker: ''));

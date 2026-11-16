@@ -35,7 +35,7 @@ $log = $redactor->truncate($stderr, 500)->value;
 ```
 
 - 見つけたもの（`Finding`）は種類と場所だけを持つ。見つけた文字列は持たない。場所にも形を当ててから入れる
-- 種類：`private_key`・`aws_key`・`github_token`・`api_key`（`sk-`）・`slack_token`・`jwt`・`assignment`（`password=…`・`"token": "…"` などの値。8字未満は伏せない）・`url_password`（`postgres://user:…@host` のパスワード）・`email`・`phone`（日本の電話番号。ハイフン2つ）
+- 種類：`private_key`・`aws_key`・`github_token`・`api_key`（`sk-`）・`slack_token`・`jwt`・`assignment`（`password=…`・`"token": "…"` などの値。引用符の中は閉じ引用符までのどの字も読む。8字未満は伏せない）・`url_password`（`postgres://user:…@host` のパスワード）・`email`・`phone`（日本の電話番号。ハイフン2つ）
 
 ### 壊れた文字を含む文
 
@@ -51,7 +51,7 @@ $log = $redactor->text(mb_scrub($output, 'UTF-8'))->value;
 ```php
 // config/foundation.php
 'redaction' => [
-    'marker' => '[REDACTED]',          // 伏せた所に入れる印
+    'marker' => '[REDACTED]',          // 伏せた所に入れる印（3字以上で、英数字でない字を含む）
     'kinds' => null,                   // 使う組み込みの種類。null は全部。例：メールアドレスを残すなら email を外した並び
     'patterns' => [                    // アプリが足す形（種類の名前 => 正規表現）
         'myapp_token' => '/(?<![A-Za-z0-9])myapp_[A-Za-z0-9]{32}(?![A-Za-z0-9])/',
@@ -60,7 +60,7 @@ $log = $redactor->text(mb_scrub($output, 'UTF-8'))->value;
 ```
 
 - 足した形は、組み込みの細かい種類（`private_key`〜`jwt`）の後、`assignment` の前に当てる。`MYAPP_TOKEN=myapp_…` は `myapp_token` として数える
-- 知らない種類・作れない正規表現・組み込みと同じ名前・印に当たる形と印は、作るときに `InvalidRedactionConfig` になる（黙って既定に寄せない）
+- 知らない種類・作れない正規表現・組み込みと同じ名前・印に当たる形と印・短いか英数字だけの印・配列でない `foundation.redaction` は、作るときに `InvalidRedactionConfig` になる（黙って既定に寄せない）
 - 伏せた後の文をもう一度伏せても、文は変わらず、見つけたものは増えない。足した形が、印の前後の字と合わせて当たる書き方（例 `token:\S+`）だと、この決まりが崩れる。足す形は秘密そのものだけに当てる
 
 ## してはいけないこと
@@ -77,6 +77,8 @@ $log = $redactor->text(mb_scrub($output, 'UTF-8'))->value;
 - IP アドレスは伏せない（個人の情報として、どこで伏せるかはアプリの方針で決める）
 - 配列のキーに入った秘密は残る
 - `-----END … PRIVATE KEY-----` のない秘密鍵の欠片（すでに切れた文を受け取ったとき）は伏せない
+- 鍵の名前は、`password`・`token` などの語の後に 64字までの続き（`AWS_SECRET_ACCESS_KEY` など）を読む。それより長い名前の値は伏せない
+- 接続文字列のパスワードに `/` があると、パスワードとして読めない（`postgres://app:pa/ss@db.example.com/x` は、後ろのメールアドレスの形の所だけを伏せ、`pa/` が残る）
 - `truncate()`
   - 荒く切る余白は 8,000字。足した形が、それより長い秘密に当たるなら、欠片が残りうる
   - 手前の秘密が伏せて縮むと、上限の字数に届かないことがある

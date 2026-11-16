@@ -35,16 +35,23 @@ final class Redactor
         // 3つの部分。各部 10字以上
         'jwt' => '/(?<![A-Za-z0-9])eyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/u',
         // 鍵の名前・区切り・値。値だけ伏せる。
-        // 名前は鍵の語の後に英数字・_・- が続いてよい（AWS_SECRET_ACCESS_KEY・SECRET_KEY_BASE・secret-key）。
+        // 名前は鍵の語の後に英数字・_・- が 64字まで続いてよい（AWS_SECRET_ACCESS_KEY・SECRET_KEY_BASE・secret-key）。
+        // 続きは 64字までの独占的な繰り返しにする。上限がないと、token_token_… のように鍵の語が繰り返す文で、
+        // 語ごとに行の終わりまで読み直し、時間が字数の二乗で伸びる。
         // 区切りは : = =>。名前を閉じる引用符（JSON・PHP の配列）と添字の ]（$cfg['password'] = …）も区切りに含めて残す。
-        // 値は2通り。引用符で始まり同じ閉じ引用符が後にあれば、その手前までの ASCII の字（空白・記号も含む）。
-        // そうでなければ、空白か日本語の手前までの ASCII の字（記号も含む）。後者は、後ろの閉じ括弧・引用符・, ; と
-        // 頭の開き引用符を値から外す（assignmentReplacement）。8字未満は伏せない（「token: 期限切れで再発行した」を値と読まない）
-        'assignment' => '/(?<![A-Za-z0-9])((?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]*["\']?\]?\s*(?:=>|[:=])\s*)(["\'])?((?(2)(?:(?!\2)[\x20-\x7E])++(?=\2)|[\x21-\x7E]+))/iu',
+        // 値は3通り。
+        // - 二重・一重の引用符で始まり、同じ行に閉じ引用符があれば、その手前までのどの字も（日本語・タブ・\" のエスケープも）
+        // - そうでなければ（引用符がないか閉じていない）、空白か日本語の手前までの ASCII の字（記号も含む）。後ろの閉じ括弧・引用符・
+        //   , ; と頭の開き引用符を値から外す（assignmentReplacement）
+        // 8字未満は伏せない（引用符のない「token: 期限切れで再発行した」・空の値 "" を値と読まない）
+        'assignment' => '/(?<![A-Za-z0-9])((?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]{0,64}+["\']?\]?\s*+(?:=>|[:=])\s*+)(?:"((?:[^"\\\\\n]|\\\\.)*+)"|\'((?:[^\'\\\\\n]|\\\\.)*+)\'|([\x21-\x7E]+))/iu',
         // 接続文字列（postgres://user:password@host）のパスワードだけ。利用者名は無くてよい（redis://:password@host）。
+        // パスワードは、ホストの前の最後の @ まで（パスワードの中の @ は、後にまた @ があるときだけ読む）。
         // email より先に当て、user:pass@host を半端にしない
-        'url_password' => '/(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]*:\/\/(?:(?![:\/@])[\x21-\x7E])*+:)((?:(?![\/@])[\x21-\x7E])++)(?=@)/u',
-        'email' => '/(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9])/u',
+        'url_password' => '/(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]*+:\/\/(?:(?![:\/@])[\x21-\x7E])*+:)((?:[\x21-\x2E\x30-\x3F\x41-\x7E]|@(?=[\x21-\x2E\x30-\x3F\x41-\x7E]*+@))++)(?=@)/u',
+        // メールアドレス。ドメインの区切りは独占的に読み、最後の区切りが英字2字以上でなければ、その区切りを外していく
+        // （emailReplacement）。後戻りで読むと、a@b.b.b.…（8,192 区切り）で JIT の上限に掛かる
+        'email' => '/(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@[A-Za-z0-9-]++(?:\.[A-Za-z0-9-]++)*+/u',
         // 日本の電話番号。ハイフン2つで数字は 10〜11桁（全体 12〜13字）。日付 2026-11-14 や 09-30-2026 は読まない
         'phone' => '/(?<![A-Za-z0-9.-])(?=[0-9-]{12,13}(?![0-9-]))0\d{1,4}-\d{1,4}-\d{3,4}(?![0-9-])/u',
     ];
@@ -69,8 +76,9 @@ final class Redactor
      */
     public function __construct(string $marker = '[REDACTED]', ?array $kinds = null, array $patterns = [])
     {
-        if ($marker === '' || ! mb_check_encoding($marker, 'UTF-8')) {
-            throw new InvalidRedactionConfig('伏せる印（foundation.redaction.marker）は、空でない UTF-8 の文にしてください');
+        // 印は、秘密の中にもありうる字（短い英数字だけ）にしない。伏せる所から印を除いて数える守りが、秘密を通してしまう
+        if (! mb_check_encoding($marker, 'UTF-8') || mb_strlen($marker) < 3 || preg_match('/^[A-Za-z0-9]*$/D', $marker) === 1) {
+            throw new InvalidRedactionConfig('伏せる印（foundation.redaction.marker）は、3字以上で、英数字でない字（[ ] < > * など）を含む UTF-8 の文にしてください');
         }
 
         $kinds ??= self::KINDS;
@@ -120,6 +128,9 @@ final class Redactor
     public static function fromConfig(): self
     {
         $config = config('foundation.redaction', []);
+        if (! is_array($config)) {
+            throw new InvalidRedactionConfig('foundation.redaction は配列にしてください');
+        }
         $marker = $config['marker'] ?? '[REDACTED]';
         $kinds = $config['kinds'] ?? null;
         $patterns = $config['patterns'] ?? [];
@@ -240,7 +251,7 @@ final class Redactor
         }
 
         foreach ($this->patterns as $kind => $pattern) {
-            $replaced = preg_replace_callback($pattern, fn (array $m) => $this->replacement($kind, $m) ?? $m[0], $path);
+            $replaced = preg_replace_callback($pattern, fn (array $m) => $this->replacement($kind, $m) ?? $m[0], $path, flags: PREG_UNMATCHED_AS_NULL);
             if ($replaced === null) {
                 // 場所を確かめられないときは、場所を出さない
                 return $this->marker;
@@ -277,6 +288,7 @@ final class Redactor
                     return $replacement;
                 },
                 $text,
+                flags: PREG_UNMATCHED_AS_NULL,
             );
 
             // JIT の上限など。確かめられない文は素通りさせず止める
@@ -292,59 +304,96 @@ final class Redactor
     /**
      * 当たった所を何に替えるか。秘密と読まないときは null（元のまま残す）
      *
-     * @param  array<int|string, string>  $m
+     * @param  array<int|string, string|null>  $m  当たらなかった組は null（PREG_UNMATCHED_AS_NULL）
      */
     private function replacement(string $kind, array $m): ?string
     {
-        // 印そのもの・印の欠片を、値として伏せ直さず数えない。細かい種類で伏せた後の文に汎用の形を当てると、
-        // 「token=印」の印が値に読まれる（同じ文をもう一度伏せたときも同じ）。伏せる所から印を除いた残りが、
-        // その形の最短に満たなければ伏せない
-        $secret = match ($kind) {
-            'assignment' => $m[3],
-            'url_password' => $m[2],
-            default => $m[0],
-        };
-        $rest = str_replace($this->marker, '', $secret);
         if ($kind === 'assignment') {
-            // 引用符のない値だけ、assignmentReplacement と同じく頭の引用符と後ろの括弧などを外して数える
-            if ($m[2] === '') {
-                $rest = rtrim(ltrim($rest, '"\''), ')]}>"\'`,;');
-            }
-            if (strlen($rest) < 8) {
-                return null;
-            }
-        } elseif ($rest === '') {
+            return $this->assignmentReplacement($m);
+        }
+        if ($kind === 'email') {
+            return $this->emailReplacement((string) $m[0]);
+        }
+
+        $secret = $kind === 'url_password' ? (string) $m[2] : (string) $m[0];
+        if ($this->withoutMarker($secret) === '') {
             return null;
         }
 
-        return match ($kind) {
-            'assignment' => $this->assignmentReplacement($m[1], $m[2], $m[3]),
-            // scheme://user: までを残す
-            'url_password' => $m[1].$this->marker,
-            default => $this->marker,
-        };
+        // scheme://user: までを残す
+        return $kind === 'url_password' ? $m[1].$this->marker : $this->marker;
     }
 
     /**
-     * 鍵の名前・区切り・開きの引用符を残し、値だけ伏せる。
+     * 鍵の名前・区切り・引用符を残し、値だけ伏せる。
+     * 引用符で閉じた値は、閉じ引用符の手前までの全部。
      * 引用符で閉じていない値は、頭の開き引用符（閉じ引用符が無かったもの）と、後ろの閉じ括弧・引用符・, ; を
      * 値から外して残す（「password: "abcd…」「（password=…)」「password=…, user=…」）。
      * 外すのは ASCII の字だけ（trim の字の組はバイトの集まりなので、日本語の字を入れると文を壊す）
+     *
+     * @param  array<int|string, string|null>  $m
      */
-    private function assignmentReplacement(string $key, string $quote, string $value): ?string
+    private function assignmentReplacement(array $m): ?string
     {
-        $tail = '';
-        if ($quote === '') {
-            if ($value !== '' && ($value[0] === '"' || $value[0] === "'")) {
-                $key .= $value[0];
-                $value = substr($value, 1);
-            }
-            $core = rtrim($value, ')]}>"\'`,;');
-            $tail = substr($value, strlen($core));
-            $value = $core;
+        $key = (string) $m[1];
+
+        if ($m[2] !== null || $m[3] !== null) {
+            $quote = $m[2] !== null ? '"' : "'";
+            $value = (string) ($m[2] ?? $m[3]);
+
+            return mb_strlen($this->withoutMarker($value)) < 8 ? null : $key.$quote.$this->marker.$quote;
         }
 
-        return strlen($value) < 8 ? null : $key.$quote.$this->marker.$tail;
+        $value = (string) $m[4];
+        if ($value !== '' && ($value[0] === '"' || $value[0] === "'")) {
+            $key .= $value[0];
+            $value = substr($value, 1);
+        }
+        $core = rtrim($value, ')]}>"\'`,;');
+        $tail = substr($value, strlen($core));
+
+        // 印そのもの・印の欠片を、値として伏せ直さず数えない（印を除いた残りで数える）
+        $rest = rtrim($this->withoutMarker($value), ')]}>"\'`,;');
+
+        return strlen($rest) < 8 ? null : $key.$this->marker.$tail;
+    }
+
+    /**
+     * メールアドレスを伏せる。ドメインの最後の区切りが英字2字以上になるまで、後ろの区切りを外して残す
+     * （a@example.com.1 は a@example.com を伏せ、.1 を残す）。区切りが1つしか残らなければメールアドレスと読まない
+     */
+    private function emailReplacement(string $match): ?string
+    {
+        [$local, $domain] = explode('@', $match, 2);
+        $labels = explode('.', $domain);
+        $tail = '';
+        while (count($labels) > 1 && preg_match('/^[A-Za-z]{2,}$/D', (string) end($labels)) !== 1) {
+            $tail = '.'.array_pop($labels).$tail;
+        }
+        if (count($labels) < 2 || $this->withoutMarker($local) === '') {
+            return null;
+        }
+
+        return $this->marker.$tail;
+    }
+
+    /**
+     * 印そのものを除いた文。細かい種類で伏せた後の文に汎用の形を当てると、「token=印」の印が値に読まれる
+     * （同じ文をもう一度伏せたときも同じ）。印を除いた残りが、その形の最短に満たなければ伏せない
+     */
+    private function withoutMarker(string $secret): string
+    {
+        $rest = str_replace($this->marker, '', $secret);
+
+        // 末尾の印の欠片（字数で切った印 [REDACTE など。印の頭の 2字以上）も除く
+        for ($n = mb_strlen($this->marker) - 1; $n >= 2; $n--) {
+            $fragment = mb_substr($this->marker, 0, $n);
+            if (str_ends_with($rest, $fragment)) {
+                return substr($rest, 0, -strlen($fragment));
+            }
+        }
+
+        return $rest;
     }
 
     private static function unreadable(string $path, string $reason): UnreadableText
