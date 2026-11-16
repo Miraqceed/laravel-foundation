@@ -4,6 +4,8 @@ namespace Miraqceed\Foundation\Monitoring;
 
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Console\Kernel as ConsoleKernelContract;
+use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use WeakMap;
 
 /** 見張る名前の一覧：schedule の watched()（この環境で動く処理だけ）と、設定の external */
@@ -11,6 +13,8 @@ class WatchList
 {
     /** @var WeakMap<Event, array{0: string, 1: int}> */
     private WeakMap $marks;
+
+    private bool $consoleScheduleLoaded = false;
 
     public function __construct()
     {
@@ -25,6 +29,8 @@ class WatchList
     /** @return array<string, array{max: int, label: string}> 名前ごとの許す古さ（分）と表示名 */
     public function all(): array
     {
+        $this->loadConsoleSchedule();
+
         $tasks = [];
 
         $environment = app()->environment();
@@ -45,5 +51,24 @@ class WatchList
         }
 
         return $tasks;
+    }
+
+    /**
+     * アプリの schedule（routes/console.php の watched()）は、Console Kernel が命令を読むとき（bootstrap）にだけ読まれる。
+     * Web の要求は HTTP Kernel だけで立ち上がるので、そのままでは印が1つも無く、StallCheck がいつも空になる。
+     * そこで Console Kernel を立ち上げて読ませる。読んだかは Kernel が自分で覚えていて（2回目は読まない）、
+     * Console の中（foundation:watch など）では既に読んであるので何も足さない。この一覧でも1回だけにする
+     */
+    private function loadConsoleSchedule(): void
+    {
+        if ($this->consoleScheduleLoaded) {
+            return;
+        }
+        $this->consoleScheduleLoaded = true;
+
+        $kernel = app(ConsoleKernelContract::class);
+        if ($kernel instanceof ConsoleKernel) {
+            $kernel->bootstrap();
+        }
     }
 }

@@ -53,6 +53,8 @@ foreach (app(StallCheck::class)->stalled() as $task) {
 - 戻りは `WatchList` の順の `StalledTask` の配列。止まっていなければ空。
 - **見張り（`foundation:watch`）がまだ一度も見ていない処理は、止まっていない扱い**（初めて見た印は見張りだけが付ける）。入れた直後は、最初の見張りの後から出る。
 - 見張りが無効（`monitoring.enabled` が偽）のときは、いつも空。
+- **Web の要求（管理画面）からも使える。** アプリの schedule（`routes/console.php` の `->watched()`）は Console Kernel が命令を読むときにだけ読まれるので、`WatchList` は初めて読むときに Console Kernel を立ち上げて読ませる（1つの要求・プロセスで1回だけ。Console の中では既に読んであるので何も足さない）。そのため、Web の要求で初めて呼んだときは、遅延のサービスプロバイダーを読み、命令のディレクトリを探す分だけ遅くなる（1回）。
+- **表（`foundation_task_runs`）が無い間**（有効にした後、マイグレーションの前など）は、DB の例外がそのまま出る。画面に出すときは、マイグレーションの後に有効にする。
 
 ## schedule の外の処理（バックアップのスクリプトなど）
 
