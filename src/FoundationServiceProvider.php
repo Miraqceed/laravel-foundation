@@ -117,6 +117,9 @@ class FoundationServiceProvider extends ServiceProvider
         // 別名はいつも登録する（無効のあいだは何もしない）。グループへは足さない
         $this->app['router']->aliasMiddleware('foundation.security-headers', SecurityHeaders::class);
 
+        // 検証の規則の文（foundation::validation.*）。アプリは lang/vendor/foundation で上書きできる
+        $this->loadTranslationsFrom(__DIR__.'/../lang', 'foundation');
+
         // 報告の口は web のグループの外（セッション・CSRF なし）。決めたときだけ登録する
         $report = config('foundation.security.report_route');
         if (is_string($report) && $report !== '') {
@@ -156,6 +159,10 @@ class FoundationServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../database/ai-migrations' => database_path('migrations'),
             ], 'foundation-ai-migrations');
+
+            $this->publishes([
+                __DIR__.'/../lang' => $this->app->langPath('vendor/foundation'),
+            ], 'foundation-lang');
 
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
             $this->commands([InstallCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
