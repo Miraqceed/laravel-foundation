@@ -221,7 +221,8 @@ class FortifyTwoFactorProviderTest extends TestCase
         $user = FortifyTwoFactorUser::query()->create([
             'email' => 'a@example.test',
             'password' => Hash::make('correct-password'),
-            'two_factor_secret' => Fortify::currentEncrypter()->encrypt($secret),
+            // Fortify 1.25 は currentEncrypter を持たず、encrypt() で暗号にする（--prefer-lowest の組み合わせ）
+            'two_factor_secret' => method_exists(Fortify::class, 'currentEncrypter') ? Fortify::currentEncrypter()->encrypt($secret) : encrypt($secret),
         ]);
         $code = Totp::codeAt($secret, now()->getTimestamp());
 
