@@ -59,6 +59,8 @@ class CachePruneCommand extends Command
                 ->where('expiration', '<=', $now)
                 ->delete();
             $deleted += $count;
+            // 1件も消せなかった回で止める（同じ鍵を読み続けないため）。読んだ1000件がすべて書き直されていたときは、
+            // 期限切れの行が残っていても止まるが、めったに起きず、次の回で消える
         } while (count($keys) === self::BATCH && $count > 0 && hrtime(true) < $deadline);
 
         $this->info("期限切れのキャッシュの行を {$deleted} 行消しました（{$table}）");
