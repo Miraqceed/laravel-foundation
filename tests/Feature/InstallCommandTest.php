@@ -101,6 +101,8 @@ class InstallCommandTest extends TestCase
             'model:prune', '--model', 'prune_days',
             // AI の費用の上限
             'foundation.ai.enabled', 'Laravel AI SDK', 'AiLimitReached', 'when_uncountable', 'Miraqceed\\Foundation\\Ai\\AiUsage',
+            // 利用者の URL をサーバーから開く（守りは別のパッケージ。Guzzle は直った版から）
+            'ssrf.md', 'cboxdk/laravel-ssrf', 'Http::ssrf()', 'PublicUrl', '7.15.2', 'HTTP_PROXY', 'assertSafeRedirect',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
