@@ -103,7 +103,7 @@ Laravel 12・13 の **Vue・React の starter kit** は、`resources/views/app.b
 'security' => ['report_route' => 'csp-report'],
 ```
 
-決めたときだけ `POST /csp-report` を登録し、方針に `report-uri` を足す。報告は保存せず、`csp.violation` のログ（指示・止めた元・ページ。クエリとフラグメントは落とす）に書いて 204 を返す。1分に30回（接続元ごと。IPv6 は `/64` に丸める。ログインのロックと同じ数え方）と 8KB までに絞る。
+決めたときだけ `POST /csp-report` を登録し、方針に `report-uri` を足す。報告は保存せず、`csp.violation` のログ（指示・止めた元・ページ。クエリとフラグメントは落とす）に書いて 204 を返す。1分に30回（接続元ごと。IPv6 は `/64` に丸める。ログインのロックと同じ数え方）と 8KB までに絞る。数えの鍵は `APP_KEY` の HMAC（キャッシュの表の鍵に IP が残らない。`APP_KEY` が空なら、報告の口は `RuntimeException` で 500 を返す）。
 
 - **逆プロキシの後ろでは `bootstrap/app.php` の `$middleware->trustProxies(at: …)` が前提**（`docs/login.md`）。設定しないと全員が同じ接続元になり、誰か1人の報告で全員の報告が 429 になる。
 - `route:cache` のときも、この経路で全体の `TrimStrings`・`ConvertEmptyStringsToNull` を飛ばす設定は効く（経路はキャッシュから読まれる）。

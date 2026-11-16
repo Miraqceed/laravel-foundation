@@ -64,6 +64,10 @@ try {
 
 パスワードの変更・確かめの画面の「現在のパスワード」の失敗は、ログインとは別に数える（ロックしない）：`$lock->attemptPasswordConfirmation($request, $user, fn () => Hash::check(...))`。
 
+- 枠は2つ：①利用者と接続元の組（`account_max` 回 / `decay_seconds` 秒）、②利用者だけ（`password_account_max`=10 回 / `password_account_decay_seconds`=1800 秒）。②は、乗っ取ったセッションから接続元を替えながら試す総当たりを止める。
+- どちらも失敗だけを数え、成功で空にする。上限なら `LoginLockedOut`（照合には進まない）。同じ利用者のログインは止まらない。
+- ②は利用者ごとなので、本人が30分に10回間違えると、接続元を替えても窓が明けるまで確かめられない。
+
 ## メールアドレスの鍵（`EmailKey`）
 
 - `NormalizedEmailKey`：PHP だけ。NFKC（全角・半角）をそろえ、前後の空白類を落とし、小文字にして sha1。**DB の照合順序と同じ範囲にはならない。**

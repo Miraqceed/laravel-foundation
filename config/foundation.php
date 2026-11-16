@@ -113,6 +113,10 @@ return [
         'email_only' => false,
         'email_only_max' => 10,
         'email_only_decay_seconds' => 1800,
+        // 現在のパスワードの確かめ（attemptPasswordConfirmation）の、利用者ごとの失敗の上限と窓（秒）。
+        // 接続元を替えても数えは同じ。利用者と接続元の組の枠（account_max・decay_seconds）も残る
+        'password_account_max' => 10,
+        'password_account_decay_seconds' => 1800,
     ],
 
     // 実在しないメールアドレスへ送らない（Mail\DropReservedRecipients）

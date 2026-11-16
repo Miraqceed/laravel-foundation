@@ -69,19 +69,31 @@ final class LoginLock
      * 現在のパスワードの確かめ（パスワードの変更・確かめの画面）の失敗を、ログインとは別に数える。
      * 確かめの失敗でログインはロックしない。
      *
+     * 枠は2つ：利用者と接続元の組（account_max 回 / decay_seconds 秒）と、利用者だけ
+     * （password_account_max 回 / password_account_decay_seconds 秒。接続元を替えながら試す総当たりを止める）。
+     * どちらも失敗だけを数え、成功で空にする。
+     *
      * @param  \Closure():bool  $verify
      *
      * @throws LoginLockedOut
      */
     public function attemptPasswordConfirmation(Request $request, Authenticatable $user, \Closure $verify): bool
     {
-        $limit = new Limit(
-            AttemptKey::for("login:{$this->scope}:password", (string) $user->getAuthIdentifier(), IpBucket::of($request)),
+        $userId = (string) $user->getAuthIdentifier();
+
+        $client = new Limit(
+            AttemptKey::for("login:{$this->scope}:password", $userId, IpBucket::of($request)),
             (int) $this->config('account_max'),
             (int) $this->config('decay_seconds'),
         );
+        // 乗っ取ったセッションから接続元を替えて試しても、利用者ごとの上限で止まる
+        $account = new Limit(
+            AttemptKey::for("login:{$this->scope}:password-account", $userId),
+            (int) $this->config('password_account_max'),
+            (int) $this->config('password_account_decay_seconds'),
+        );
 
-        return $this->guard([$limit], $verify);
+        return $this->guard([$client, $account], $verify);
     }
 
     /**

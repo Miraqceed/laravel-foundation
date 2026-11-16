@@ -387,4 +387,109 @@ class LoginLockTest extends TestCase
         $this->assertSame(99, $caught->retryAfter);
         $this->assertSame('別の数え', $caught->getMessage());
     }
+
+    /**
+     * 現在のパスワードの確かめは、接続元を替えても利用者ごとに10回で止まる（30分の窓）。ログインはロックしない
+     */
+    public function test_password_confirmation_account_limit_spans_clients(): void
+    {
+        $lock = $this->lock();
+        $user = $this->user(42);
+
+        // 接続元ごとの枠（account_max=5）には届かないよう、毎回別の接続元から試す
+        for ($i = 1; $i <= 10; $i++) {
+            $this->assertFalse($lock->attemptPasswordConfirmation($this->request("198.51.100.{$i}"), $user, $this->failing()));
+        }
+
+        // 11回目は別の接続元からでも照合しない
+        try {
+            $lock->attemptPasswordConfirmation($this->request('198.51.100.99'), $user, $this->refuse());
+            $this->fail('11回目は止まるはず');
+        } catch (LoginLockedOut $e) {
+            $this->assertGreaterThan(60, $e->retryAfter);
+            $this->assertLessThanOrEqual(1800, $e->retryAfter);
+        }
+
+        // 別の利用者の確かめと、同じ利用者のログインは止まらない
+        $this->assertTrue($lock->attemptPasswordConfirmation($this->request('198.51.100.99'), $this->user(43), fn () => true));
+        $this->assertTrue($lock->attempt($this->request('198.51.100.99'), 'a@example.test', fn () => true));
+
+        // 30分たてば、また照合する
+        $this->travel(1801)->seconds();
+        $verified = 0;
+        $this->assertFalse($lock->attemptPasswordConfirmation($this->request('198.51.100.99'), $user, function () use (&$verified): bool {
+            $verified++;
+
+            return false;
+        }));
+        $this->assertSame(1, $verified);
+    }
+
+    public function test_password_confirmation_account_limit_follows_config_and_clears_on_success(): void
+    {
+        config(['foundation.login.password_account_max' => 3, 'foundation.login.password_account_decay_seconds' => 600]);
+        $lock = $this->lock();
+        $user = $this->user(42);
+        $accountKey = AttemptKey::for('login:user:password-account', '42');
+
+        for ($i = 1; $i <= 2; $i++) {
+            $lock->attemptPasswordConfirmation($this->request("198.51.100.{$i}"), $user, $this->failing());
+        }
+        $this->assertSame(2, RateLimiter::attempts($accountKey));
+
+        // 成功で空にする（本人の枠）
+        $this->assertTrue($lock->attemptPasswordConfirmation($this->request('198.51.100.3'), $user, fn () => true));
+        $this->assertSame(0, RateLimiter::attempts($accountKey));
+
+        for ($i = 1; $i <= 3; $i++) {
+            $lock->attemptPasswordConfirmation($this->request("198.51.100.{$i}"), $user, $this->failing());
+        }
+
+        try {
+            $lock->attemptPasswordConfirmation($this->request('198.51.100.4'), $user, $this->refuse());
+            $this->fail('4回目は止まるはず');
+        } catch (LoginLockedOut $e) {
+            $this->assertLessThanOrEqual(600, $e->retryAfter);
+        }
+    }
+
+    private function user(int $id): Authenticatable
+    {
+        return new class($id) implements Authenticatable
+        {
+            public function __construct(private readonly int $id) {}
+
+            public function getAuthIdentifierName(): string
+            {
+                return 'id';
+            }
+
+            public function getAuthIdentifier(): mixed
+            {
+                return $this->id;
+            }
+
+            public function getAuthPasswordName(): string
+            {
+                return 'password';
+            }
+
+            public function getAuthPassword(): string
+            {
+                return '';
+            }
+
+            public function getRememberToken(): ?string
+            {
+                return null;
+            }
+
+            public function setRememberToken($value): void {}
+
+            public function getRememberTokenName(): string
+            {
+                return 'remember_token';
+            }
+        };
+    }
 }

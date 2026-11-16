@@ -2,6 +2,8 @@
 
 ## 未公開
 
+- ログインのロック：現在のパスワードの確かめ（`attemptPasswordConfirmation()`）に、利用者ごとの枠（`foundation.login.password_account_max`=10・`password_account_decay_seconds`=1800）を足した。これまでは利用者と接続元の組の枠だけで、接続元を替えれば試し続けられた。**同じ利用者が30分に10回間違えると、接続元を替えても確かめが `LoginLockedOut` で止まる**（ログインは止めない。利用者と接続元の組の枠は残る）。CSP の違反の報告の口：回数の数えの鍵を `APP_KEY` の HMAC にした（これまでは接続元の IP がそのまま鍵に入り、`database` のキャッシュの表に残った）。**鍵が変わるので、版を上げた直後に1分の窓の数えが一度空になる。** 古い鍵の行（IP 入り）は `database` のキャッシュに期限切れのまま残るので、`foundation:cache-prune` で消す。`APP_KEY` が空なら、報告の口は 500 になる。`docs/login.md`・`docs/security.md`
+
 ## 0.6.0
 
 **入れただけでは変わらない。** 二段階の認証（`TwoFactor`）は、呼んだときと、Fortify の差し替えを容器に結び付けたときだけ働く。列を足すマイグレーションは、`vendor:publish` で写して使う。

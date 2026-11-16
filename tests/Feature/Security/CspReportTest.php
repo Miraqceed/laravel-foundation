@@ -2,10 +2,15 @@
 
 namespace Miraqceed\Foundation\Tests\Feature\Security;
 
-use Illuminate\Support\Facades\Log;
+use Illuminate\Cache\RateLimiter as CacheRateLimiter;
 use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
+use Miraqceed\Foundation\Attempts\AttemptKey;
+use Miraqceed\Foundation\Login\IpBucket;
 use Miraqceed\Foundation\Tests\Support\JsonProbe;
 use Miraqceed\Foundation\Tests\TestCase;
 
@@ -71,7 +76,7 @@ class CspReportTest extends TestCase
 
     public function test_csp_report_throttles_after_30_per_minute(): void
     {
-        RateLimiter::clear('foundation-csp-report:127.0.0.1');
+        RateLimiter::clear(AttemptKey::for('csp-report', IpBucket::forIp('127.0.0.1')));
         Log::shouldReceive('warning');
 
         for ($i = 0; $i < 30; $i++) {
@@ -94,6 +99,42 @@ class CspReportTest extends TestCase
         // 別の /64 は数えが別
         $this->call('POST', '/csp-report', [], [], [], ['CONTENT_TYPE' => 'application/csp-report', 'REMOTE_ADDR' => '2001:db8:1:3::1'], $this->legacy())
             ->assertNoContent();
+    }
+
+    /**
+     * 数えの鍵は APP_KEY の HMAC。database のキャッシュの表の鍵に接続元の IP が残らない
+     */
+    public function test_throttle_key_in_cache_table_has_no_ip(): void
+    {
+        config(['cache.default' => 'database']);
+        $this->app->forgetInstance(CacheRateLimiter::class);
+        RateLimiter::clearResolvedInstance(CacheRateLimiter::class);
+        Schema::dropIfExists('cache');
+        Schema::create('cache', function ($table) {
+            $table->string('key')->primary();
+            $table->mediumText('value');
+            $table->integer('expiration');
+        });
+
+        try {
+            Log::shouldReceive('warning');
+            $this->call('POST', '/csp-report', [], [], [], ['CONTENT_TYPE' => 'application/csp-report', 'REMOTE_ADDR' => '203.0.113.77'], $this->legacy())
+                ->assertNoContent();
+            $this->call('POST', '/csp-report', [], [], [], ['CONTENT_TYPE' => 'application/csp-report', 'REMOTE_ADDR' => '2001:db8:1:2::5'], $this->legacy())
+                ->assertNoContent();
+
+            $keys = DB::table('cache')->pluck('key')->all();
+            $this->assertNotEmpty($keys);
+            foreach ($keys as $key) {
+                $this->assertStringNotContainsString('203.0.113.77', $key);
+                $this->assertStringNotContainsString('2001:db8', $key);
+                $this->assertStringContainsString('foundation-attempts:csp-report:', $key);
+            }
+        } finally {
+            Schema::dropIfExists('cache');
+            $this->app->forgetInstance(CacheRateLimiter::class);
+            RateLimiter::clearResolvedInstance(CacheRateLimiter::class);
+        }
     }
 
     public function test_report_route_is_outside_web_group_and_sets_no_cookie(): void
