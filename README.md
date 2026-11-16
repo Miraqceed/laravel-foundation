@@ -26,6 +26,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | CSV：式の守り・Shift_JIS・ずれない大きな表の読み方 | 常に使える | [docs/csv.md](docs/csv.md) |
 | 非負整数：整数の上限を超える和・積・切り上げ・比較 | 設定なしで呼んで使う | [docs/integer-math.md](docs/integer-math.md) |
 | 実在しないメールアドレス：`example.com`・`.invalid` などの判定・入力の検証の規則・送る前に宛先から外す差し込み | 判定と規則は設定なしで使える。差し込みは無効（`foundation.mail.drop_reserved_recipients`） | [docs/reserved-email-domains.md](docs/reserved-email-domains.md) |
+| 秘密を伏せる：文・入れ子の配列の中の鍵・トークン・パスワード・メールアドレス・電話番号を形で見つけて伏せる（漏れを無くすとは約束しない） | 設定なしで呼んで使う | [docs/redaction.md](docs/redaction.md) |
 | ログインのロック：メールと接続元の失敗を数える（Fortify 対応） | 使うときに組み込む | [docs/login.md](docs/login.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
