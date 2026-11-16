@@ -99,6 +99,8 @@ class InstallCommandTest extends TestCase
             'environments()', 'foundation.watch:', 'throttle_minutes - 5',
             // 知らせの表は model:prune で消す（アプリが schedule に入れる）
             'model:prune', '--model', 'prune_days',
+            // database のキャッシュの期限切れの行は foundation:cache-prune で消す（アプリが schedule に入れる）
+            'foundation:cache-prune',
             // AI の費用の上限
             'foundation.ai.enabled', 'Laravel AI SDK', 'AiLimitReached', 'when_uncountable', 'Miraqceed\\Foundation\\Ai\\AiUsage',
             // 利用者の URL をサーバーから開く（守りは別のパッケージ。Guzzle は直った版から。PHP 8.3 では作らずに知らせる）

@@ -72,6 +72,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 知らせの送り先は `foundation.monitoring.alerts.channels`（用意した5つから選ぶ）。コンテナの標準エラーを集めて運ぶ環境では `log` を使い、`monitoring.alerts.log.channel` を `stderr` にする。`monitoring.alerts.log.level`（既定 `error`）がチャネルの `LOG_LEVEL` より低いと、ログは捨てられるのに送れた扱いになる。
 - `foundation:watch` の知らせの鍵は止まっている処理の名前の組ごと（`foundation.watch:` ＋ 名前を並べ替えて `,` でつないだものの sha1）。新しく止まった処理はすぐ知らせ、同じ組は間引く。間引きは `throttle_minutes` が10より大きいとき `throttle_minutes - 5` 分（既定で55分）。鍵を `foundation.watch` の1つと思って読まない。
 - 知らせの表は自動では消えない。`model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\Monitoring\Alerts\Alert` を指す（`--model` なしでは `app/Models` しか見ない）。送れたか諦めて `monitoring.alerts.prune_days`（既定 90）日たった知らせが消える。
+- **キャッシュのストアが `database` なら、`foundation:cache-prune` を schedule に入れる**（`Schedule::command('foundation:cache-prune')->hourly()`）。Laravel は期限切れの行を、その鍵がもう一度読まれたときにだけ消すので、回数の制限の行などが残り続ける。パッケージは自分では schedule に入れない。見張りが無効でも使える。
 - `foundation:install` で、この節を `AGENTS.md`・`CLAUDE.md` に写せる。
 
 ### AI の費用の上限と記録（`docs/ai.md`）
