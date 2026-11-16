@@ -27,6 +27,11 @@ return CsvResponse::download('一覧.csv', ['ID', '会社名'], (function () {
 </code-snippet>
 @endverbatim
 
+### 非負整数の計算（`docs/integer-math.md`）
+
+- PHP の整数の上限を超える非負整数の計算には `Miraqceed\Foundation\Support\UnsignedInteger` の `add`・`multiply`・`ceilDivideByPowerOfTen`・`compare` を使う。和・積・切り上げの結果は数字列、比較は `-1`・`0`・`1`。float に変換してから渡さない。
+- 値は実際の非負 int または ASCII の数字列、`scale` は実際の非負 int。入力の桁数の制限と、結果を DB・JSON へ保存できる範囲はアプリで決める。
+
 ### ログインのロック（`docs/login.md`）
 
 - 失敗の数えを自前で作らない。`LoginLock` を使う。Fortify では次の3つが**すべて**要る（1つでも欠けると回数の制限が消えるか二重になる）：①`config/fortify.php` の `limiters` の `login` を `null`、②`Fortify::authenticateThrough(fn () => AuthenticateWithLoginLock::loginPipeline())`、③`Fortify::authenticateUsing(...)` に `AuthenticateWithLoginLock` を渡す。

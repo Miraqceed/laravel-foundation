@@ -24,6 +24,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 |---|---|---|
 | テストの守り：名前に `test` / `testing` の印のない DB へのテストを、DB に触れる前に止める | 常に有効 | [docs/test-safety.md](docs/test-safety.md) |
 | CSV：式の守り・Shift_JIS・ずれない大きな表の読み方 | 常に使える | [docs/csv.md](docs/csv.md) |
+| 非負整数：整数の上限を超える和・積・切り上げ・比較 | 設定なしで呼んで使う | [docs/integer-math.md](docs/integer-math.md) |
 | ログインのロック：メールと接続元の失敗を数える（Fortify 対応） | 使うときに組み込む | [docs/login.md](docs/login.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |

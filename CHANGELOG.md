@@ -2,6 +2,8 @@
 
 ## 未公開
 
+- `Support\UnsignedInteger`：非負整数の和・積・10の累乗で割った切り上げ・比較を、PHP の整数の上限を超えても正確に計算する。値は非負の int または ASCII の数字列を受け取り、和・積・切り上げは正規化した数字列を返す。設定や追加の拡張は不要。`docs/integer-math.md`
+
 ## 0.2.0
 
 **入れただけでは変わらない。** 新しい部品は既定で無効（`foundation.ai.enabled`）。使うには `laravel/ai` ^1.4 が要る（`composer.json` の `suggest`。`<1.4 || >=2.0` は `conflict`）。
