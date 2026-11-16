@@ -108,11 +108,16 @@ final class Runner
         if (! is_string($entry) || $entry === '') {
             return $invalid('invalid_check', 'foundation.deploy_check.checks にクラス名でない値がある');
         }
-        if (! class_exists($entry)) {
-            return $invalid('invalid_check', "クラスが見つからない: {$entry}");
-        }
-        if (! is_subclass_of($entry, Check::class)) {
-            return $invalid('invalid_check', "Check を実装していない: {$entry}");
+        // class_exists は自動読み込みでファイルを読む。構文の誤り（ParseError）・読み込みの例外も、その行だけの失敗にする
+        try {
+            if (! class_exists($entry)) {
+                return $invalid('invalid_check', "クラスが見つからない: {$entry}");
+            }
+            if (! is_subclass_of($entry, Check::class)) {
+                return $invalid('invalid_check', "Check を実装していない: {$entry}");
+            }
+        } catch (\Throwable $e) {
+            return $invalid('invalid_check', "{$entry}: ".class_basename($e));
         }
 
         try {

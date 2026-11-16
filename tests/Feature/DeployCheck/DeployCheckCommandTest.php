@@ -77,6 +77,35 @@ class DeployCheckCommandTest extends TestCase
         $this->assertMatchesRegularExpression('/^\[ok\]\s+app_ok\s/m', $output);
     }
 
+    /**
+     * アプリの調べのファイルに構文の誤りがあっても（自動読み込みで ParseError）、点検の全体は止まらない。
+     * 壊れたファイルは試しの中で一時フォルダーに作る（tests の下に置くと、ほかの道具が読んで止まる）
+     */
+    public function test_構文の誤りのある調べのファイルは_その行だけ失敗する(): void
+    {
+        $dir = sys_get_temp_dir().'/foundation-deploy-check-broken-'.bin2hex(random_bytes(6));
+        mkdir($dir);
+        file_put_contents($dir.'/BrokenCheck.php', "<?php\nnamespace App\\DeployChecks;\nclass BrokenCheck implements \\Miraqceed\\Foundation\\DeployCheck\\Check {\n    public function id(): string { return 'broken' \n}\n");
+        $loader = function (string $class) use ($dir): void {
+            if ($class === 'App\\DeployChecks\\BrokenCheck') {
+                require $dir.'/BrokenCheck.php';
+            }
+        };
+        spl_autoload_register($loader);
+
+        try {
+            [$code, $output] = $this->runOnly(['App\\DeployChecks\\BrokenCheck', OkCheck::class]);
+        } finally {
+            spl_autoload_unregister($loader);
+            @unlink($dir.'/BrokenCheck.php');
+            @rmdir($dir);
+        }
+
+        $this->assertSame(1, $code);
+        $this->assertMatchesRegularExpression('/^\[FAIL\]\s+invalid_check\s+調べを作れない: App\\\\DeployChecks\\\\BrokenCheck: ParseError$/m', $output);
+        $this->assertMatchesRegularExpression('/^\[ok\]\s+app_ok\s/m', $output);
+    }
+
     public function test_重なる_id_と形の違う_id_は失敗する(): void
     {
         config(['foundation.deploy_check.checks' => [DuplicateIdCheck::class, MalformedIdCheck::class]]);
