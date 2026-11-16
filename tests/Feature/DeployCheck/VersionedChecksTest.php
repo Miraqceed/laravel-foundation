@@ -11,6 +11,7 @@ use Miraqceed\Foundation\DeployCheck\Checks\MailViewCache;
 use Miraqceed\Foundation\DeployCheck\Checks\TrustedProxies;
 use Miraqceed\Foundation\DeployCheck\Status;
 use Miraqceed\Foundation\Tests\Support\DeployCheck\AppTrustProxies;
+use Miraqceed\Foundation\Tests\Support\DeployCheck\SharedPathBladeCompiler;
 use Miraqceed\Foundation\Tests\Support\SkeletonApp;
 use Miraqceed\Foundation\Tests\TestCase;
 
@@ -166,10 +167,22 @@ class VersionedChecksTest extends TestCase
         return array_column($json['checks'], null, 'id')['trusted_proxies'];
     }
 
-    public function test_mail_view_cache(): void
+    /** 既定の echo の道に、view:cache のコンパイル（素の echo）を置く */
+    private function writeDefaultCompiled(string $contents): void
+    {
+        $this->compiled = app('blade.compiler')->getCompiledPath(app('view')->getFinder()->find('notifications::email'));
+        @mkdir(dirname($this->compiled), 0777, true);
+        file_put_contents($this->compiled, $contents);
+    }
+
+    /**
+     * 版ごとの分かれ方を固定する：12.15 より前は withSecuredEncoding がない。12.70.0・13.36.0 からは
+     * echo の形ごとに別のファイルへコンパイルするので、既定の道に素の echo があっても外れない（skip）
+     */
+    public function test_mail_view_cache_の版ごとの分かれ方(): void
     {
         if (! method_exists(Markdown::class, 'withSecuredEncoding')) {
-            // 12.15.0 より前
+            $this->assertTrue(version_compare(Application::VERSION, '12.15.0', '<'));
             $this->assertSame(Status::Skip, (new MailViewCache)->run()->status);
 
             return;
@@ -179,17 +192,40 @@ class VersionedChecksTest extends TestCase
         $this->assertSame(Status::Skip, (new MailViewCache)->run()->status);
 
         Markdown::withSecuredEncoding();
-        $this->compiled = app('blade.compiler')->getCompiledPath(app('view')->getFinder()->find('notifications::email'));
-        @unlink($this->compiled);
+        $this->writeDefaultCompiled('<?php echo e($greeting); ?>');
+        $result = (new MailViewCache)->run();
+
+        $fixed = version_compare(Application::VERSION, '13.36.0', '>=')
+            || (version_compare(Application::VERSION, '13.0.0', '<') && version_compare(Application::VERSION, '12.70.0', '>='));
+        if ($fixed) {
+            $this->assertSame(Status::Skip, $result->status);
+            $this->assertStringContainsString('別のファイル', (string) $result->detail);
+        } else {
+            $this->assertSame(Status::Fail, $result->status);
+        }
+    }
+
+    /**
+     * 直っていない版（echo の形に関わらずコンパイル済みのファイルが1つ）では、既定の道のファイルで見分ける
+     */
+    public function test_mail_view_cache_は直っていない版では既定の道のファイルで見分ける(): void
+    {
+        if (! method_exists(Markdown::class, 'withSecuredEncoding')) {
+            $this->markTestSkipped('Laravel 12.15 より前（withSecuredEncoding がない）');
+        }
+        $this->app->instance('blade.compiler', new SharedPathBladeCompiler($this->app['files'], (string) config('view.compiled')));
+        Markdown::withSecuredEncoding();
+
+        $this->writeDefaultCompiled('');
+        @unlink((string) $this->compiled);
         $this->assertSame(Status::Ok, (new MailViewCache)->run()->status, 'まだコンパイルされていない');
 
         // view:cache のコンパイル（素の echo）
-        @mkdir(dirname($this->compiled), 0777, true);
-        file_put_contents($this->compiled, '<?php echo e($greeting); ?>');
+        $this->writeDefaultCompiled('<?php echo e($greeting); ?>');
         $this->assertSame(Status::Fail, (new MailViewCache)->run()->status);
 
         // Markdown のコンパイル
-        file_put_contents($this->compiled, '<?php echo new \Illuminate\Support\EncodedHtmlString($greeting); ?>');
+        $this->writeDefaultCompiled('<?php echo new \Illuminate\Support\EncodedHtmlString($greeting); ?>');
         $this->assertSame(Status::Ok, (new MailViewCache)->run()->status);
     }
 }

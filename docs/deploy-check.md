@@ -39,7 +39,7 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `session_secure_cookie` | `SESSION_SECURE_COOKIE` が真 | |
 | `drivers` | キャッシュ・セッションが `array` でない（種類の名前を出す） | |
 | `mail` | 送り方が `log`・`array` でない。SMTP のホストが空・`127.0.0.1`・`localhost` でない。`MAIL_FROM_ADDRESS` がメールアドレスで、実在しないドメイン（`example.com`・`.test` など。`docs/reserved-email-domains.md`）でない | |
-| `mail_view_cache` | 通知のメールの画面が `view:cache` でコンパイルされていない（下） | Laravel 12.15 より前か、`Markdown::withSecuredEncoding()` を使っていない |
+| `mail_view_cache` | 通知のメールの画面が `view:cache` でコンパイルされていない（下） | Laravel 12.15 より前・直った版（12.70・13.36 から）か、`Markdown::withSecuredEncoding()` を使っていない |
 | `vite_hot` | `public/hot`（`npm run dev` の印）がない | |
 | `vite_manifest` | `public/build/manifest.json` があり、JSON として読める | `vite.config.*` がない |
 | `writable` | `storage/logs`・`storage/framework/{cache,sessions,views}`・`bootstrap/cache` に書ける | |
@@ -55,7 +55,9 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 
 ### `mail_view_cache`
 
-`php artisan optimize` を `--except=views` なしで流すと、`view:cache` がメールの画面を素の echo でコンパイルする。`Markdown::withSecuredEncoding()`（訪問者が書いた文の `[` `]` `<` を、メールの中でリンクにしない）が、そのメールから外れる。配置の台本では `php artisan optimize --except=views` にし、外れていたら `php artisan view:clear`。
+`php artisan optimize` を `--except=views` なしで流すと、`view:cache` がメールの画面を素の echo でコンパイルする。直っていない版の Laravel（12.15〜12.69・13.0〜13.35）では、Markdown の描画がそのファイルを使い回し、`Markdown::withSecuredEncoding()`（訪問者が書いた文の `[` `]` `<` を、メールの中でリンクにしない）が、そのメールから外れる。配置の台本では `php artisan optimize --except=views` にし、外れていたら `php artisan view:clear`。
+
+直った版（12.70.0・13.36.0 から）は、echo の形ごとに別のファイルへコンパイルするので外れない。調べは版の番号でなく振る舞い（echo の形を変えると、コンパイル済みのファイルの道が変わるか）で見分け、直った版では `skip` にする。
 
 ### `trusted_proxies`
 

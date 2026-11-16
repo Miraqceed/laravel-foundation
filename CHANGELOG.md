@@ -2,7 +2,7 @@
 
 ## 未公開
 
-- コマンド `foundation:deploy-check` と `DeployCheck\Check`：本番の設定を1か所で調べ、違う所の id と説明を出して終わりの値 1 で終わる（`--json`・`--strict`）。既定の調べは15（`APP_ENV`・`APP_DEBUG`・`APP_URL`・暗号の方式に合う `APP_KEY`・Boost・`SESSION_SECURE_COOKIE`・キャッシュとセッションの種類・届くメールの設定・`view:cache` で外れるメールの守り・`public/hot`・Vite の manifest・書き込み・残ったマイグレーション・`foundation.attempts.bypass`・信頼するプロキシ）。アプリは `foundation.deploy_check.checks` に調べのクラスを足す。調べが投げてもその行だけを失敗にし、例外のクラス名だけを出す。設定の値は出さない。流したときだけ働く（schedule に入らない。書き込まない）。`docs/deploy-check.md`
+- コマンド `foundation:deploy-check` と `DeployCheck\Check`：本番の設定を1か所で調べ、違う所の id と説明を出して終わりの値 1 で終わる（`--json`・`--strict`）。既定の調べは15（`APP_ENV`・`APP_DEBUG`・`APP_URL`・暗号の方式に合う `APP_KEY`・Boost・`SESSION_SECURE_COOKIE`・キャッシュとセッションの種類・届くメールの設定・`view:cache` で外れるメールの守り（直っていない版の Laravel だけ）・`public/hot`・Vite の manifest・書き込み・残ったマイグレーション・`foundation.attempts.bypass`・信頼するプロキシ）。アプリは `foundation.deploy_check.checks` に調べのクラスを足す。調べが投げてもその行だけを失敗にし、例外のクラス名だけを出す。設定の値は出さない。流したときだけ働く（schedule に入らない。書き込まない）。`docs/deploy-check.md`
 
 ## 0.8.1
 
