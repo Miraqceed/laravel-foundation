@@ -68,7 +68,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - ログイン以外の照合（確認コード・使い捨ての合言葉・現在のパスワード・カードの登録）の失敗を数えるときは、`Miraqceed\Foundation\Attempts\Attempts` の `attempt()`（窓のある数え）か `attemptConsecutive()`（続けた失敗）で照合を包む。数えを自前で作らない（見てから照合の後に足す形は、並んだ要求が通り抜ける）。
 - 入力と権限の確かめを通った後に照合を包む。経路の手前（中間処理）で数えない。鍵は `AttemptKey::for(名前, ...値)` で作る（`APP_KEY` の HMAC）。
 - 数え方：本人の枠は `Counting::FailuresOwn`、接続元など共有の枠は `Counting::FailuresShared`、お金の掛かる試みは `Counting::Every`。確認コード（TOTP など）は `attemptConsecutive()`（時間で消えない数えとロック）で数える。
-- 回数の制限には `database`・`redis` などの原子的なキャッシュを使う（`file` では守りが弱まり、`array` では効かない）。`foundation.attempts.bypass` は診断の間だけ。`production` では効かない。
+- 回数の制限には `database`・`redis` などの原子的なキャッシュを使う（`file` では守りが弱まり、`array` では効かない）。アプリの `DB::transaction` の中で呼ばない（同じ接続の `database` のキャッシュだと、巻き戻しで数えも巻き戻る）。`foundation.attempts.bypass` は診断の間だけ。`production` では効かない。
 
 ### CSP・セキュリティヘッダー（`docs/security.md`）
 
