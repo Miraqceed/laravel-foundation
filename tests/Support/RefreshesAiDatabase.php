@@ -29,6 +29,17 @@ trait RefreshesAiDatabase
         $this->refreshWithoutAiTables();
     }
 
+    /**
+     * クラスが終わったら移行の状態を戻す。この試しは AI の表（や知らせの表）の有無に合わせて作り直すので、
+     * 状態を残すと、普通の RefreshDatabase を使う次のクラスが、自分の要る表のない DB をそのまま使ってしまう
+     */
+    public static function tearDownAfterClass(): void
+    {
+        RefreshDatabaseState::$migrated = false;
+
+        parent::tearDownAfterClass();
+    }
+
     /** 別の接続の書き込みは RefreshDatabase で巻き戻らない。行だけを消す（DROP は MySQL で暗黙にコミットする） */
     protected function forgetSeparateAiRows(): void
     {
