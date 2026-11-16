@@ -10,6 +10,7 @@ use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Ai\Events\ClassificationFailed;
@@ -22,6 +23,7 @@ use Miraqceed\Foundation\Ai\AiGuard;
 use Miraqceed\Foundation\Ai\AiRecorder;
 use Miraqceed\Foundation\Ai\AiStore;
 use Miraqceed\Foundation\Commands\InstallCommand;
+use Miraqceed\Foundation\Mail\DropReservedRecipients;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
 use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
@@ -117,6 +119,12 @@ class FoundationServiceProvider extends ServiceProvider
         // 別名はいつも登録する（無効のあいだは何もしない）。グループへは足さない
         $this->app['router']->aliasMiddleware('foundation.security-headers', SecurityHeaders::class);
 
+        // 検証の規則の文（foundation::validation.*）。アプリは lang/vendor/foundation で上書きできる
+        $this->loadTranslationsFrom(__DIR__.'/../lang', 'foundation');
+
+        // 実在しない宛先を送る前に外す聞き手。いつも登録し、送るときに設定を読む（偽なら何もしない）
+        $this->app['events']->listen(MessageSending::class, [DropReservedRecipients::class, 'handle']);
+
         // 報告の口は web のグループの外（セッション・CSRF なし）。決めたときだけ登録する
         $report = config('foundation.security.report_route');
         if (is_string($report) && $report !== '') {
@@ -156,6 +164,10 @@ class FoundationServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../database/ai-migrations' => database_path('migrations'),
             ], 'foundation-ai-migrations');
+
+            $this->publishes([
+                __DIR__.'/../lang' => $this->app->langPath('vendor/foundation'),
+            ], 'foundation-lang');
 
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
             $this->commands([InstallCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);

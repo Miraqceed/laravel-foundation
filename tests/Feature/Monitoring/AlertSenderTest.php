@@ -30,7 +30,7 @@ class AlertSenderTest extends TestCase
         parent::defineEnvironment($app);
 
         $app['config']->set('foundation.monitoring.enabled', true);
-        $app['config']->set('foundation.monitoring.alerts.mail.to', 'ops@example.test');
+        $app['config']->set('foundation.monitoring.alerts.mail.to', 'ops@example.co.jp');
         $app['config']->set('foundation.monitoring.alerts.webhook.url', 'https://hooks.example.test/in');
         $app['config']->set('foundation.monitoring.alerts.webhook.secret', 'secret');
         $app['config']->set('foundation.monitoring.alerts.chatwork.token', 'cw-token');
@@ -293,7 +293,7 @@ class AlertSenderTest extends TestCase
         $this->sender()->send('k', '件名', '本文です');
 
         Mail::assertSent(AlertMail::class, function (AlertMail $mail) {
-            return $mail->hasTo('ops@example.test') && $mail->hasSubject('件名')
+            return $mail->hasTo('ops@example.co.jp') && $mail->hasSubject('件名')
                 && str_contains($mail->render(), '本文です');
         });
         Mail::assertNothingQueued();

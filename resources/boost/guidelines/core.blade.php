@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの分類は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`login.md`・`security.md`・`monitoring.md`・`ai.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`login.md`・`security.md`・`monitoring.md`・`ai.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -32,11 +32,12 @@ return CsvResponse::download('一覧.csv', ['ID', '会社名'], (function () {
 - PHP の整数の上限を超える非負整数の計算には `Miraqceed\Foundation\Support\UnsignedInteger` の `add`・`multiply`・`ceilDivideByPowerOfTen`・`compare` を使う。和・積・切り上げの結果は数字列、比較は `-1`・`0`・`1`。float に変換してから渡さない。
 - 値は実際の非負 int または ASCII の数字列、`scale` は実際の非負 int。入力の桁数の制限と、結果を DB・JSON へ保存できる範囲はアプリで決める。
 
-### 予約メールドメイン（`docs/reserved-email-domains.md`）
+### 実在しないメールアドレス（`docs/reserved-email-domains.md`）
 
-- 予約TLD・domainの分類は `Miraqceed\Foundation\Mail\ReservedEmailDomains::isReserved()` を呼ぶ。同等の判定を自前で書かない。単一のbare addressを渡し、最後のASCII `@` 以降をPHPのtrim・ASCII小文字化・末尾ASCIIドットの除去で正規化する。
-- **メール形式の検証ではない。** `false`でも形式が正しい・実在する・送信できる保証はない。表示名・URL・複数宛先を解析せず、全角・IDN変換やDNS照会もしない。
-- 自動でメールを除外するhookは登録しない。利用者入力の形式検証と、予約宛先をどう扱うかはアプリで決める。
+- 予約のドメイン（`example.com`・`.invalid`・`.test`・点のないドメインなど）の判定は `Miraqceed\Foundation\Mail\ReservedEmailDomains::isReserved()` を呼ぶ。予約の一覧や判定を自前で書かない（末尾の点・全角・句点をそろえてから比べる判定がある）。
+- 後でメールを送る欄（登録・メールアドレスの変更・招待）には `new NotReservedEmailDomain` を付ける。ログインの欄には付けない。
+- アプリが作る宛先（退会した利用者の伏せ字・E2E の利用者）は、`foundation.mail.drop_reserved_recipients` を真にして送る直前に外す（既定は無効）。有効にするとテストの中でも効くので、`array` のメーラーで確かめる試しの宛先に `example.*`（`fake()->safeEmail()` が作る）を使わない。`Mail::fake()` は影響しない。
+- **メールアドレスの形の確かめではない。** `false` でも形が正しい・届く保証はない。形は `email` の規則で確かめる。
 
 ### ログインのロック（`docs/login.md`）
 
