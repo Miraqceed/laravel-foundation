@@ -13,6 +13,7 @@ use Laravel\Fortify\FortifyServiceProvider;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 use Laravel\Fortify\Http\Requests\LoginRequest;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Miraqceed\Foundation\Attempts\AttemptKey;
 use Miraqceed\Foundation\Login\Fortify\AuthenticateWithLoginLock;
 use Miraqceed\Foundation\Login\IpBucket;
 use Miraqceed\Foundation\Login\LoginLock;
@@ -85,7 +86,7 @@ class FortifyLoginLockTest extends TestCase
 
     private function accountKey(): string
     {
-        return 'foundation-login:user:account:'.sha1((new NormalizedEmailKey)->key('a@example.test').'|'.IpBucket::forIp('127.0.0.1'));
+        return AttemptKey::for('login:user:account', (new NormalizedEmailKey)->key('a@example.test'), IpBucket::forIp('127.0.0.1'));
     }
 
     /**

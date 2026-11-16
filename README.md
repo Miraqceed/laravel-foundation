@@ -28,6 +28,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 実在しないメールアドレス：`example.com`・`.invalid` などの判定・入力の検証の規則・送る前に宛先から外す差し込み | 判定と規則は設定なしで使える。差し込みは無効（`foundation.mail.drop_reserved_recipients`） | [docs/reserved-email-domains.md](docs/reserved-email-domains.md) |
 | 秘密を伏せる：文・入れ子の配列の中の鍵・トークン・パスワード・メールアドレス・電話番号を形で見つけて伏せる（漏れを無くすとは約束しない） | 設定なしで呼んで使う | [docs/redaction.md](docs/redaction.md) |
 | ログインのロック：メールと接続元の失敗を数える（Fortify 対応） | 使うときに組み込む | [docs/login.md](docs/login.md) |
+| 試みの数え：ログイン以外の照合（確認コード・合言葉・カードなど）を、照合の前に数えて止める。続けた失敗のロック | 設定なしで呼んで使う | [docs/attempts.md](docs/attempts.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
 | AI の費用の上限と記録（Laravel AI SDK で呼ぶ AI の1日・1か月の金額と1日の回数に上限、呼び出しごとの使用量と原価） | 無効（`foundation.ai.enabled`）。`laravel/ai` ^1.4 が要る | [docs/ai.md](docs/ai.md) |

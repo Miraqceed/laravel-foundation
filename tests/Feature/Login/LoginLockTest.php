@@ -7,6 +7,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
+use Miraqceed\Foundation\Attempts\AttemptKey;
+use Miraqceed\Foundation\Attempts\TooManyAttempts;
 use Miraqceed\Foundation\Login\IpBucket;
 use Miraqceed\Foundation\Login\LoginLock;
 use Miraqceed\Foundation\Login\LoginLockedOut;
@@ -35,12 +37,12 @@ class LoginLockTest extends TestCase
 
     private function accountKey(string $email, string $ip = '203.0.113.5', string $scope = 'user'): string
     {
-        return "foundation-login:{$scope}:account:".sha1((new NormalizedEmailKey)->key($email).'|'.IpBucket::forIp($ip));
+        return AttemptKey::for("login:{$scope}:account", (new NormalizedEmailKey)->key($email), IpBucket::forIp($ip));
     }
 
     private function clientKey(string $ip = '203.0.113.5', string $scope = 'user'): string
     {
-        return "foundation-login:{$scope}:client:".IpBucket::forIp($ip);
+        return AttemptKey::for("login:{$scope}:client", IpBucket::forIp($ip));
     }
 
     private function failing(): \Closure
@@ -226,7 +228,7 @@ class LoginLockTest extends TestCase
             // 期待どおり
         }
 
-        $passwordKey = 'foundation-login:user:password:'.sha1('42|'.IpBucket::forIp('203.0.113.5'));
+        $passwordKey = AttemptKey::for('login:user:password', '42', IpBucket::forIp('203.0.113.5'));
         $this->assertSame(5, RateLimiter::attempts($passwordKey));
 
         // 同じ利用者のログインは通る（ログインの数えとは別）
@@ -305,5 +307,84 @@ class LoginLockTest extends TestCase
             $this->app->forgetInstance(CacheRateLimiter::class);
             RateLimiter::clearResolvedInstance(CacheRateLimiter::class);
         }
+    }
+
+    public function test_email_only_limit_is_cleared_on_success(): void
+    {
+        config(['foundation.login.email_only' => true]);
+        $lock = $this->lock();
+        $lock->attempt($this->request(), 'a@example.test', $this->failing());
+        $lock->attempt($this->request(), 'a@example.test', $this->failing());
+        $emailKey = AttemptKey::for('login:user:email', (new NormalizedEmailKey)->key('a@example.test'));
+        $this->assertSame(2, RateLimiter::attempts($emailKey));
+
+        $this->assertTrue($lock->attempt($this->request(), 'a@example.test', fn () => true));
+
+        $this->assertSame(0, RateLimiter::attempts($emailKey));
+    }
+
+    public function test_password_confirmation_limit_is_cleared_on_success(): void
+    {
+        $lock = $this->lock();
+        $user = new class implements Authenticatable
+        {
+            public function getAuthIdentifierName()
+            {
+                return 'id';
+            }
+
+            public function getAuthIdentifier()
+            {
+                return 42;
+            }
+
+            public function getAuthPasswordName()
+            {
+                return 'password';
+            }
+
+            public function getAuthPassword()
+            {
+                return '';
+            }
+
+            public function getRememberToken()
+            {
+                return null;
+            }
+
+            public function setRememberToken($value) {}
+
+            public function getRememberTokenName()
+            {
+                return 'remember_token';
+            }
+        };
+        $passwordKey = AttemptKey::for('login:user:password', '42', IpBucket::forIp('203.0.113.5'));
+        $lock->attemptPasswordConfirmation($this->request(), $user, $this->failing());
+        $lock->attemptPasswordConfirmation($this->request(), $user, $this->failing());
+        $this->assertSame(2, RateLimiter::attempts($passwordKey));
+
+        $this->assertTrue($lock->attemptPasswordConfirmation($this->request(), $user, fn () => true));
+
+        $this->assertSame(0, RateLimiter::attempts($passwordKey));
+    }
+
+    /**
+     * 照合の関数が自分で投げた「試みが多すぎる」（別の数え）を、ログインのロックの例外に書き替えない
+     */
+    public function test_too_many_attempts_thrown_by_verify_is_not_rewritten(): void
+    {
+        $caught = null;
+        try {
+            $this->lock()->attempt($this->request(), 'a@example.test', fn () => throw new TooManyAttempts(99, '別の数え'));
+        } catch (TooManyAttempts $e) {
+            $caught = $e;
+        }
+
+        $this->assertNotNull($caught);
+        $this->assertNotInstanceOf(LoginLockedOut::class, $caught);
+        $this->assertSame(99, $caught->retryAfter);
+        $this->assertSame('別の数え', $caught->getMessage());
     }
 }
