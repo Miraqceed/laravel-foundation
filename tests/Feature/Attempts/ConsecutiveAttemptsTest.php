@@ -3,12 +3,15 @@
 namespace Miraqceed\Foundation\Tests\Feature\Attempts;
 
 use Illuminate\Cache\Events\CacheMissed;
+use Illuminate\Cache\RateLimiter as CacheRateLimiter;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Miraqceed\Foundation\Attempts\Attempts;
 use Miraqceed\Foundation\Attempts\ConsecutiveLimit;
 use Miraqceed\Foundation\Attempts\Limit;
 use Miraqceed\Foundation\Attempts\TooManyAttempts;
+use Miraqceed\Foundation\Tests\Support\HookedArrayStore;
 use Miraqceed\Foundation\Tests\TestCase;
 
 /**
@@ -218,6 +221,68 @@ class ConsecutiveAttemptsTest extends TestCase
         $this->assertSame(1, $verified);
         // 照合しなかった側は数えない（前の2回 ＋ 照合した1回）
         $this->assertSame(3, $this->failureCount());
+    }
+
+    /**
+     * 上限 3 で失敗 2 の後:
+     * 1. B が印なしと読む
+     * 2. A が 3 にして印を立て、照合を始める
+     * 3. B が 4 にし、印を立てられず、1回分を返す手前で止まる
+     * 4. A が成功して数えを空にする
+     * 5. B が1回分を返す
+     * 返した後の数えが負のまま残ると、時間で消えないので、次のロックまで上限より多く照合できる
+     */
+    public function test_giving_back_after_a_success_cleared_the_count_does_not_leave_a_negative_count(): void
+    {
+        $store = new HookedArrayStore;
+        Cache::extend('hooked', fn () => Cache::repository($store));
+        config(['cache.stores.hooked' => ['driver' => 'hooked'], 'cache.default' => 'hooked']);
+        $this->app->forgetInstance(CacheRateLimiter::class);
+        RateLimiter::clearResolvedInstance(CacheRateLimiter::class);
+
+        $attempts = $this->attempts();
+        $limit = $this->limit();
+        $attempts->attemptConsecutive($limit, fn () => false);
+        $attempts->attemptConsecutive($limit, fn () => false);
+
+        $b = new \Fiber(function () use ($attempts, $limit): string {
+            try {
+                $attempts->attemptConsecutive($limit, fn () => throw new \LogicException('B は照合しないはず'));
+
+                return 'verified';
+            } catch (TooManyAttempts) {
+                return 'refused';
+            }
+        });
+        $pausedAfterLockCheck = false;
+        Event::listen(CacheMissed::class, function (CacheMissed $event) use ($b, &$pausedAfterLockCheck) {
+            if ($event->key === self::KEY.':lock' && \Fiber::getCurrent() === $b && ! $pausedAfterLockCheck) {
+                $pausedAfterLockCheck = true;
+                \Fiber::suspend('after-lock-check');
+            }
+        });
+        $store->beforeIncrement = function (string $key, int $value) use ($b) {
+            if ($key === self::KEY.':count' && $value < 0 && \Fiber::getCurrent() === $b) {
+                \Fiber::suspend('before-give-back');
+            }
+        };
+
+        $this->assertSame('after-lock-check', $b->start());
+        $this->assertTrue($attempts->attemptConsecutive($limit, function () use ($b): bool {
+            // 起きたことを先に確かめる：B が数えを足し、印を立てられずに、返す手前で止まった
+            $this->assertSame('before-give-back', $b->resume());
+            $this->assertSame(4, $this->failureCount());
+
+            return true;
+        }));
+        $this->assertSame(0, $this->failureCount());
+        $b->resume();
+        $this->assertSame('refused', $b->getReturn());
+
+        $this->assertSame(0, $this->failureCount());
+        $store->beforeIncrement = null;
+        $this->fail3();
+        $this->assertRefusedWithoutVerifying();
     }
 
     public function test_exception_before_the_limit_keeps_the_count(): void

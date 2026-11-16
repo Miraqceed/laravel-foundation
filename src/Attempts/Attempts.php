@@ -86,7 +86,8 @@ final class Attempts
             $unlockAt = now()->getTimestamp() + $limit->lockSeconds;
             if (! Cache::add($lockKey, $unlockAt, $limit->lockSeconds)) {
                 // 同時の別の要求が先に立てた。照合していないので数えない
-                RateLimiter::decrement($countKey, self::NEVER_EXPIRES);
+                // 並んだ別の要求が成功して先に空にしていたら、負にせず空にする（giveBack）
+                AttemptCounter::make()->giveBack($countKey);
                 throw new TooManyAttempts(self::secondsUntil((int) (Cache::get($lockKey) ?? $unlockAt)));
             }
         }
