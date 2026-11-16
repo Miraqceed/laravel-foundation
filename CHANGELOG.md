@@ -2,6 +2,7 @@
 
 ## 未公開
 
+- `Mail\ReservedEmailDomains::isReserved()`：単一bare addressの最後のASCII `@`以降を、予約TLD・domainとsubdomainへ分類する。前後のtrim・ASCII小文字化・末尾ASCIIドットの除去を両判定で統一する。DNS不要、明示呼出のみ。形式や配達可否の検証、メールの自動除外はしない。`docs/reserved-email-domains.md`
 - `Support\UnsignedInteger`：非負整数の和・積・10の累乗で割った切り上げ・比較を、PHP の整数の上限を超えても正確に計算する。値は非負の int または ASCII の数字列を受け取り、和・積・切り上げは正規化した数字列を返す。設定や追加の拡張は不要。`docs/integer-math.md`
 
 ## 0.2.0

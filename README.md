@@ -4,7 +4,7 @@
 
 **入れただけではアプリの挙動は変わりません。ただしテストの DB の守りだけは、入れた時点で効きます。** テストがつなぐ DB の名前に `test` か `testing` が語として入っていないと（`app_test` は可、`latest` は不可）、テストは DB に触れる前に止まります。止まったときの直し方は [docs/test-safety.md](docs/test-safety.md) にあります。
 
-ほかの部品は既定で無効です（CSV は設定なしで使えます）。マクロ・ミドルウェアの別名・コマンドはいつも登録され、無効なら何もしません。ミドルウェアをグループへ自動で足すことはしません。
+設定で有効にする部品は既定で無効です。CSV・非負整数の計算・予約メールドメインの分類は設定なしで呼び出せます。マクロ・ミドルウェアの別名・コマンドはいつも登録され、無効なら何もしません。ミドルウェアをグループへ自動で足すことはしません。
 
 ## 入れ方
 
@@ -25,6 +25,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | テストの守り：名前に `test` / `testing` の印のない DB へのテストを、DB に触れる前に止める | 常に有効 | [docs/test-safety.md](docs/test-safety.md) |
 | CSV：式の守り・Shift_JIS・ずれない大きな表の読み方 | 常に使える | [docs/csv.md](docs/csv.md) |
 | 非負整数：整数の上限を超える和・積・切り上げ・比較 | 設定なしで呼んで使う | [docs/integer-math.md](docs/integer-math.md) |
+| 予約メールドメイン：対象の予約TLD・domainを通信なしで分類する | 設定なしで呼んで使う。メールの自動除外はしない | [docs/reserved-email-domains.md](docs/reserved-email-domains.md) |
 | ログインのロック：メールと接続元の失敗を数える（Fortify 対応） | 使うときに組み込む | [docs/login.md](docs/login.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
