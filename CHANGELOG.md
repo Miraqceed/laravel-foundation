@@ -10,6 +10,7 @@
 - CSP・セキュリティヘッダー：説明書と AI 向けの指針の入れ方を、`web` のグループからグローバルの先頭（`$middleware->prepend(SecurityHeaders::class)`）に変えた。`web` のグループでは、ルートに合わない 404・メンテナンス中の 503・大きすぎる POST の 413 に付かなかった。**コードは変わらない。** `web` のグループに入れているアプリは、グループから外してグローバルの先頭へ移す（両方に残っても見出しは1つ）。グローバルではルートごとに外せないので、埋め込ませたいページは区分の `frame-ancestors` で扱う。`docs/security.md`
 - 実在しないメールアドレス：判定 `Mail\ReservedEmailDomains::isReserved()`（RFC 2606・RFC 6761 の名前と点のないドメイン。前後の空白・大文字・末尾の点・全角・句点をそろえてから比べる。DNS は引かない）、入力の検証の規則 `Mail\NotReservedEmailDomain`（文は `foundation::validation.reserved_email`、`vendor:publish --tag=foundation-lang` で上書き）、送る前に予約の宛先を To・Cc・Bcc から外し、残らなければ送信を取りやめる差し込み（既定で無効。`foundation.mail.drop_reserved_recipients`）。見張りの知らせのメールは、届かない宛先を外して残りへ送り、残りがなければ送れなかったと記録するようになった（これまでは送れたと記録していた）。`docs/reserved-email-domains.md`
 - `Support\UnsignedInteger`：非負整数の和・積・10の累乗で割った切り上げ・比較を、PHP の整数の上限を超えても正確に計算する。値は非負の int または ASCII の数字列を受け取り、和・積・切り上げは正規化した数字列を返す。設定や追加の拡張は不要。`docs/integer-math.md`
+- 説明書 `docs/ssrf.md` と AI 向けの指針の節を足した：利用者が入れた URL をサーバーから開くときは、別のパッケージ `cboxdk/laravel-ssrf`（^1.5、PHP 8.4 以上）の `Http::ssrf()` で開き、`guzzlehttp/guzzle` を 7.15.2 以上にする。このパッケージのコードは変わらない。
 
 ## 0.2.0
 
