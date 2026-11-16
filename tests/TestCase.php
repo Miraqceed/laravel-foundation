@@ -17,6 +17,9 @@ abstract class TestCase extends Orchestra
      */
     protected function defineEnvironment($app): void
     {
+        // 実際のアプリは APP_KEY を持つ（セッション・暗号に要る）。数えの鍵（AttemptKey）が HMAC に使う。作り物の値
+        $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('t', 32)));
+
         $connection = env('DB_CONNECTION', 'sqlite');
 
         $app['config']->set('database.default', $connection);

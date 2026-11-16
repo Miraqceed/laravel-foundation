@@ -7,6 +7,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
+use Miraqceed\Foundation\Attempts\AttemptKey;
 use Miraqceed\Foundation\Login\IpBucket;
 use Miraqceed\Foundation\Login\LoginLock;
 use Miraqceed\Foundation\Login\LoginLockedOut;
@@ -35,12 +36,12 @@ class LoginLockTest extends TestCase
 
     private function accountKey(string $email, string $ip = '203.0.113.5', string $scope = 'user'): string
     {
-        return "foundation-login:{$scope}:account:".sha1((new NormalizedEmailKey)->key($email).'|'.IpBucket::forIp($ip));
+        return AttemptKey::for("login:{$scope}:account", (new NormalizedEmailKey)->key($email), IpBucket::forIp($ip));
     }
 
     private function clientKey(string $ip = '203.0.113.5', string $scope = 'user'): string
     {
-        return "foundation-login:{$scope}:client:".IpBucket::forIp($ip);
+        return AttemptKey::for("login:{$scope}:client", IpBucket::forIp($ip));
     }
 
     private function failing(): \Closure
@@ -226,7 +227,7 @@ class LoginLockTest extends TestCase
             // 期待どおり
         }
 
-        $passwordKey = 'foundation-login:user:password:'.sha1('42|'.IpBucket::forIp('203.0.113.5'));
+        $passwordKey = AttemptKey::for('login:user:password', '42', IpBucket::forIp('203.0.113.5'));
         $this->assertSame(5, RateLimiter::attempts($passwordKey));
 
         // 同じ利用者のログインは通る（ログインの数えとは別）

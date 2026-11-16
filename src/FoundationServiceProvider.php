@@ -22,6 +22,7 @@ use Laravel\Ai\Events\StepFailed;
 use Miraqceed\Foundation\Ai\AiGuard;
 use Miraqceed\Foundation\Ai\AiRecorder;
 use Miraqceed\Foundation\Ai\AiStore;
+use Miraqceed\Foundation\Attempts\Attempts;
 use Miraqceed\Foundation\Commands\CachePruneCommand;
 use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Mail\DropReservedRecipients;
@@ -46,6 +47,7 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app->singleton(AiStore::class);
         // 設定の書き違いは、初めて取り出したときに InvalidRedactionConfig で分かる
         $this->app->singleton(Redactor::class, fn () => Redactor::fromConfig());
+        $this->app->singleton(Attempts::class);
 
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
