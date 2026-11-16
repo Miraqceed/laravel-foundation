@@ -346,6 +346,35 @@ class ConsecutiveAttemptsTest extends TestCase
         $this->assertTrue($this->attempts()->attempt([new Limit(self::KEY, 5, 60)], fn () => true));
     }
 
+    public function test_locked_for_is_zero_before_the_limit(): void
+    {
+        $this->attempts()->attemptConsecutive($this->limit(), fn () => false);
+        $this->attempts()->attemptConsecutive($this->limit(), fn () => false);
+
+        $this->assertSame(0, $this->attempts()->lockedFor($this->limit()));
+    }
+
+    public function test_locked_for_counts_down_after_the_limit(): void
+    {
+        $this->fail3();
+
+        $this->assertSame(60, $this->attempts()->lockedFor($this->limit()));
+        $this->travel(45)->seconds();
+        $this->assertSame(15, $this->attempts()->lockedFor($this->limit()));
+        $this->travel(16)->seconds();
+        $this->assertSame(0, $this->attempts()->lockedFor($this->limit()));
+    }
+
+    public function test_locked_for_is_zero_after_success_and_does_not_change_the_count(): void
+    {
+        $this->fail3();
+        $this->travel(61)->seconds();
+        $this->attempts()->attemptConsecutive($this->limit(), fn () => true);
+
+        $this->assertSame(0, $this->attempts()->lockedFor($this->limit()));
+        $this->assertSame(0, $this->failureCount());
+    }
+
     public function test_default_limit_comes_from_config(): void
     {
         config(['foundation.attempts.consecutive' => ['max' => 4, 'lock_seconds' => 90]]);
