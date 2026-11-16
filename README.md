@@ -33,6 +33,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | DB の接続の時間帯：接続の時間帯がアプリの時間帯とずれていないかを確かめる（`foundation:db-timezone`） | 設定なしで呼んで使う（自動では確かめない） | [docs/database-timezone.md](docs/database-timezone.md) |
 | 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
+| 稼働の確かめ：外のスクリプトを読まず、原因を出さない `/up`（text/plain の `OK`／`NG`）。DB の確かめを足せる | アプリが `bootstrap/app.php` で `Health::route('/up')` に書き換えたときだけ。DB は見ない（`foundation.health.checks`） | [docs/health.md](docs/health.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
 | AI の費用の上限と記録（Laravel AI SDK で呼ぶ AI の1日・1か月の金額と1日の回数に上限、呼び出しごとの使用量と原価） | 無効（`foundation.ai.enabled`）。`laravel/ai` ^1.4 が要る | [docs/ai.md](docs/ai.md) |
 

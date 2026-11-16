@@ -96,6 +96,8 @@ class InstallCommandTest extends TestCase
             // CSP（web のグループでなくグローバルの先頭。web のグループでは 404・503・413 に付かない）
             'foundation.security.enabled', 'foundation.security-headers', 'Nonce::get', 'Vite::cspNonce()', 'report_route', 'frame-ancestors',
             '$middleware->prepend(\\Miraqceed\\Foundation\\Security\\SecurityHeaders::class)', 'withoutMiddleware()',
+            // 稼働の確かめ（health: を使わず Health::route() にする）
+            'health.md', "Health::route('/up')", 'LogicException', 'foundation.health.checks', 'DiagnosingHealth',
             // 見張り
             'foundation.monitoring.enabled', 'migrate', 'watched', 'foundation:record', 'monitoring.alerts.log.channel', 'stderr',
             'environments()', 'foundation.watch:', 'throttle_minutes - 5',
