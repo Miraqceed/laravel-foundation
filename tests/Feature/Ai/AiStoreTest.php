@@ -2,21 +2,17 @@
 
 namespace Miraqceed\Foundation\Tests\Feature\Ai;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Miraqceed\Foundation\Ai\AiStore;
 use Miraqceed\Foundation\Ai\AiUsage;
+use Miraqceed\Foundation\Tests\Support\RefreshesAiDatabase;
 use Miraqceed\Foundation\Tests\TestCase;
 
 /** AI の費用の上限と記録の読み書きの口（日ごとの合計・使用量の行・知らせの印） */
 class AiStoreTest extends TestCase
 {
-    use RefreshDatabase {
-        refreshTestDatabase as refreshWithoutAiTables;
-    }
+    use RefreshesAiDatabase;
 
     protected function defineEnvironment($app): void
     {
@@ -25,28 +21,9 @@ class AiStoreTest extends TestCase
         $app['config']->set('foundation.ai.enabled', true);
     }
 
-    /**
-     * RefreshDatabase は 1 プロセスで 1 回しか migrate:fresh しない。ほかのクラスが AI の表なしで
-     * 作った後でも、この試しは AI の表を作り直す。
-     */
-    protected function refreshTestDatabase(): void
-    {
-        if (! Schema::hasTable('foundation_ai_totals')) {
-            RefreshDatabaseState::$migrated = false;
-        }
-
-        $this->refreshWithoutAiTables();
-    }
-
     protected function tearDown(): void
     {
-        // 別の接続の書き込みは RefreshDatabase で巻き戻らない。行だけを消す（DROP は MySQL で暗黙にコミットする）
-        if (AiStore::$separateInTests) {
-            foreach (['foundation_ai_usages', 'foundation_ai_totals', 'foundation_ai_notices'] as $table) {
-                DB::connection(AiStore::connectionName())->table($table)->delete();
-            }
-        }
-        AiStore::$separateInTests = false;
+        $this->forgetSeparateAiRows();
         $this->travelBack();
 
         parent::tearDown();

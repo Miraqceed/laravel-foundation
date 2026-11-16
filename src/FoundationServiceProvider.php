@@ -12,6 +12,9 @@ use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Ai\Events\Classifying;
+use Laravel\Ai\Events\StartingStep;
+use Miraqceed\Foundation\Ai\AiGuard;
 use Miraqceed\Foundation\Ai\AiStore;
 use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
@@ -81,6 +84,25 @@ class FoundationServiceProvider extends ServiceProvider
         return $defaults;
     }
 
+    /** Laravel AI SDK が入っているか（試しで差し替えられるよう、ここだけで確かめる） */
+    protected static function aiSdkInstalled(): bool
+    {
+        return class_exists(StartingStep::class);
+    }
+
+    /**
+     * AI の費用の上限と記録の聞き手（SDK の知らせ → 呼ぶもの）
+     *
+     * @return array<class-string, array{class-string, string}>
+     */
+    private static function aiListeners(): array
+    {
+        return [
+            StartingStep::class => [AiGuard::class, 'handleStartingStep'],
+            Classifying::class => [AiGuard::class, 'handleClassifying'],
+        ];
+    }
+
     public function boot(): void
     {
         // 別名はいつも登録する（無効のあいだは何もしない）。グループへは足さない
@@ -135,6 +157,13 @@ class FoundationServiceProvider extends ServiceProvider
         // AI の費用の上限と記録の表も、有効なときだけ読み込む
         if (config('foundation.ai.enabled')) {
             $this->loadMigrationsFrom(__DIR__.'/../database/ai-migrations');
+
+            // Laravel AI SDK の知らせを聞く。SDK の入っていないアプリでは何もしない
+            if (static::aiSdkInstalled()) {
+                foreach (self::aiListeners() as $event => $listener) {
+                    $this->app['events']->listen($event, $listener);
+                }
+            }
         }
 
         if (config('foundation.monitoring.enabled')) {
