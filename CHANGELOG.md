@@ -2,6 +2,9 @@
 
 ## 未公開
 
+- `TwoFactor`：認証アプリの確認コード（RFC 6238 の TOTP）。芯 `Totp`（依存なし。RFC のベクタと同じコード）、手書きの認証向けの `TwoFactor`（登録・確かめ・空にする・通った印。最後に受けた刻みを条件つきの UPDATE で書き、同じコードの同時の要求は1つだけ通す。登録に使ったコードの刻みも残す。秘密の鍵は暗号にして書く）、Fortify の確かめの差し替え `FortifyTwoFactorProvider`（使った刻みの印を `Cache::add` で立てる。印の鍵は鍵と刻みの HMAC）。間違いは試みの数えの続けた失敗で数え、ロックで出来事 `TwoFactorLocked` を出す。列は `vendor:publish --tag=foundation-two-factor-migrations` で足す。設定 `foundation.two_factor`。`docs/two-factor.md`
+- 試みの数え：続けた失敗のロックが明けるまでの秒を読む `Attempts::lockedFor()`。`docs/attempts.md`
+
 ## 0.5.0
 
 **ログインのロックを使っているアプリは、版を上げた直後に、ログインの失敗の数えが一度消える**（数えの鍵が `APP_KEY` の HMAC に変わるため）。`APP_KEY` が空のアプリは、ログインの数えで止まる。ほかの新しい部品（`Redaction`・`Attempts`）は、呼んだときだけ働く。
