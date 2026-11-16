@@ -23,11 +23,16 @@
     "require-dev": {
         "orchestra/testbench": "^10.0|^11.0",
         "brianium/paratest": "^7.0",
+        "laravel/ai": "^1.4",
         "laravel/fortify": "^1.0",
         "nunomaduro/collision": "^8.0",
         "pestphp/pest": "^3.0|^4.0"
     },
+    "conflict": {
+        "laravel/ai": "<1.4 || >=2.0"
+    },
     "suggest": {
+        "laravel/ai": "AI の費用の上限と記録を使うとき",
         "laravel/fortify": "ログインのロックを Fortify の認証と組み合わせるとき"
     },
     "autoload": {

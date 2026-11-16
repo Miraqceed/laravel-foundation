@@ -12,6 +12,15 @@ use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Ai\Events\ClassificationFailed;
+use Laravel\Ai\Events\Classified;
+use Laravel\Ai\Events\Classifying;
+use Laravel\Ai\Events\StartingStep;
+use Laravel\Ai\Events\StepCompleted;
+use Laravel\Ai\Events\StepFailed;
+use Miraqceed\Foundation\Ai\AiGuard;
+use Miraqceed\Foundation\Ai\AiRecorder;
+use Miraqceed\Foundation\Ai\AiStore;
 use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
@@ -30,6 +39,7 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->app->scoped(Nonce::class);
         $this->app->singleton(WatchList::class);
+        $this->app->singleton(AiStore::class);
 
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
@@ -79,6 +89,29 @@ class FoundationServiceProvider extends ServiceProvider
         return $defaults;
     }
 
+    /** Laravel AI SDK が入っているか（試しで差し替えられるよう、ここだけで確かめる） */
+    protected static function aiSdkInstalled(): bool
+    {
+        return class_exists(StartingStep::class);
+    }
+
+    /**
+     * AI の費用の上限と記録の聞き手（SDK の知らせ → 呼ぶもの）
+     *
+     * @return array<class-string, array{class-string, string}>
+     */
+    private static function aiListeners(): array
+    {
+        return [
+            StartingStep::class => [AiGuard::class, 'handleStartingStep'],
+            Classifying::class => [AiGuard::class, 'handleClassifying'],
+            StepCompleted::class => [AiRecorder::class, 'handleStepCompleted'],
+            Classified::class => [AiRecorder::class, 'handleClassified'],
+            StepFailed::class => [AiRecorder::class, 'handleStepFailed'],
+            ClassificationFailed::class => [AiRecorder::class, 'handleClassificationFailed'],
+        ];
+    }
+
     public function boot(): void
     {
         // 別名はいつも登録する（無効のあいだは何もしない）。グループへは足さない
@@ -120,12 +153,28 @@ class FoundationServiceProvider extends ServiceProvider
                 __DIR__.'/../database/migrations' => database_path('migrations'),
             ], 'foundation-migrations');
 
+            $this->publishes([
+                __DIR__.'/../database/ai-migrations' => database_path('migrations'),
+            ], 'foundation-ai-migrations');
+
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
             $this->commands([InstallCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
         }
 
         // マイグレーションは monitoring が有効なときだけ読み込む。
         // 無効でも `vendor:publish --tag=foundation-migrations` で写せる。
+        // AI の費用の上限と記録の表も、有効なときだけ読み込む
+        if (config('foundation.ai.enabled')) {
+            $this->loadMigrationsFrom(__DIR__.'/../database/ai-migrations');
+
+            // Laravel AI SDK の知らせを聞く。SDK の入っていないアプリでは何もしない
+            if (static::aiSdkInstalled()) {
+                foreach (self::aiListeners() as $event => $listener) {
+                    $this->app['events']->listen($event, $listener);
+                }
+            }
+        }
+
         if (config('foundation.monitoring.enabled')) {
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 

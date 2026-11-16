@@ -111,4 +111,25 @@ return [
         'email_only_max' => 10,
         'email_only_decay_seconds' => 1800,
     ],
+
+    // AI の費用の上限と記録（laravel/ai を使うアプリだけ）
+    'ai' => [
+        // 既定で無効。入れただけでは挙動も表も変わらない
+        'enabled' => false,
+        // アプリ全体の1日・1か月の金額の上限（円。小数も可）。null か空は上限なし、0 はすべて止める
+        'daily_limit_yen' => null,
+        'monthly_limit_yen' => null,
+        // 1日の呼び出し回数の上限。null か空は上限なし
+        'daily_call_limit' => null,
+        // 金額を数えられないとき（単価のないモデル・数でない上限など）の扱い：block（止める）か allow（数えられない上限だけを外す）
+        'when_uncountable' => 'block',
+        // 1ドルの円。単価（ドル）を円にするときの換算
+        'yen_per_usd' => 150,
+        // 単価（ドル／100万トークン）。既定値は入れない（各社の値が変わると古くなる）。形：
+        // ['<driver>' => ['<model>' => ['input' => 0.0, 'output' => 0.0, 'cache_write' => 0.0, 'cache_read' => 0.0]]]
+        'prices' => [],
+        // 使用量の行を model:prune で消す日数（アプリが schedule に入れる：
+        // Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\Ai\AiUsage::class]])->daily();）。日ごとの合計は消さない
+        'prune_days' => 90,
+    ],
 ];

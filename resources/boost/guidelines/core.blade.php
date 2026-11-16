@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ）を1つにまとめたパッケージ。部品は `config/foundation.php` で有効にする（入れただけでは挙動は変わらない）。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`login.md`・`security.md`・`monitoring.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限）を1つにまとめたパッケージ。部品は `config/foundation.php` で有効にする（入れただけでは挙動は変わらない）。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`login.md`・`security.md`・`monitoring.md`・`ai.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -60,3 +60,12 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - `foundation:watch` の知らせの鍵は止まっている処理の名前の組ごと（`foundation.watch:` ＋ 名前を並べ替えて `,` でつないだものの sha1）。新しく止まった処理はすぐ知らせ、同じ組は間引く。間引きは `throttle_minutes` が10より大きいとき `throttle_minutes - 5` 分（既定で55分）。鍵を `foundation.watch` の1つと思って読まない。
 - 知らせの表は自動では消えない。`model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\Monitoring\Alerts\Alert` を指す（`--model` なしでは `app/Models` しか見ない）。送れたか諦めて `monitoring.alerts.prune_days`（既定 90）日たった知らせが消える。
 - `foundation:install` で、この節を `AGENTS.md`・`CLAUDE.md` に写せる。
+
+### AI の費用の上限と記録（`docs/ai.md`）
+
+- AI は **Laravel AI SDK（`laravel/ai` ^1.4）で呼ぶ。各社の SDK や HTTP で直に呼ばない**（直に呼んだ分は数えられず、上限もかからない）。
+- `foundation.ai.enabled` を真にして `php artisan migrate`。上限は `foundation.ai.daily_limit_yen`・`monthly_limit_yen`・`daily_call_limit`（空は上限なし、`0` はすべて止める）。金額の上限を使うなら `foundation.ai.prices` に単価（ドル／100万トークン）を書く。単価のないモデルは0円にせず、いちばん高い単価で数える。
+- 上限に達すると `Miraqceed\Foundation\Ai\AiLimitReached` が投げられる。画面で捕まえて「今は AI を使えません」と出す。この例外は会社の切り替えを起こさない。キューのジョブでは `tries` の回数だけやり直す。
+- 使った額を数えられないとき（単価の表が空・DB が読めないなど）は `foundation.ai.when_uncountable`（既定 `block`＝止める）に従う。
+- 使用量の行は自動で消えない。`model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\Ai\AiUsage` を指す（`foundation.ai.prune_days`、既定 90）。
+- 知らせは `foundation.monitoring.enabled` が真のときだけ届く（日・月に1回）。画像・音声・埋め込みなどは数えず止めない。
