@@ -121,7 +121,7 @@ return [
         'monthly_limit_yen' => null,
         // 1日の呼び出し回数の上限。null か空は上限なし
         'daily_call_limit' => null,
-        // 金額を数えられないとき（単価のないモデル・数でない上限など）の扱い：block（止める）か allow
+        // 金額を数えられないとき（単価のないモデル・数でない上限など）の扱い：block（止める）か allow（数えられない上限だけを外す）
         'when_uncountable' => 'block',
         // 1ドルの円。単価（ドル）を円にするときの換算
         'yen_per_usd' => 150,

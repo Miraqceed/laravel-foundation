@@ -273,6 +273,36 @@ class AiGuardTest extends TestCase
         Exceptions::assertReported(RuntimeException::class);
     }
 
+    public function test_allow_で金額を数えられなくても回数の上限は効く(): void
+    {
+        Exceptions::fake();
+        $this->fakeAnthropic();
+        config(['foundation.ai.when_uncountable' => 'allow', 'foundation.ai.prices' => []]);
+        $this->limits(day: 1000, calls: 1);
+
+        $this->assertNull($this->attempt());
+        $this->assertSame('day_calls', $this->attempt()?->reason);
+        Http::assertSentCount(1);
+    }
+
+    public function test_allow_で読めない上限の設定はその上限だけを外す(): void
+    {
+        Exceptions::fake();
+        $this->fakeAnthropic();
+        config(['foundation.ai.when_uncountable' => 'allow']);
+        $this->limits(day: 'abc', month: 1000, calls: 1);
+
+        $this->assertNull($this->attempt());
+        $this->assertSame('day_calls', $this->attempt()?->reason);
+        Http::assertSentCount(1);
+
+        // 月の金額の上限も効いたまま
+        $this->resetTotals();
+        $this->limits(day: 'abc', month: 0);
+        $this->assertSame('month_cost', $this->attempt()?->reason);
+        Exceptions::assertReported(RuntimeException::class);
+    }
+
     public function test_金額の上限がなければ単価の表が空でも止めない(): void
     {
         $this->fakeAnthropic();

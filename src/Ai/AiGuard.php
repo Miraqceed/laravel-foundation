@@ -60,24 +60,22 @@ class AiGuard
     }
 
     /**
-     * 上限以上なら AiLimitReached を投げる。使った額を数えられないときは when_uncountable に従う。
+     * 上限以上なら AiLimitReached を投げる。使った額を数えられないときは when_uncountable に従う
+     * （allow なら、数えられない上限だけを外し、残った上限で確かめる）。
      */
     public function check(): void
     {
-        $limits = $this->limits();
-        if (is_string($limits)) {
-            $this->uncountable($limits);
-
-            return;
-        }
-
-        if ($limits['day_cost'] === null && $limits['month_cost'] === null && $limits['day_calls'] === null) {
-            return;
+        [$limits, $unreadable] = $this->limits();
+        foreach ($unreadable as $why) {
+            $this->uncountable($why);
         }
 
         if (($limits['day_cost'] !== null || $limits['month_cost'] !== null) && ! AiPrices::fromConfig()->countable()) {
             $this->uncountable('単価の表（foundation.ai.prices）が空か、為替（yen_per_usd）が正しくないため、金額を数えられません');
+            $limits['day_cost'] = $limits['month_cost'] = null;
+        }
 
+        if ($limits['day_cost'] === null && $limits['month_cost'] === null && $limits['day_calls'] === null) {
             return;
         }
 
@@ -99,24 +97,24 @@ class AiGuard
     }
 
     /**
-     * 上限の設定（金額はマイクロ円、回数は回）。null は上限なし。読めない値があれば理由の文。
+     * 上限の設定（金額はマイクロ円、回数は回）。null は上限なし。読めない値はその上限を null にし、理由の文を返す。
      *
-     * @return array{day_cost: ?int, month_cost: ?int, day_calls: ?int}|string
+     * @return array{0: array{day_cost: ?int, month_cost: ?int, day_calls: ?int}, 1: list<string>}
      */
-    private function limits(): array|string
+    private function limits(): array
     {
         $limits = [];
+        $unreadable = [];
         foreach (['day_cost' => 'daily_limit_yen', 'month_cost' => 'monthly_limit_yen', 'day_calls' => 'daily_call_limit'] as $reason => $key) {
             $value = config("foundation.ai.{$key}");
-            if (self::blank($value)) {
+            $number = self::blank($value) ? null : self::number($value);
+            if ($number === null) {
+                if (! self::blank($value)) {
+                    $unreadable[] = "上限の設定 foundation.ai.{$key} を0以上の数として読めません";
+                }
                 $limits[$reason] = null;
 
                 continue;
-            }
-
-            $number = self::number($value);
-            if ($number === null) {
-                return "上限の設定 foundation.ai.{$key} を0以上の数として読めません";
             }
 
             $limits[$reason] = $reason === 'day_calls'
@@ -124,7 +122,7 @@ class AiGuard
                 : self::toInt(round($number * 1_000_000));
         }
 
-        return $limits;
+        return [$limits, $unreadable];
     }
 
     /** 0以上の有限の数（文字列の数を含む）なら float、それ以外は null */
@@ -146,6 +144,7 @@ class AiGuard
 
     /**
      * 使った額を数えられない。report() し、block（既定。allow 以外）なら止める。
+     * allow なら戻る（呼ぶ側は、数えられない上限だけを外して続ける）。
      */
     private function uncountable(string $why, ?Throwable $cause = null): void
     {
