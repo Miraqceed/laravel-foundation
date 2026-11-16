@@ -108,6 +108,13 @@ Laravel 12・13 で同じ（13.19・13.33・13.42 で確かめた）。
 - **前段のプロキシの IP が分からないとき**（共用サーバーなど）も、Host は IP なしで閉じる：`headers:` から `X-Forwarded-Host` を外し、`trustHosts()` を足す。IP の扱いは `docs/login.md`
 - `trustHosts()` は、環境が `local` のときと、試しの中（`runningUnitTests()`）では何もしない。試しで確かめるときは、環境を `production` にする
 
+## 配置の前の点検
+
+`php artisan foundation:deploy-check`（`docs/deploy-check.md`）の2つの調べが見る。
+
+- `trusted_hosts`：`TrustHosts` があれば `ok`。なければ、`'*'`・`'**'` で `X-Forwarded-Host`（か `Forwarded`）を信じる設定は `FAIL`、ほかは `later`
+- `mail_links`：`foundation.mail.links_from_app_url` が偽なら `skip`。真なら、パッケージのリンクの作り方が効いていれば `ok`、アプリが自分で作っていれば `info`
+
 ## 自分で書くときの注意
 
 - 訪問者が書いた文を、メールの Markdown に `{{ $name }}` でそのまま入れない。`withSecuredEncoding()` だけに頼らない（12.15 より前にはなく、12.70・13.36 より前は `view:cache` で外れる）

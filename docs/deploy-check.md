@@ -46,6 +46,8 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `migrations` | 流していないマイグレーションがない（既定の接続へつなぐ。読むだけ） | |
 | `attempts_bypass` | `foundation.attempts.bypass` が偽（`production` では効かないが、知らせが1時間に1回出続ける） | |
 | `trusted_proxies` | 下 | |
+| `trusted_hosts` | 偽の Host を入口で断る（`bootstrap/app.php` の `trustHosts()`。下） | |
+| `mail_links` | 再設定・確認のメールのリンクを `APP_URL` から作る設定が効いている（下） | `foundation.mail.links_from_app_url` が偽 |
 
 当たらない調べは `skip`。アプリに当たらない既定の調べは、`config/foundation.php` で外す：
 
@@ -79,6 +81,30 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | アプリの `TrustProxies` の子が全体のミドルウェアにある（古い作り） | `info`（読めない） | `FAIL`（確かめられない） |
 
 `'*'` の版の違いと、前段のアドレスの書き方は `docs/login.md`。
+
+### `trusted_hosts`
+
+全体のミドルウェアに `TrustHosts`（`$middleware->trustHosts()`、またはアプリの `TrustHosts` の子）があるかを読む。なければ、信頼するプロキシと見出しを `trusted_proxies` と同じ読み方で読む。値（Host・アドレス）は出さない。
+
+| 設定 | 状態 |
+|---|---|
+| `TrustHosts` がある | `ok` |
+| `TrustHosts` がなく、`'*'`・`'**'` で Host を運ぶ見出し（`X-Forwarded-Host`・`Forwarded`）を信頼（既定の見出し） | `FAIL`（訪問者が直に送った `X-Forwarded-Host` がリンクになる。Web サーバーの設定では閉じない） |
+| `TrustHosts` がなく、ほかの設定（未設定・範囲・`headers:` から Host を外した `'*'`） | `later`（Web サーバーが知らない Host を断っていれば穴はない。パッケージからは見えない） |
+| `TrustHosts` がなく、アプリの `TrustProxies` の子が全体のミドルウェアにある | `later`（見出しは読めない） |
+
+書き方は `docs/mail-safety.md`。
+
+### `mail_links`
+
+`foundation.mail.links_from_app_url` が真のとき、`ResetPassword`・`VerifyEmail` のリンクの作り方（`createUrlUsing`）が、パッケージのものかを見る。URL は出さない。
+
+| 設定 | 状態 |
+|---|---|
+| 偽 | `skip` |
+| 真で、パッケージの作り方が効いている | `ok` |
+| 真で、アプリが自分の `createUrlUsing`・`toMailUsing` で作っている | `info`（アプリが勝つ。どちらの通知かだけを出す） |
+| 真なのに、作り方が登録されていない | `FAIL` |
 
 ## アプリの調べを足す
 
