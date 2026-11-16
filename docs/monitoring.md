@@ -77,7 +77,7 @@ fi
     'max_attempts' => 10,           // 送り先ごとの試す回数の上限
     'prune_days' => 90,             // 送れたか諦めてこの日数がたった知らせを model:prune で消す
     'log' => ['channel' => null, 'level' => 'error'], // null はアプリの既定のチャネル
-    'mail' => ['to' => 'ops@example.com'],
+    'mail' => ['to' => 'ops@your-company.jp'], // 文字列か配列
     'webhook' => ['url' => '…', 'secret' => env('FOUNDATION_WEBHOOK_SECRET')],
     'chatwork' => ['token' => '…', 'room_id' => '…'],
     'slack' => ['webhook_url' => '…'],
@@ -111,6 +111,7 @@ Schedule::command('model:prune', ['--model' => [
 
 - **外のトランザクションの中で `send()` を呼ぶと**、その外側が rollback されたとき知らせの行ごと消える。トランザクションの外で呼ぶ。
 - メールの `timeout` は mailer の設定に任せる。
+- **メールの宛先に、実在しないことが決まっているドメイン（`example.com`・`.invalid` など。`docs/reserved-email-domains.md`）を書くと、その宛先は外して送る。** 残りが1つもなければ送れなかったと記録し（送り直しと諦めの流れに乗る）、一部を外したときは外した宛先を警告のログに1行残す。`foundation.mail.drop_reserved_recipients` によらない。ほかの `MessageSending` の聞き手が送信を取りやめたときは、送れたと記録される。
 
 ## ログの1行の形（v1 の契約）
 
