@@ -87,6 +87,8 @@ class InstallCommandTest extends TestCase
             'test-safety.md', 'ignore_connections', '入れた時点で効く',
             // CSV
             'CsvResponse::download', 'Rows::keyset', 'CsvReader::parse',
+            // 予約メールドメインは分類だけ。形式検証や自動の送信除外ではない
+            'reserved-email-domains.md', 'ReservedEmailDomains::isReserved', 'メール形式の検証ではない',
             // ログイン（3つとも要る。authenticateUsing が抜けると回数の制限が消える）
             'limiters', 'authenticateThrough', 'authenticateUsing', 'trustProxies',
             // CSP
