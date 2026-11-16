@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property int $id
  * @property string $invocation_id
- * @property int $cost_micro_yen
+ * @property ?int $cost_micro_yen 実際の原価（マイクロ円。単価がなければ null）
+ * @property ?int $counted_micro_yen 上限に数えた額（失敗の行は null）
  * @property \Illuminate\Support\Carbon $created_at
  */
 class AiUsage extends Model

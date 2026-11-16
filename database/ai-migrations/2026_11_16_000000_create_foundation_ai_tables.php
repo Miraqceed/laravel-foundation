@@ -40,7 +40,8 @@ return new class extends Migration
             $table->unsignedInteger('cache_read_tokens')->nullable();
             $table->unsignedInteger('cache_write_tokens')->nullable();
             $table->unsignedInteger('reasoning_tokens')->nullable();
-            $table->bigInteger('cost_micro_yen')->default(0);
+            // 実際の原価（単価がなければ空）と上限に数えた額。失敗の行はどちらも空
+            $table->bigInteger('cost_micro_yen')->nullable();
             $table->bigInteger('counted_micro_yen')->nullable();
             $table->boolean('priced')->default(false);
             // 例外のクラス名だけ。文には秘密が入りうるので残さない

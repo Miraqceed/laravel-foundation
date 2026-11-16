@@ -12,9 +12,14 @@ use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Ai\Events\ClassificationFailed;
+use Laravel\Ai\Events\Classified;
 use Laravel\Ai\Events\Classifying;
 use Laravel\Ai\Events\StartingStep;
+use Laravel\Ai\Events\StepCompleted;
+use Laravel\Ai\Events\StepFailed;
 use Miraqceed\Foundation\Ai\AiGuard;
+use Miraqceed\Foundation\Ai\AiRecorder;
 use Miraqceed\Foundation\Ai\AiStore;
 use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
@@ -100,6 +105,10 @@ class FoundationServiceProvider extends ServiceProvider
         return [
             StartingStep::class => [AiGuard::class, 'handleStartingStep'],
             Classifying::class => [AiGuard::class, 'handleClassifying'],
+            StepCompleted::class => [AiRecorder::class, 'handleStepCompleted'],
+            Classified::class => [AiRecorder::class, 'handleClassified'],
+            StepFailed::class => [AiRecorder::class, 'handleStepFailed'],
+            ClassificationFailed::class => [AiRecorder::class, 'handleClassificationFailed'],
         ];
     }
 
