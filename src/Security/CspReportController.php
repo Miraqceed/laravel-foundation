@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Miraqceed\Foundation\Attempts\AttemptKey;
 use Miraqceed\Foundation\Login\IpBucket;
 
 /**
@@ -21,8 +22,9 @@ class CspReportController
 
     public function __invoke(Request $request): Response
     {
-        // 接続元の単位はログインのロックと同じ（IPv6 は /64 に丸める。アドレスを変えるだけで避けられない）
-        $key = 'foundation-csp-report:'.IpBucket::of($request);
+        // 接続元の単位はログインのロックと同じ（IPv6 は /64 に丸める。アドレスを変えるだけで避けられない）。
+        // 鍵は APP_KEY の HMAC（キャッシュの表の鍵に IP を残さない）
+        $key = AttemptKey::for('csp-report', IpBucket::of($request));
         if (RateLimiter::tooManyAttempts($key, self::PER_MINUTE)) {
             return response('', 429);
         }
