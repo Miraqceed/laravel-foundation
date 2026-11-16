@@ -80,7 +80,7 @@ final class Attempts
             throw new TooManyAttempts(self::secondsUntil((int) $locked));
         }
 
-        $count = RateLimiter::increment($countKey, self::NEVER_EXPIRES);
+        $count = AttemptCounter::make()->countOne($countKey, self::NEVER_EXPIRES);
 
         if ($count >= $limit->max) {
             $unlockAt = now()->getTimestamp() + $limit->lockSeconds;
@@ -121,9 +121,10 @@ final class Attempts
             throw new TooManyAttempts(max(1, $retryAfter));
         }
 
+        $counter = AttemptCounter::make();
         $hits = [];
         foreach ($limits as $i => $limit) {
-            $hits[$i] = RateLimiter::increment($limit->key, $limit->decaySeconds);
+            $hits[$i] = $counter->countOne($limit->key, $limit->decaySeconds);
         }
 
         $over = false;
@@ -153,9 +154,7 @@ final class Attempts
         if (RateLimiter::availableIn($limit->key) === 0) {
             return;
         }
-        if (RateLimiter::decrement($limit->key, $limit->decaySeconds) < 0) {
-            RateLimiter::clear($limit->key);
-        }
+        AttemptCounter::make()->giveBack($limit->key);
     }
 
     /**
