@@ -62,6 +62,13 @@ fi
 Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\Monitoring\Alerts\Alert::class]])->daily();
 ```
 
+キャッシュのストアが `database` なら、期限切れの行も自動では消えません（Laravel はその鍵がもう一度読まれたときにだけ消します）。`foundation:cache-prune` を schedule に入れます（[docs/monitoring.md](docs/monitoring.md)）：
+
+```php
+// routes/console.php
+Schedule::command('foundation:cache-prune')->hourly();
+```
+
 ## 命名
 
 表は `foundation_`、設定は `foundation.*`、コマンドは `foundation:*`。パッケージは秘密の値を持たず、設定（`.env`）から読むだけです。

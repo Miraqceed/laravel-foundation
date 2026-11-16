@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Sleep;
 use Miraqceed\Foundation\Monitoring\Alerts\Alert;
 use Miraqceed\Foundation\Monitoring\Alerts\AlertDelivery;
 use Miraqceed\Foundation\Tests\TestCase;
@@ -222,9 +223,46 @@ class WatchTest extends TestCase
     public function test_heartbeat_failure_does_not_throw(): void
     {
         config()->set('foundation.monitoring.heartbeat_url', 'https://beat.example.test/x');
-        Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('down'));
+        // 投げた要求は記録に残らないので、自分で数える
+        $attempts = 0;
+        Http::fake(function () use (&$attempts) {
+            $attempts++;
+
+            throw new \Illuminate\Http\Client\ConnectionException('down');
+        });
+        // 送り直しの待ちを本当には待たない（この試しの中だけ）
+        Sleep::fake();
 
         $this->assertSame(0, Artisan::call('foundation:watch'));
+        // つながらない失敗は、合わせて3回まで送る
+        $this->assertSame(3, $attempts);
+        Sleep::assertSleptTimes(2);
+    }
+
+    public function test_heartbeat_retries_a_momentary_server_error(): void
+    {
+        config()->set('foundation.monitoring.heartbeat_url', 'https://beat.example.test/x');
+        Http::fake(['https://beat.example.test/*' => Http::sequence()->push('', 503)->push('', 429)->push('', 200)]);
+        Sleep::fake();
+
+        $this->assertSame(0, Artisan::call('foundation:watch'));
+
+        Http::assertSentCount(3);
+        // 間は2秒ずつ
+        Sleep::assertSequence([Sleep::for(2)->seconds(), Sleep::for(2)->seconds()]);
+    }
+
+    public function test_heartbeat_does_not_retry_a_client_error(): void
+    {
+        config()->set('foundation.monitoring.heartbeat_url', 'https://beat.example.test/x');
+        // URL の書き損じ・鍵の誤りは、送り直しても直らない
+        Http::fake(['https://beat.example.test/*' => Http::sequence()->push('', 404)->push('', 200)]);
+        Sleep::fake();
+
+        $this->assertSame(0, Artisan::call('foundation:watch'));
+
+        Http::assertSentCount(1);
+        Sleep::assertNeverSlept();
     }
 
     public function test_recording_failure_does_not_break_the_task(): void

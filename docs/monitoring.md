@@ -37,6 +37,20 @@ Schedule::command('reports:daily')->dailyAt('03:00')->watched('daily-report', 15
 
 キャッシュが `database` のとき、`withoutOverlapping` は **`cache_locks` の表**を使う。Laravel の `php artisan make:cache-table`（新しい Laravel では最初のマイグレーションに入っている）で作られていないと、`foundation:watch` が動かない。
 
+### `database` のキャッシュの期限切れの行（`foundation:cache-prune`）
+
+**キャッシュのストアが `database` なら、`foundation:cache-prune` を schedule に入れる。** Laravel の `database` のストアは、期限切れの行を**その鍵がもう一度読まれたときにだけ**消す。二度と来ない接続元のログインの失敗の数え・回数の制限の行（鍵と `:timer` の2行ずつ）が表に残り続け、容量の決まった DB を食う。Laravel にはこれを消すコマンドがない（`cache:prune-stale-tags` は Redis 向け）。
+
+```php
+// routes/console.php
+Schedule::command('foundation:cache-prune')->hourly();
+```
+
+- 消すのは期限切れの行だけ。1000件ずつ消し、1回の実行は60秒まで（残りは次の回）。消している間にアプリが同じ鍵を書き直した（期限が延びた）行は消さない。
+- 対象は既定のストア（`cache.default`）。別のストアは `--store=名前`。`database` のストアでなければ何もせずに終わる。
+- **パッケージは schedule に入れない**（入れただけでは何も消えない）。`monitoring.enabled` によらず使える。
+- ロックの表（`cache_locks`）には触らない。Laravel がロックを取るたびに、くじで期限切れの行を消している。
+
 ## 止まっている処理を読む（画面・状態の表示）
 
 管理画面や状態を出すコマンドに「止まっている定期の処理」を出すときは、`StallCheck` を使う。判断は `foundation:watch` と同じ（同じ1か所を使う）で、**読むだけで何も書かない**（知らせも送らない）。
@@ -85,7 +99,7 @@ fi
 
 ## 見張りの判定
 
-`foundation:watch` は、見張る名前ごとに：最後の成功が許す古さより前なら問題。一度も成功していなければ、**初めて見てから**許す古さがたつまでは問題にしない。問題があれば運営へ知らせ（鍵は止まっている処理の名前の組ごと。下の「間引きの鍵」）、終了コード 1。なければ `heartbeat_url`（あれば）へ GET して 0。送れなくても失敗にしない。
+`foundation:watch` は、見張る名前ごとに：最後の成功が許す古さより前なら問題。一度も成功していなければ、**初めて見てから**許す古さがたつまでは問題にしない。問題があれば運営へ知らせ（鍵は止まっている処理の名前の組ごと。下の「間引きの鍵」）、終了コード 1。なければ `heartbeat_url`（あれば）へ GET して 0。つながらない・5xx・429 のときは2秒あけて合わせて3回まで送る（一瞬の失敗で心拍が抜けて、外の監視が止まったと知らせないように）。4xx（URL の書き損じ・鍵の誤り）は送り直さない。送れなくても失敗にしない。
 
 ## 運営への知らせ
 
