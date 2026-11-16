@@ -24,7 +24,11 @@ php artisan vendor:publish --tag=foundation-two-factor-migrations
 php artisan migrate
 ```
 
-`users` に `two_factor_secret`（暗号にした秘密の鍵）・`two_factor_confirmed_at`・`two_factor_last_step`（最後に受けた刻み）を足す。無い列だけを足す（Fortify の2つの列が既にあっても落ちない）。表と列の名前は `foundation.two_factor.table`・`columns` で替えられる。
+`users` に `two_factor_secret`（暗号にした秘密の鍵）・`two_factor_confirmed_at`・`two_factor_last_step`（最後に受けた刻み）を足す。無い列だけを足す（Fortify の2つの列が既にあっても落ちない）。列の名前は `foundation.two_factor.columns` で替えられる。
+
+`TwoFactor` が読み書きする表は、渡したモデルの表（`getTable()`）。管理者を別の表（`admins` など）に持つアプリは、その表にも同じ列を足す（マイグレーションを写して表の名前を替える）。数えと通った印も、表ごとに分かれる。
+
+**Fortify へ移るとき**：列の名前は Fortify と同じだが、値の形が違う（ここは `Crypt::encryptString`、Fortify は `encrypt()`〔serialize してから暗号〕）。Fortify に移すときは、鍵を読み戻して Fortify の形で暗号にし直す。
 
 ### 2. 登録
 
@@ -35,12 +39,14 @@ use Miraqceed\Foundation\TwoFactor\TwoFactor;
 $twoFactor = app(TwoFactor::class);
 
 // 鍵は確かめるまで保存しない（セッションに置くか、毎回同じに作れる形で作る）
-$secret = Totp::generateSecret();                       // 160 ビット、Base32 で 32 字
+$secret = Totp::generateSecret();                       // 160 ビット、Base32 で 32 字。80 ビット未満の鍵は confirm() が断る
 $uri = $twoFactor->uri($user->email, $secret);          // issuer は foundation.two_factor.issuer（null なら app.name）
 // $uri をアプリが選んだライブラリで QR にして見せる。鍵と QR を含む応答には Cache-Control: no-store を付ける
 
 // 認証アプリが出したコードで確かめる。合えば、鍵（暗号にして）・確定の時刻・使った刻みを書く
-if (! $twoFactor->confirm($user, $secret, $request->input('code'))) {
+// 入力は文字列だけを渡す（無い・配列のときは空の文字列にする。空や形の違う入力も、間違いに数える）
+$code = is_string($request->input('code')) ? $request->input('code') : '';
+if (! $twoFactor->confirm($user, $secret, $code)) {
     // 違うコード。間違いは続けた失敗に数える
 }
 ```
@@ -53,7 +59,8 @@ if (! $twoFactor->confirm($user, $secret, $request->input('code'))) {
 use Miraqceed\Foundation\Attempts\TooManyAttempts;
 
 try {
-    if ($twoFactor->verify($user, $request->input('code'))) {
+    $code = is_string($request->input('code')) ? $request->input('code') : '';
+    if ($twoFactor->verify($user, $code)) {
         $twoFactor->pass($request, $user);   // セッションの番号を作り直し、通った印を置く
     }
 } catch (TooManyAttempts $e) {
@@ -67,7 +74,7 @@ $twoFactor->passed($request, $user);  // 今の鍵で通ったセッションか
 - 打たれたコードは、空白（全角を含む）を除き、全角の数字を半角に直してから読む。6桁の数字でない入力（形の違う入力）も、間違いに数える
 - 最後に受けた刻み以下のコードは受けない。刻みは「前の刻みより後のときだけ書く」条件つきの UPDATE で書くので、同じコードの2つの要求のうち1つだけが通る
 - 通った印は、利用者と登録した鍵に結び付ける。鍵を登録し直すと、前の鍵で通ったセッションはまた聞かれる。通ってからの時間で区切るかは、アプリが決める
-- ロックになると、出来事 `TwoFactorLocked`（利用者だけを持つ）が出る。運営に知らせるなどは、アプリが聞き手を書く
+- ロックになると、出来事 `TwoFactorLocked`（利用者だけを持つ）が出る。1 回のロックにつき 1 回だけ出る（並んだ総当たりでも）。運営に知らせるなどは、アプリが聞き手を書く
 
 ### 4. 空にする
 
@@ -92,8 +99,8 @@ $this->app->singleton(TwoFactorAuthenticationProvider::class, FortifyTwoFactorPr
 ```
 
 - Fortify の元の確かめは、使ったコードの印をキャッシュから読んでから確かめ、書き込む。同時の2つの要求で、同じコードが両方通る（Fortify v1.42.0 で、試しで起こして確かめた）。印の鍵もコードだけで、利用者によらない
-- 差し替えは、合った刻みの印を `Cache::add`（原子的）で立てられたときだけ通す。印の鍵は秘密の鍵と刻みの HMAC（鍵もコードもキャッシュの鍵に入れない）。印はそのコードが受けられる間より長く残る。通ったら、窓の中の前の刻みにも印を置く
-- 間違いは、秘密の鍵ごとに続けた失敗で数える。ロック中は、確かめずに 429 の誤り（`code` の欄。Fortify の `auth.throttle` の文）で断る
+- 差し替えは、合った刻みの印を `Cache::add`（原子的）で立てられたときだけ通す。印の鍵は秘密の鍵と刻みの HMAC（鍵もコードもキャッシュの鍵に入れない）。印はそのコードが受けられる間より長く残る。通ったら、窓の中のそれより前の刻み（刻み − 2 × window から）にも印を置く（先の刻みのコードで通った後も、前の刻みのコードを受けない）
+- 間違いは、秘密の鍵ごとに続けた失敗で数える。ロック中は、確かめずに `code` の欄の誤り（Fortify の `auth.throttle` の文）で断る。JSON の要求は 429、画面のフォームは前の画面へ戻り、誤りが `code` に入る（Laravel の検証の誤りと同じ）。登録の確かめ（`two-factor.confirm`）のときは、Fortify と同じく `confirmTwoFactorAuthentication` の袋に入る
 - 登録の確かめ（`ConfirmTwoFactorAuthentication`）も、同じ差し替えを通る
 - Fortify の窓（`fortify-options.two-factor-authentication.window`）を守る
 
