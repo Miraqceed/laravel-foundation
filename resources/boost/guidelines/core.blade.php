@@ -86,6 +86,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 ### 利用者の URL をサーバーから開く（`docs/ssrf.md`）
 
 - このパッケージは守りを持たない。PHP 8.4 以上のアプリは `cboxdk/laravel-ssrf`（^1.5）を入れ、利用者が入れた URL（Webhook の送り先・画像や記事の取り込みなど）は `Http::ssrf()->get($url)` で開く。保存する前の確かめは検証の規則 `new \Cbox\Ssrf\Rules\PublicUrl`。
+- PHP 8.3 のアプリでは `cboxdk/laravel-ssrf` を入れられない。利用者の URL をサーバーから開く機能を作る前に、PHP を 8.4 へ上げる。上げられない間は、その機能を作らず、作る人（頼んだ人）に知らせる。自前の守りで代わりにしない。
 - `Http::get($url)` で直に開かない。名前を引いて確かめてから `Http::` で開く自前の守りを書かない（つなぐときに名前を引き直すので、DNS の書き換えですり抜ける）。
 - `guzzlehttp/guzzle` は 7.15.2 以上（8 系は 8.0.1 以上）にする（それより前はホストの読み方の食い違いで確かめをすり抜ける）。
 - `HTTP_PROXY` などのプロキシを通すと、つなぐ先の固定が効かない。出口のファイアウォールで社内のアドレスと `169.254.169.254` を止めるのが本筋。
