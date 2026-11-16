@@ -188,6 +188,39 @@ class RedactorKindsTest extends TestCase
         $this->assertEquals([new Finding('email', ''), new Finding('email', '')], $result->findings);
     }
 
+    /**
+     * 最後の区切りの後に - が続くときは、その直前（英字の最後の区切りの終わり）までをメールアドレスと読む。
+     * 文の中で、メールアドレスの直後に - や _ が続いても、伏せ漏らさない
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function emailsFollowedBySymbols(): array
+    {
+        return [
+            'hyphen after the domain' => ['a@b.com-x', '[REDACTED]-x'],
+            'hyphen after a two level domain' => ['a@b.co.jp-x', '[REDACTED]-x'],
+            'underscore after the domain' => ['a@b.com_x', '[REDACTED]_x'],
+            'trailing hyphen' => ['a@b.com-', '[REDACTED]-'],
+            'hyphen and a digit label after' => ['a@x.com-x.1', '[REDACTED]-x.1'],
+            'hyphen and a digit' => ['a@b.com-9 です', '[REDACTED]-9 です'],
+            'next to Japanese' => ['連絡はa@b.com-xへ', '連絡は[REDACTED]-xへ'],
+        ];
+    }
+
+    #[DataProvider('emailsFollowedBySymbols')]
+    public function test_redacts_an_email_followed_by_symbols_up_to_the_end_of_the_domain(string $text, string $expected): void
+    {
+        $result = (new Redactor)->text($text);
+
+        $this->assertSame($expected, $result->value);
+        $this->assertEquals([new Finding('email', '')], $result->findings);
+    }
+
+    public function test_a_hyphenated_label_in_the_middle_stays_in_the_domain(): void
+    {
+        $this->assertSame('[REDACTED]', (new Redactor)->text('a@b.com-x.org')->value);
+    }
+
     public function test_counts_each_match_in_one_text_separately(): void
     {
         $result = (new Redactor)->text('taro@example.com と hanako@example.com に送った');
@@ -214,6 +247,7 @@ class RedactorKindsTest extends TestCase
             'short AKIA' => ['AKIA1234 という文字'],
             'long digits that are not a phone number' => ['番号 03-1234-56789 です'],
             'empty json value does not swallow the rest' => ['{"password":"","note":"hello world"}'],
+            'no letter top level domain before a hyphen' => ['a@b.c0m-x'],
         ];
     }
 

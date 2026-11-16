@@ -360,14 +360,25 @@ final class Redactor
 
     /**
      * メールアドレスを伏せる。ドメインの最後の区切りが英字2字以上になるまで、後ろの区切りを外して残す
-     * （a@example.com.1 は a@example.com を伏せ、.1 を残す）。区切りが1つしか残らなければメールアドレスと読まない
+     * （a@example.com.1 は a@example.com を伏せ、.1 を残す）。最後の区切りが英字2字以上の後に - が続くときは、
+     * 英字の所で終わりとする（a@b.com-x は a@b.com を伏せ、-x を残す）。区切りが1つしか残らなければメールアドレスと読まない
      */
     private function emailReplacement(string $match): ?string
     {
         [$local, $domain] = explode('@', $match, 2);
         $labels = explode('.', $domain);
         $tail = '';
-        while (count($labels) > 1 && preg_match('/^[A-Za-z]{2,}$/D', (string) end($labels)) !== 1) {
+        while (count($labels) > 1) {
+            $last = (string) end($labels);
+            if (preg_match('/^[A-Za-z]{2,}$/D', $last) === 1) {
+                break;
+            }
+            // 最後の区切りが英字2字以上の後に - が続く（a@b.com-x）。英字の所までをメールアドレスと読み、- からは残す
+            if (preg_match('/^([A-Za-z]{2,})(-.*)$/sD', $last, $split) === 1) {
+                $labels[array_key_last($labels)] = $split[1];
+                $tail = $split[2].$tail;
+                break;
+            }
             $tail = '.'.array_pop($labels).$tail;
         }
         if (count($labels) < 2 || $this->withoutMarker($local) === '') {

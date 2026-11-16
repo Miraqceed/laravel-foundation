@@ -31,6 +31,9 @@ class RedactorSafetyTest extends TestCase
         foreach (RedactorKindsTest::quotedValuesOfAnyCharacters() as $name => [$text]) {
             $texts["quoted: {$name}"] = [$text];
         }
+        foreach (RedactorKindsTest::emailsFollowedBySymbols() as $name => [$text]) {
+            $texts["email: {$name}"] = [$text];
+        }
 
         return $texts + [
             'marker as an unquoted value' => ['password: [REDACTED]'],
