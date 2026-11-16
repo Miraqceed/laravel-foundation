@@ -79,10 +79,16 @@ class HealthRouteOverlapTest extends TestCase
         return $app->make(HttpKernel::class)->handle(Request::create($path));
     }
 
-    /** @return list<string> */
+    /**
+     * 稼働の確かめの道（up・healthz）だけを並べる。Testbench の骨組みはほかの経路も足す（12 の storage/{path} など）
+     *
+     * @return list<string>
+     */
     private function uris(Application $app): array
     {
-        return array_map(fn ($route) => $route->uri(), $app['router']->getRoutes()->getRoutes());
+        $uris = array_map(fn ($route) => $route->uri(), $app['router']->getRoutes()->getRoutes());
+
+        return array_values(array_filter($uris, fn (string $uri) => in_array($uri, ['up', 'healthz'], true)));
     }
 
     public function test_既定と同じ道なら自前が勝つ(): void
