@@ -2,6 +2,10 @@
 
 ## 未公開
 
+## 0.4.0
+
+**入れただけでは変わらない。** 心拍（`heartbeat_url`）を設定しているアプリだけ、送れなかったときに送り直すようになる。`foundation:cache-prune` は schedule に自動では入らない。見張りの一覧は、Web の要求の中でも読めるようになった（初めて読むときに1回だけ Console Kernel を立ち上げる）。
+
 - 見張りの `WatchList`（と `StallCheck::stalled()`）が、Web の要求（HTTP Kernel だけで立ち上がる）では schedule の `->watched()` を1つも見つけず、`StallCheck` がいつも空を返していた。初めて読むときに Console Kernel を立ち上げて schedule を読ませる（1回だけ。Console の中では今までどおり）。`docs/monitoring.md`
 - 見張り：心拍（`heartbeat_url`）を、つながらない・5xx・429 のとき2秒あけて合わせて3回まで送るようにした（これまでは1回で諦めていた）。4xx は送り直さない。`database` のキャッシュの期限切れの行を消すコマンド `foundation:cache-prune` を足した（Laravel はその鍵がもう一度読まれたときにだけ消す）。1000件ずつ・1回60秒まで消し、消している間に書き直された行は残す。**パッケージは schedule に入れない**：キャッシュのストアが `database` のアプリは `Schedule::command('foundation:cache-prune')->hourly()` を足す。`docs/monitoring.md`
 
