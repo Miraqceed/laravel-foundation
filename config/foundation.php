@@ -112,7 +112,7 @@ return [
         'email_only_decay_seconds' => 1800,
     ],
 
-    // AI の費用の上限と記録（laravel/ai を使うアプリだけ。部品6）
+    // AI の費用の上限と記録（laravel/ai を使うアプリだけ）
     'ai' => [
         // 既定で無効。入れただけでは挙動も表も変わらない
         'enabled' => false,

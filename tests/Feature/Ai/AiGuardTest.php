@@ -15,8 +15,10 @@ use Laravel\Ai\Events\AgentFailedOver;
 use Laravel\Ai\Events\Classifying;
 use Laravel\Ai\Events\StartingStep;
 use Laravel\Ai\Exceptions\FailoverableException;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
 use Miraqceed\Foundation\Ai\AiLimitReached;
 use Miraqceed\Foundation\Ai\AiStore;
+use Miraqceed\Foundation\Ai\AiUsage;
 use Miraqceed\Foundation\FoundationServiceProvider;
 use Miraqceed\Foundation\Monitoring\Alerts\Alert;
 use Miraqceed\Foundation\Tests\Support\AiLookupTool;
@@ -205,6 +207,36 @@ class AiGuardTest extends TestCase
 
         Event::assertNotDispatched(AgentFailedOver::class);
         Http::assertNothingSent();
+    }
+
+    public function test_切り替え先の会社へ送る前にも確かめる(): void
+    {
+        // 1つ目の会社（anthropic）が混み合い（529）で失敗すると、SDK は2つ目（openai）へ切り替える。
+        // 切り替え先へ送る前の段でも守りが動き、1つ目で使った回数で止める
+        Http::fake([
+            self::ANTHROPIC => Http::response(['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'Overloaded']], 529),
+            'api.openai.com/*' => Http::response(['unexpected' => true]),
+        ]);
+        Event::fake([AgentFailedOver::class]);
+        $this->limits(calls: 1);
+
+        try {
+            agent('You are a test.')->prompt('hello', provider: ['anthropic' => 'claude-test', 'openai' => 'gpt-test']);
+            $this->fail('止まらなかった');
+        } catch (AiLimitReached $e) {
+            $this->assertSame('day_calls', $e->reason);
+        }
+
+        Event::assertDispatchedTimes(AgentFailedOver::class, 1);
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.anthropic.com'));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'api.openai.com'));
+        $this->assertSame(1, $this->store()->totals()['day_calls']);
+        // 1つ目の会社の失敗は行に残り、止めた切り替え先の行は残らない
+        $this->assertSame(
+            [['anthropic', 'failed', ProviderOverloadedException::class]],
+            AiUsage::query()->get()->map(fn ($row) => [$row->provider_driver, $row->status, $row->error])->all(),
+        );
     }
 
     public function test_道具を使う会話の途中の段でも止まる(): void
@@ -405,10 +437,9 @@ class AiGuardTest extends TestCase
         $this->assertSame(1, $this->store()->totals()['day_calls']);
     }
 
-    public function test_回数を足せなければ数えられないときと同じ(): void
+    /** 回数を足すと投げる読み書きの口（合計は読める） */
+    private function storeThatCannotAddCalls(): void
     {
-        Exceptions::fake();
-        $this->fakeAnthropic();
         $this->app->instance(AiStore::class, new class extends AiStore
         {
             public function addCall(): void
@@ -416,6 +447,14 @@ class AiGuardTest extends TestCase
                 throw new RuntimeException('書けません');
             }
         });
+    }
+
+    public function test_回数を足せないとき_回数の上限があれば数えられないときと同じ(): void
+    {
+        Exceptions::fake();
+        $this->fakeAnthropic();
+        $this->storeThatCannotAddCalls();
+        $this->limits(calls: 10);
 
         $this->assertSame('uncountable', $this->attempt()?->reason);
         Http::assertNothingSent();
@@ -424,6 +463,26 @@ class AiGuardTest extends TestCase
         $this->assertNull($this->attempt());
         Http::assertSentCount(1);
         Exceptions::assertReported(RuntimeException::class);
+    }
+
+    public function test_回数を足せないとき_回数の上限がなければ知らせて送る(): void
+    {
+        Exceptions::fake();
+        $this->fakeAnthropic();
+        $this->storeThatCannotAddCalls();
+        $this->assertSame('block', config('foundation.ai.when_uncountable'));
+
+        // 上限が1つもないとき
+        $this->limits();
+        $this->assertNull($this->attempt());
+        Http::assertSentCount(1);
+
+        // 金額の上限だけのとき（合計は読めたので、金額の上限は効いている）
+        $this->limits(day: 100, month: 1000);
+        $this->assertNull($this->attempt());
+        Http::assertSentCount(2);
+
+        Exceptions::assertReported(fn (RuntimeException $e) => $e->getMessage() === '書けません');
     }
 
     #[DefineEnvironment('withMonitoring')]

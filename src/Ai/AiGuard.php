@@ -12,6 +12,8 @@ use Throwable;
  * 送る前の守り。AI の会社へ1回送る直前（文の生成の段・分類）に、今日・今月の合計が上限以上なら
  * AiLimitReached を投げて送らせない。通ったら今日の回数を1つ足す。
  *
+ * 回数を足せないときは、回数の上限があれば数えられないときと同じに扱い、なければ report() して送る。
+ *
  * 合計を見てから送るので、最後の1回の分と、同時に走る呼び出しの分だけ上限を超えうる。
  * 日・月の区切りは呼ぶたびに now()（アプリのタイムゾーン）で決める（長く動くワーカーでも日付を覚えない）。
  */
@@ -39,9 +41,22 @@ class AiGuard
         try {
             $this->store->addCall();
         } catch (Throwable $e) {
+            if (self::blank(config('foundation.ai.daily_call_limit'))) {
+                // 回数の上限がなければ、回数を足せなくても効かなくなる上限はない（金額の合計は読めた）
+                report($e);
+
+                return;
+            }
+
             // 回数を足せないと回数の上限が効かない。数えられないときと同じに扱う
             $this->uncountable('呼び出しの回数を足せません', $e);
         }
+    }
+
+    /** 上限の設定が空（上限なし）か */
+    private static function blank(mixed $value): bool
+    {
+        return $value === null || $value === '';
     }
 
     /**
@@ -93,7 +108,7 @@ class AiGuard
         $limits = [];
         foreach (['day_cost' => 'daily_limit_yen', 'month_cost' => 'monthly_limit_yen', 'day_calls' => 'daily_call_limit'] as $reason => $key) {
             $value = config("foundation.ai.{$key}");
-            if ($value === null || $value === '') {
+            if (self::blank($value)) {
                 $limits[$reason] = null;
 
                 continue;

@@ -44,7 +44,7 @@ final class AiPrices
         return new self(is_array($prices) ? $prices : [], config('foundation.ai.yen_per_usd'));
     }
 
-    /** 4つの単価がすべて0以上の数の行だけ正しい。 */
+    /** 4つの単価がすべて0以上の有限の数の行だけ正しい。 */
     private function validRow(mixed $row): ?array
     {
         if (! is_array($row)) {
@@ -53,13 +53,11 @@ final class AiPrices
         $valid = [];
         foreach (self::KEYS as $key) {
             $value = $row[$key] ?? null;
-            if (! is_int($value) && ! is_float($value) && ! (is_string($value) && is_numeric($value))) {
+            $number = self::finite($value);
+            if ($number === null || $number < 0) {
                 return null;
             }
-            if ((float) $value < 0) {
-                return null;
-            }
-            $valid[$key] = (float) $value;
+            $valid[$key] = $number;
         }
 
         return $valid;
@@ -67,12 +65,21 @@ final class AiPrices
 
     private function yen(): ?float
     {
-        $v = $this->yenPerUsd;
-        if ((is_int($v) || is_float($v) || (is_string($v) && is_numeric($v))) && (float) $v > 0) {
-            return (float) $v;
+        $yen = self::finite($this->yenPerUsd);
+
+        return $yen !== null && $yen > 0 ? $yen : null;
+    }
+
+    /** 有限の数（文字列の数を含む）なら float、それ以外は null。"1e999" は INF になるので数とみなさない */
+    private static function finite(mixed $value): ?float
+    {
+        if (! is_int($value) && ! is_float($value) && ! (is_string($value) && is_numeric($value))) {
+            return null;
         }
 
-        return null;
+        $number = (float) $value;
+
+        return is_finite($number) ? $number : null;
     }
 
     public function countable(): bool

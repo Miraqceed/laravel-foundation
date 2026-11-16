@@ -2,6 +2,7 @@
 
 namespace Miraqceed\Foundation\Tests\Feature\Ai;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Miraqceed\Foundation\Ai\AiStore;
@@ -92,6 +93,49 @@ class AiStoreTest extends TestCase
         $this->assertSame('foundation_ai', AiStore::connectionName());
         $this->assertSame(1, $store->totals()['day_calls']);
         $this->assertSame(1, DB::connection(AiStore::connectionName())->table('foundation_ai_usages')->count());
+    }
+
+    public function test_アプリが定めた接続を使い_合計は書き込みの接続から読む(): void
+    {
+        if (config('database.connections.'.config('database.default').'.driver') === 'sqlite') {
+            $this->markTestSkipped('SQLite は別の接続を使わない');
+        }
+
+        // アプリが foundation_ai を自分で定める。読み込みは遅れる複製（ここでは届かない先）へ向いている
+        $default = config('database.connections.'.config('database.default'));
+        config(['database.connections.foundation_ai' => [...$default, 'read' => ['host' => '127.0.0.1', 'port' => 1], 'write' => []]]);
+        AiStore::$separateInTests = true;
+        $store = app(AiStore::class);
+
+        $this->assertSame('foundation_ai', AiStore::connectionName());
+        $this->assertSame(['host' => '127.0.0.1', 'port' => 1], config('database.connections.foundation_ai.read'), '写しで上書きしない');
+
+        // 書き込みの前に読む（送る前の確かめは書く前に読むので、sticky では書き込みの接続に戻らない）
+        $this->assertSame(['day_cost' => 0, 'month_cost' => 0, 'day_calls' => 0], $store->totals());
+        $store->addCost(1_500_000);
+        $store->addCall();
+        $this->assertSame(['day_cost' => 1_500_000, 'month_cost' => 1_500_000, 'day_calls' => 1], $store->totals());
+        $this->assertTrue($store->claimNotice('daily:2026-11-16'));
+        $this->assertFalse($store->claimNotice('daily:2026-11-16'));
+    }
+
+    public function test_既定の接続で書くとき_失敗してもアプリのトランザクションを壊さない(): void
+    {
+        $this->assertSame(config('database.default'), AiStore::connectionName());
+        $store = app(AiStore::class);
+
+        // RefreshDatabase のトランザクションの中。PostgreSQL は失敗した文でトランザクションごと使えなくなる
+        DB::transaction(function () use ($store) {
+            try {
+                $store->record(['no_such_column' => 1]);
+                $this->fail('書けてしまった');
+            } catch (QueryException) {
+            }
+
+            $this->assertSame(0, DB::table('foundation_ai_usages')->count());
+            $store->addCall();
+            $this->assertSame(1, $store->totals()['day_calls']);
+        });
     }
 
     public function test_知らせの印は1回だけ立つ(): void

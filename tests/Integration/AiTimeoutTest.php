@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Tests\Integration;
 
 use Laravel\Ai\AiServiceProvider;
+use Laravel\Ai\Exceptions\ProviderConnectionException;
 use Miraqceed\Foundation\Tests\TestCase;
 use Throwable;
 
@@ -10,7 +11,7 @@ use function Laravel\Ai\agent;
 
 /**
  * Laravel AI SDK の `timeout:` が HTTP の層で効くことを、本物のサーバーで確かめる。
- * 5秒待ってから答えるサーバー（php -S）へ向け、timeout: 1 の呼び出しが3秒以内に例外で返ることを見る。
+ * 5秒待ってから答えるサーバー（php -S）へ向け、timeout: 1 の呼び出しが1〜3秒で接続の例外で返ることを見る。
  * 設計の前提（呼び出しが長く固まって上限の確かめを塞がない）の確かめ。
  */
 class AiTimeoutTest extends TestCase
@@ -87,6 +88,9 @@ class AiTimeoutTest extends TestCase
         $elapsed = microtime(true) - $started;
 
         $this->assertNotNull($thrown, '打ち切られずに答えが返った');
+        // 関係のない早い誤り（設定の誤りなど）で通らないよう、例外の種類と下限も見る
+        $this->assertInstanceOf(ProviderConnectionException::class, $thrown, get_class($thrown).': '.$thrown->getMessage());
+        $this->assertGreaterThan(0.9, $elapsed, "打ち切りが早すぎる（{$elapsed} 秒）");
         $this->assertLessThan(3.0, $elapsed, "打ち切りに {$elapsed} 秒かかった");
     }
 }

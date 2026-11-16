@@ -61,7 +61,7 @@ class AiRecorderTest extends TestCase
         parent::tearDown();
     }
 
-    /** Task 2 と同じトークン（単価 3・15・3.75・0.3、150円で 668,250 マイクロ円） */
+    /** 単価 3・15・3.75・0.3、150円で 668,250 マイクロ円になるトークン（AiPricesTest と同じ） */
     private static function usage(): TextUsage
     {
         return new TextUsage(inputTokens: 1000, outputTokens: 200, cacheReadInputTokens: 600, cacheWriteInputTokens: 100, reasoningTokens: 30);

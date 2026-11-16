@@ -78,4 +78,25 @@ class AiPricesTest extends TestCase
         }
         $this->assertTrue($this->prices($this->table())->countable());
     }
+
+    public function test_有限でない数の単価と為替は正しくない(): void
+    {
+        // "1e999" は数の文字列だが float にすると INF になる
+        $table = $this->table();
+        $table['anthropic']['huge'] = ['input' => '1e999', 'output' => 1, 'cache_write' => 1, 'cache_read' => 1];
+        $table['anthropic']['nan'] = ['input' => NAN, 'output' => 1, 'cache_write' => 1, 'cache_read' => 1];
+        $table['anthropic']['inf'] = ['input' => 1, 'output' => INF, 'cache_write' => 1, 'cache_read' => 1];
+        $prices = $this->prices($table);
+
+        foreach (['huge', 'nan', 'inf'] as $model) {
+            $cost = $prices->cost('anthropic', $model, null, new TextUsage(inputTokens: 1000, outputTokens: 100));
+            $this->assertFalse($cost->priced, $model);
+            // 正しい行の中の最高の単価（input 5・output 15）で数える。INF を最高の単価にしない
+            $this->assertSame((1000 * 5 + 100 * 15) * 150, $cost->countedMicroYen, $model);
+        }
+
+        foreach (['1e999', INF, NAN] as $yen) {
+            $this->assertFalse($this->prices($this->table(), $yen)->countable(), var_export($yen, true));
+        }
+    }
 }

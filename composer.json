@@ -32,7 +32,7 @@
         "laravel/ai": "<1.4 || >=2.0"
     },
     "suggest": {
-        "laravel/ai": "AI の費用の上限と記録（部品6）を使うとき",
+        "laravel/ai": "AI の費用の上限と記録を使うとき",
         "laravel/fortify": "ログインのロックを Fortify の認証と組み合わせるとき"
     },
     "autoload": {
