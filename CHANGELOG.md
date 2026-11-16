@@ -2,10 +2,15 @@
 
 ## 未公開
 
+## 0.7.0
+
+**ログインのロックで現在のパスワードの確かめを使っているアプリは、同じ利用者が30分に10回間違えると、接続元を替えても確かめが止まるようになる。** CSP の違反の報告の口を有効にしているアプリは、版を上げた直後に、報告の口の1分の数えが一度空になる。ほかの新しいもの（`DatabaseTimezone`・`ChildEnvironment`・`prevent_stray_requests`）は、呼んだときか設定したときだけ働く。
+
 - `Support\DatabaseTimezone` とコマンド `foundation:db-timezone`：DB の接続の時間帯が、アプリの時間帯とずれていないかを、今の時差で確かめる（PostgreSQL・MySQL）。ずれていればコマンドは終わりの値 1、つながらない・`--connection=` の値が空なら 2。出力に DB のホスト・ユーザー名・DB の名前を出さない（つながらないときの例外の文も出さない）。MySQL の接続を時差で書いてよいのは、夏時間の無い時間帯だけ（説明書）。自動では確かめない。`docs/database-timezone.md`
 - `Support\ChildEnvironment::only()`：子プロセスに親の環境（`.env` の秘密）を受け継がせず、挙げた名前だけを渡す環境の配列。Laravel の `Process::env()`・Symfony の `Process` に渡す。`docs/child-processes.md`
 - AI 向けの指針に、部品によらない「自分で書くときの注意」の節を足した（正規表現の `$`・`\p{Han}`・セッションへの機微な入力・パスワードを変えたときのセッション・試しの偽物の差し方・空の値のオプション・設定の書き違い）。`foundation:install` にも写る。
 - ログインのロック：現在のパスワードの確かめ（`attemptPasswordConfirmation()`）に、利用者ごとの枠（`foundation.login.password_account_max`=10・`password_account_decay_seconds`=1800）を足した。これまでは利用者と接続元の組の枠だけで、接続元を替えれば試し続けられた。**同じ利用者が30分に10回間違えると、接続元を替えても確かめが `LoginLockedOut` で止まる**（ログインは止めない。利用者と接続元の組の枠は残る）。CSP の違反の報告の口：回数の数えの鍵を `APP_KEY` の HMAC にした（これまでは接続元の IP がそのまま鍵に入り、`database` のキャッシュの表に残った）。**鍵が変わるので、版を上げた直後に1分の窓の数えが一度空になる。** 古い鍵の行（IP 入り）は `database` のキャッシュに期限切れのまま残るので、`foundation:cache-prune` で消す。`APP_KEY` が空なら、報告の口は 500 になる。`docs/login.md`・`docs/security.md`
+- テストの守り：設定 `foundation.test_safety.prevent_stray_requests`（既定は偽）を足した。真にすると、テストの中だけ `Http::preventStrayRequests()` を掛け、`Http::fake()` に当たらない外への要求を送る前に止める。テストの中かは DB の守りと同じ判定。**入れただけでは変わらない。** 説明書に、並列の試しでは元のテスト用 DB を先に作ること（ないと `Unknown database` で全部落ちる）を書いた。`docs/test-safety.md`
 
 ## 0.6.0
 
@@ -28,7 +33,6 @@
 **入れただけでは変わらない。** 心拍（`heartbeat_url`）を設定しているアプリだけ、送れなかったときに送り直すようになる。`foundation:cache-prune` は schedule に自動では入らない。見張りの一覧は、Web の要求の中でも読めるようになった（初めて読むときに1回だけ Console Kernel を立ち上げる）。
 
 - 見張りの `WatchList`（と `StallCheck::stalled()`）が、Web の要求（HTTP Kernel だけで立ち上がる）では schedule の `->watched()` を1つも見つけず、`StallCheck` がいつも空を返していた。初めて読むときに Console Kernel を立ち上げて schedule を読ませる（1回だけ。Console の中では今までどおり）。`docs/monitoring.md`
-- テストの守り：設定 `foundation.test_safety.prevent_stray_requests`（既定は偽）を足した。真にすると、テストの中だけ `Http::preventStrayRequests()` を掛け、`Http::fake()` に当たらない外への要求を送る前に止める。テストの中かは DB の守りと同じ判定。**入れただけでは変わらない。** 説明書に、並列の試しでは元のテスト用 DB を先に作ること（ないと `Unknown database` で全部落ちる）を書いた。`docs/test-safety.md`
 - 見張り：心拍（`heartbeat_url`）を、つながらない・5xx・429 のとき2秒あけて合わせて3回まで送るようにした（これまでは1回で諦めていた）。4xx は送り直さない。`database` のキャッシュの期限切れの行を消すコマンド `foundation:cache-prune` を足した（Laravel はその鍵がもう一度読まれたときにだけ消す）。1000件ずつ・1回60秒まで消し、消している間に書き直された行は残す。**パッケージは schedule に入れない**：キャッシュのストアが `database` のアプリは `Schedule::command('foundation:cache-prune')->hourly()` を足す。`docs/monitoring.md`
 
 ## 0.3.0
