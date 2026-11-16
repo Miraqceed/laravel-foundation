@@ -103,6 +103,17 @@ final class Attempts
     }
 
     /**
+     * 続けた失敗のロックが明けるまでの秒。ロックしていなければ 0。読むだけで、数えも印も変えない
+     * （照合に失敗した後に、その失敗でロックになったかを知るのに使う）
+     */
+    public function lockedFor(ConsecutiveLimit $limit): int
+    {
+        $unlockAt = Cache::get($limit->key.':lock');
+
+        return $unlockAt === null ? 0 : max(0, (int) $unlockAt - now()->getTimestamp());
+    }
+
+    /**
      * 上限に達していれば投げる。達していなければ、すべての枠に1回分を足す。
      *
      * @param  list<Limit>  $limits

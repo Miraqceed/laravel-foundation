@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`security.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`security.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -69,6 +69,12 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 入力と権限の確かめを通った後に照合を包む。経路の手前（中間処理）で数えない。鍵は `AttemptKey::for(名前, ...値)` で作る（`APP_KEY` の HMAC）。
 - 数え方：本人の枠は `Counting::FailuresOwn`、接続元など共有の枠は `Counting::FailuresShared`、お金の掛かる試みは `Counting::Every`。確認コード（TOTP など）は `attemptConsecutive()`（時間で消えない数えとロック）で数える。
 - 回数の制限には `database`・`redis` などの原子的なキャッシュを使う（`file` では守りが弱まり、`array` では効かない）。アプリの `DB::transaction` の中で呼ばない（同じ接続の `database` のキャッシュだと、巻き戻しで数えも巻き戻る）。`foundation.attempts.bypass` は診断の間だけ。`production` では効かない。
+
+### 二段階の認証（`docs/two-factor.md`）
+
+- 認証アプリの確認コード（TOTP）を自前で書かない。手書きの認証は `Miraqceed\Foundation\TwoFactor\TwoFactor`（`confirm()`・`verify()`・`pass()`・`passed()`・`reset()`）、Fortify は容器の `Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider` を `FortifyTwoFactorProvider` に替える（`fortify.limiters.two-factor` は `null`）。
+- 列は `vendor:publish --tag=foundation-two-factor-migrations` で足す。使い回しは条件つきの UPDATE で守る（確かめた後に読んで書く2段にしない）。登録に使ったコードの刻みを残す。間違いは続けた失敗で数える。秘密の鍵を平文で置かない。
+- 鍵と QR を含む応答には `Cache-Control: no-store` を付ける。ロックの出来事 `TwoFactorLocked` の聞き手で、運営に知らせる。
 
 ### CSP・セキュリティヘッダー（`docs/security.md`）
 

@@ -37,6 +37,7 @@ use Miraqceed\Foundation\Security\Nonce;
 use Miraqceed\Foundation\Security\SecurityHeaders;
 use Miraqceed\Foundation\TestSafety\GuardedConnectionFactory;
 use Miraqceed\Foundation\TestSafety\TestDatabaseGuard;
+use Miraqceed\Foundation\TwoFactor\TwoFactor;
 
 class FoundationServiceProvider extends ServiceProvider
 {
@@ -48,6 +49,7 @@ class FoundationServiceProvider extends ServiceProvider
         // 設定の書き違いは、初めて取り出したときに InvalidRedactionConfig で分かる
         $this->app->singleton(Redactor::class, fn () => Redactor::fromConfig());
         $this->app->singleton(Attempts::class);
+        $this->app->singleton(TwoFactor::class);
 
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
@@ -170,6 +172,11 @@ class FoundationServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../database/ai-migrations' => database_path('migrations'),
             ], 'foundation-ai-migrations');
+
+            // 二段階の認証の列。自動では読み込まない（パッケージが users を勝手に変えない）
+            $this->publishes([
+                __DIR__.'/../database/two-factor-migrations' => database_path('migrations'),
+            ], 'foundation-two-factor-migrations');
 
             $this->publishes([
                 __DIR__.'/../lang' => $this->app->langPath('vendor/foundation'),
