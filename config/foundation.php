@@ -161,4 +161,19 @@ return [
             'lock_seconds' => 1800,
         ],
     ],
+
+    // 二段階の認証（認証アプリの確認コード。TwoFactor・FortifyTwoFactorProvider）。呼んだときだけ働く
+    'two_factor' => [
+        // 登録の URI の issuer。null なら app.name
+        'issuer' => null,
+        // 前後に受ける刻みの数（30秒の刻み。時計のずれ）
+        'window' => 1,
+        // 手書きのアプリ向けの TwoFactor が使う表と列（vendor:publish --tag=foundation-two-factor-migrations で列を足す）
+        'table' => 'users',
+        'columns' => [
+            'secret' => 'two_factor_secret',
+            'confirmed_at' => 'two_factor_confirmed_at',
+            'last_step' => 'two_factor_last_step',
+        ],
+    ],
 ];
