@@ -2,6 +2,11 @@
 
 ## 未公開
 
+## 0.5.0
+
+**ログインのロックを使っているアプリは、版を上げた直後に、ログインの失敗の数えが一度消える**（数えの鍵が `APP_KEY` の HMAC に変わるため）。`APP_KEY` が空のアプリは、ログインの数えで止まる。ほかの新しい部品（`Redaction`・`Attempts`）は、呼んだときだけ働く。
+
+- ログインのロック：数えの鍵が無い窓の始まりに要求を一斉に並べると、上限より多く照合できた（0.1.0〜0.4.0。Laravel の `RateLimiter::increment` が、並んだ要求の足し算を書き直して消すことがあるため）。`Attempts` の数えに替えて直した。
 - `Redaction\Redactor`：利用者が貼った文・外の誤りの文を、ログ・DB・外の AI に残す前に、形で見つけられる秘密（秘密鍵・AWS・GitHub・`sk-`・Slack のトークン・JWT・`password=` などの値・接続文字列のパスワード・メールアドレス・日本の電話番号）を印（既定 `[REDACTED]`）に替える。口は `text()`・`values()`（入れ子の配列）・`truncate()`（伏せてから字数で切る。出力は上限以下）。見つけたものは種類と場所だけを持つ。壊れた UTF-8 は `UnreadableText` で止める。設定 `foundation.redaction`（印・種類を絞る・形を足す）。漏れを無くすとは約束しない。呼んだときだけ働く。`docs/redaction.md`
 - `Attempts\Attempts`：ログイン以外の照合の試みを、照合の前に1回分を足して数える口。窓のある数え `attempt()`（数え方は本人の枠・共有の枠・試みを全部の3つ）と、続けた失敗 `attemptConsecutive()`（時間で消えない数え・上限でロック・明けたら1回だけ照合）。鍵は `AttemptKey::for()`（`APP_KEY` の HMAC）。診断の間だけ数えずに照合する `foundation.attempts.bypass`（`production` では効かず、`report()` する）。`docs/attempts.md`
 - ログインのロック：数えを `Attempts` の上に載せ直した。**数えの鍵が `APP_KEY` の HMAC に変わるので、版を上げた直後に、ログインの失敗の数えが一度消える。** 枠・上限・窓・成功したときの扱いは変わらない。`APP_KEY` が空なら、ログインの数えで `RuntimeException` になる。`LoginLockedOut` は `Attempts\TooManyAttempts` の子になった（`new LoginLockedOut(int)`・`$e->retryAfter`・文は変わらない）。`docs/login.md`
