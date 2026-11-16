@@ -3,6 +3,7 @@
 ## 未公開
 
 - 稼働の確かめ：Laravel の既定の `/up` に替える口 `Health\HealthCheck`（text/plain の `OK`（200）／`NG`（500）。外のスクリプトを読まず、デバッグ中も原因を出さない。`Cache-Control: no-store`）と、経路を登録する `Health::route('/up')`（web のグループの外・メンテナンス中も応答。`health:` の消し忘れと別の道への2回の登録は、本番でない環境で `LogicException`）。設定 `foundation.health.checks` に `'database'` で DB も確かめる（既定は見ない。知らない名前は `/up` の `NG`）。入れただけでは経路は増えない。`docs/health.md`
+- `OneTimeCodes`：1回だけ使える合言葉（期限つき・SHA-256 だけを持つ）。種類 `CodeKind`（名前・頭の印・効く秒数）ごとに `issue()`・`claim()`・`revoke()`。受け取りは期限・使った・失効・種類を条件に入れた UPDATE 1つで、同時の要求でも1回だけ通す。受け取れなければ理由を問わず `null`。受け取った後の処理は同じトランザクションの中で動き、投げたら巻き戻る（戻り値は `ClaimedCode::$result`）。出し直すと、同じ種類・同じ対象の前の合言葉を失効させる。時刻は `dateTime` に UTC。形・作り方・ハッシュの助け `CodeFormat`。古い行は `model:prune` で `OneTimeCode` を指して消す（`foundation.one_time_codes.prune_days`、既定 7）。**入れただけでは変わらない**：表は `foundation.one_time_codes.enabled`（既定 false）が真のときだけ作り（`vendor:publish --tag=foundation-one-time-code-migrations` でも写せる）、部品は呼んだときだけ働く。`docs/one-time-codes.md`
 
 ## 0.7.0
 

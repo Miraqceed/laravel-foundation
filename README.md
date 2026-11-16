@@ -32,6 +32,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 二段階の認証：認証アプリの確認コード（TOTP）を、使い回しと同時の要求を許さずに確かめる（手書きの認証と Fortify の差し替え） | 設定なしで呼んで使う。列は写したマイグレーションで足す | [docs/two-factor.md](docs/two-factor.md) |
 | DB の接続の時間帯：接続の時間帯がアプリの時間帯とずれていないかを確かめる（`foundation:db-timezone`） | 設定なしで呼んで使う（自動では確かめない） | [docs/database-timezone.md](docs/database-timezone.md) |
 | 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
+| 1回だけ使える合言葉：期限つき・ハッシュだけで持ち、同時の要求でも1回だけ通す（機械にトークンを受け取らせる合言葉・入場券など） | 無効（`foundation.one_time_codes.enabled`。表を作る） | [docs/one-time-codes.md](docs/one-time-codes.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 稼働の確かめ：外のスクリプトを読まず、原因を出さない `/up`（text/plain の `OK`／`NG`）。DB の確かめを足せる | アプリが `bootstrap/app.php` で `Health::route('/up')` に書き換えたときだけ。DB は見ない（`foundation.health.checks`） | [docs/health.md](docs/health.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
