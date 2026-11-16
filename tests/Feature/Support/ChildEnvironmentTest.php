@@ -94,6 +94,23 @@ class ChildEnvironmentTest extends TestCase
         $this->assertNoSecretSeen($output);
     }
 
+    /** 決めて渡す値（$set）は、親から渡す値にも、塞いだ親の名前にも勝つ */
+    public function test_set_values_override_listed_and_blocked_names(): void
+    {
+        $_ENV['KASOU_PASS_THROUGH'] = 'passed';
+        $_SERVER['KASOU_PASS_THROUGH'] = 'passed';
+
+        $environment = ChildEnvironment::only(['PATH', 'KASOU_PASS_THROUGH'], [
+            'KASOU_PASS_THROUGH' => 'overridden',
+            'KASOU_DB_PASSWORD' => 'explicit-value',
+        ]);
+        $output = Process::env($environment)->run(['/bin/sh', '-c', self::script()])->output();
+
+        $this->assertStringContainsString('KASOU_PASS_THROUGH=overridden', $output);
+        $this->assertStringContainsString('KASOU_DB_PASSWORD=explicit-value', $output);
+        $this->assertStringNotContainsString('fake-db-password', $output);
+    }
+
     public function test_a_listed_name_missing_from_the_parent_is_not_added(): void
     {
         $environment = ChildEnvironment::only(['PATH', 'KASOU_NOT_IN_PARENT']);

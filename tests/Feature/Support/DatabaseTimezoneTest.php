@@ -123,6 +123,18 @@ class DatabaseTimezoneTest extends TestCase
         }
     }
 
+    /** PostgreSQL で、名前の違う時間帯（Etc/GMT-9 は時差 +09:00）を、時差が同じなら違うと読まない */
+    public function test_compares_offsets_not_names_on_postgres(): void
+    {
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('PostgreSQL の時間帯の名前で確かめる');
+        }
+        $this->connectWithTimezone('Etc/GMT-9');
+
+        $this->assertSame(9 * 3600, DatabaseTimezone::databaseOffset());
+        $this->assertNull(DatabaseTimezone::mismatch());
+    }
+
     public function test_sqlite_is_not_checked(): void
     {
         if (DB::connection()->getDriverName() !== 'sqlite') {
@@ -159,6 +171,47 @@ class DatabaseTimezoneTest extends TestCase
             if ($value !== '') {
                 $this->assertStringNotContainsString($value, $output, $key);
             }
+        }
+    }
+
+    public function test_command_refuses_an_empty_connection_option(): void
+    {
+        $this->assertSame(2, Artisan::call('foundation:db-timezone', ['--connection' => '']));
+        $this->assertStringContainsString('--connection', Artisan::output());
+    }
+
+    /**
+     * つながらないときは、ホスト・ユーザー名・DB の名前を出さずに、ずれ（1）と別の終わりの値 2 で終わる。
+     * 例外の文（Laravel の QueryException）は、ホスト・ポート・DB の名前を含む
+     */
+    public function test_command_hides_connection_details_when_it_cannot_connect(): void
+    {
+        foreach (['pgsql' => 'pdo_pgsql', 'mysql' => 'pdo_mysql'] as $driver => $extension) {
+            if (! extension_loaded($extension)) {
+                continue;
+            }
+            config(["database.connections.kasou_{$driver}" => [
+                'driver' => $driver,
+                'host' => 'kasou-db-host.invalid',
+                'port' => $driver === 'pgsql' ? 5432 : 3306,
+                'database' => 'kasou_database_test',
+                'username' => 'kasou_user_name',
+                'password' => 'kasou-password',
+            ]]);
+
+            $code = Artisan::call('foundation:db-timezone', ['--connection' => "kasou_{$driver}"]);
+            $output = Artisan::output();
+
+            $this->assertSame(2, $code, $driver);
+            $this->assertStringContainsString("kasou_{$driver}", $output);
+            foreach (['kasou-db-host', 'kasou_database_test', 'kasou_user_name', 'kasou-password'] as $secret) {
+                $this->assertStringNotContainsString($secret, $output, "{$driver}: {$secret}");
+            }
+            DB::purge("kasou_{$driver}");
+        }
+
+        if (! extension_loaded('pdo_pgsql') && ! extension_loaded('pdo_mysql')) {
+            $this->markTestSkipped('pdo_pgsql か pdo_mysql が要る');
         }
     }
 

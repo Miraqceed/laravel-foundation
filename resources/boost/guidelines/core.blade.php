@@ -80,8 +80,8 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 
 ### DB の接続の時間帯（`docs/database-timezone.md`）
 
-- `config/database.php` の pgsql・mysql の接続に `timezone` を書き、アプリの時間帯（`app.timezone`）とそろえる。PostgreSQL は時間帯の名前（`Asia/Tokyo`）で書く（`+09:00` と書くと 9 時間西と読まれる）。MySQL は時差（`+09:00`）で書く。
-- 配置の台本や CI で `php artisan foundation:db-timezone` を流す（ずれていれば終わりの値 1）。
+- `config/database.php` の pgsql・mysql の接続に `timezone` を書き、`app.timezone` と同じ値にする。PostgreSQL は時間帯の名前（`Asia/Tokyo`）で書く（`+09:00` と書くと 9 時間西と読まれる）。MySQL を時差（`+09:00`）で書いてよいのは、夏時間の無い時間帯（`Asia/Tokyo`・`UTC` など）だけ。夏時間のある時間帯は名前で書き、MySQL に時間帯の表を読み込む（時差で書くと、一年の片方の季節だけずれる）。
+- 配置の台本や CI で `php artisan foundation:db-timezone` を流す（ずれていれば終わりの値 1、つながらないなど確かめられなければ 2）。
 
 ### 子プロセスの環境変数（`docs/child-processes.md`）
 
@@ -91,9 +91,9 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 ### 自分で書くときの注意
 
 - 値の形を正規表現で確かめるときは、`$` に `D` を付けるか `\z` を使う（`$` は後ろの改行1つの前でも合う）。
-- `/u` の `\p{Han}` は、句読点（`、` `。` `「」`）も含む。漢字だけなら `\p{sc=Han}`。
+- `/u` の `\p{Han}` は、句読点（`、` `。` `「」`）も含む。漢字だけなら `\p{sc=Han}`（PCRE2 10.40 以上。PHP 8.3 以降に同梱の PCRE2 は満たす。OS の PCRE2 を使うビルドでは `PCRE_VERSION` で確かめる）。
 - セッションを DB に暗号にせずに置くとき（`SESSION_DRIVER=database`・`SESSION_ENCRYPT=false`）、名前や本文などの機微な入力を `withInput()`・`with()` でセッションに入れない。入れるなら `SESSION_ENCRYPT=true` にする。検証の誤りで戻すときの `dontFlash` に機微な欄を足す。
-- パスワードを変えたら、その利用者のほかのセッションを閉じる（`database` のセッションは `user_id` の行を消す。`Auth::logoutOtherDevices()`）。
+- パスワードを変えたら、その利用者のほかのセッションを閉じ、今のセッションは残す。`Auth::logoutOtherDevices($変えた後のパスワード)` はパスワードを確かめて再ハッシュするだけで、ほかのセッションを実際に閉じるのは `auth.session`（`AuthenticateSession`）のミドルウェア。守るルートに `auth.session` を入れる（引数が変えた後のパスワードでないと例外）。`database` のセッションの `user_id` の行を消して閉じるなら、`remember_token` も回す（行を消すだけでは「ログインしたままにする」のクッキーで入り直せる）。今のセッションは番号を作り直す。
 - 外を呼ぶ口（外の API・CLI）の偽物は、試しの `createApplication()` で差す（`setUp` で差すと、試しの途中で `refreshApplication` したときに本物に戻る）。
 - コマンドのオプションで、値の無い指定（`--name=`）を「全部」と読まない。値が要るオプションは、空なら断る。
 - 設定の書き違い（知らない値・範囲の外）を、黙って既定に寄せない。分かる文で止めるか、管理の画面・状態のコマンドにはっきり出す。
