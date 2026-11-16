@@ -37,6 +37,23 @@ Schedule::command('reports:daily')->dailyAt('03:00')->watched('daily-report', 15
 
 キャッシュが `database` のとき、`withoutOverlapping` は **`cache_locks` の表**を使う。Laravel の `php artisan make:cache-table`（新しい Laravel では最初のマイグレーションに入っている）で作られていないと、`foundation:watch` が動かない。
 
+## 止まっている処理を読む（画面・状態の表示）
+
+管理画面や状態を出すコマンドに「止まっている定期の処理」を出すときは、`StallCheck` を使う。判断は `foundation:watch` と同じ（同じ1か所を使う）で、**読むだけで何も書かない**（知らせも送らない）。
+
+```php
+use Miraqceed\Foundation\Monitoring\StallCheck;
+
+foreach (app(StallCheck::class)->stalled() as $task) {
+    // $task->name・$task->label・$task->maxAgeMinutes・$task->lastSucceededAt（一度も成功していなければ null）
+    echo $task->message(), PHP_EOL; // 例「daily-report：一度も成功していません」（知らせの本文の行と同じ）
+}
+```
+
+- 戻りは `WatchList` の順の `StalledTask` の配列。止まっていなければ空。
+- **見張り（`foundation:watch`）がまだ一度も見ていない処理は、止まっていない扱い**（初めて見た印は見張りだけが付ける）。入れた直後は、最初の見張りの後から出る。
+- 見張りが無効（`monitoring.enabled` が偽）のときは、いつも空。
+
 ## schedule の外の処理（バックアップのスクリプトなど）
 
 処理の終わりで記録し、`monitoring.external` に見張りを書く：
