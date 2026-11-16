@@ -2,8 +2,13 @@
 
 ## 未公開
 
+## 0.8.0
+
+**入れただけでは変わらない。** 1回だけ使える合言葉（`OneTimeCodes`）は、`foundation.one_time_codes.enabled` のときだけ表を作り、呼んだときだけ働く。稼働の確かめ（`Health\HealthCheck`）は、アプリが `/up` を替えたときだけ働く。**`trustProxies(at: '*')` にしているアプリは、説明書のとおりに前段のプロキシを `at:` に書く**（コードは変わらない）。
+
 - 稼働の確かめ：Laravel の既定の `/up` に替える口 `Health\HealthCheck`（text/plain の `OK`（200）／`NG`（500）。外のスクリプトを読まず、デバッグ中も原因を出さない。`Cache-Control: no-store`）と、経路を登録する `Health::route('/up')`（web のグループの外・メンテナンス中も応答。`health:` の消し忘れと別の道への2回の登録は、本番でない環境で `LogicException`）。設定 `foundation.health.checks` に `'database'` で DB も確かめる（既定は見ない。知らない名前は `/up` の `NG`）。入れただけでは経路は増えない。`docs/health.md`
 - `OneTimeCodes`：1回だけ使える合言葉（期限つき・SHA-256 だけを持つ）。種類 `CodeKind`（名前・頭の印・効く秒数）ごとに `issue()`・`claim()`・`revoke()`。受け取りは期限・使った・失効・種類を条件に入れた UPDATE 1つで、同時の要求でも1回だけ通す。受け取れなければ理由を問わず `null`（分離の水準を上げた接続で競り負けても `null`。行き詰まり・直列化の失敗は3回まで試し直す）。受け取った後の処理は同じトランザクションの中で動き、投げたら巻き戻る（戻り値は `ClaimedCode::$result`）。出し直すと、同じ種類・同じ対象の前の合言葉を失効させる（別々の対象に同時に出しても行き詰まらない）。種類と対象は字のとおりに比べる（MySQL の列は `utf8mb4_0900_bin`）。平文を受ける引数に `#[\SensitiveParameter]`。時刻は `dateTime` に UTC。形・作り方・ハッシュの助け `CodeFormat`。古い行は `model:prune` で `OneTimeCode` を指して消す（`foundation.one_time_codes.prune_days`、既定 7）。**入れただけでは変わらない**：表は `foundation.one_time_codes.enabled`（既定 false）が真のときだけ作り（`vendor:publish --tag=foundation-one-time-code-migrations` でも写せる）、部品は呼んだときだけ働く。`docs/one-time-codes.md`
+- 説明書と指針：逆プロキシの後ろの `trustProxies(at: '*')` を勧めないように直した。Laravel 13.20.0 から `'*'` はすべてのアドレスを信頼し、`$request->ip()` が `X-Forwarded-For` の左端（前段が足す作りなら訪問者が送った値）になるので、偽の IP でログインのロックの接続元の枠と CSP の違反の報告の口の回数の制限を避けられる。**`'*'` にしているアプリは、前段のプロキシの IP・範囲を `at:` に書く**（前段が分からないときの `headers:` の書き方と、その限界も書いた）。コードは変わらない。`docs/login.md`・`docs/security.md`
 
 ## 0.7.0
 
@@ -12,7 +17,6 @@
 - `Support\DatabaseTimezone` とコマンド `foundation:db-timezone`：DB の接続の時間帯が、アプリの時間帯とずれていないかを、今の時差で確かめる（PostgreSQL・MySQL）。ずれていればコマンドは終わりの値 1、つながらない・`--connection=` の値が空なら 2。出力に DB のホスト・ユーザー名・DB の名前を出さない（つながらないときの例外の文も出さない）。MySQL の接続を時差で書いてよいのは、夏時間の無い時間帯だけ（説明書）。自動では確かめない。`docs/database-timezone.md`
 - `Support\ChildEnvironment::only()`：子プロセスに親の環境（`.env` の秘密）を受け継がせず、挙げた名前だけを渡す環境の配列。Laravel の `Process::env()`・Symfony の `Process` に渡す。`docs/child-processes.md`
 - AI 向けの指針に、部品によらない「自分で書くときの注意」の節を足した（正規表現の `$`・`\p{Han}`・セッションへの機微な入力・パスワードを変えたときのセッション・試しの偽物の差し方・空の値のオプション・設定の書き違い）。`foundation:install` にも写る。
-- 説明書と指針：逆プロキシの後ろの `trustProxies(at: '*')` を勧めないように直した。Laravel 13.20.0 から `'*'` はすべてのアドレスを信頼し、`$request->ip()` が `X-Forwarded-For` の左端（前段が足す作りなら訪問者が送った値）になるので、偽の IP でログインのロックの接続元の枠と CSP の違反の報告の口の回数の制限を避けられる。**`'*'` にしているアプリは、前段のプロキシの IP・範囲を `at:` に書く**（前段が分からないときの `headers:` の書き方と、その限界も書いた）。コードは変わらない。`docs/login.md`・`docs/security.md`
 - ログインのロック：現在のパスワードの確かめ（`attemptPasswordConfirmation()`）に、利用者ごとの枠（`foundation.login.password_account_max`=10・`password_account_decay_seconds`=1800）を足した。これまでは利用者と接続元の組の枠だけで、接続元を替えれば試し続けられた。**同じ利用者が30分に10回間違えると、接続元を替えても確かめが `LoginLockedOut` で止まる**（ログインは止めない。利用者と接続元の組の枠は残る）。CSP の違反の報告の口：回数の数えの鍵を `APP_KEY` の HMAC にした（これまでは接続元の IP がそのまま鍵に入り、`database` のキャッシュの表に残った）。**鍵が変わるので、版を上げた直後に1分の窓の数えが一度空になる。** 古い鍵の行（IP 入り）は `database` のキャッシュに期限切れのまま残るので、`foundation:cache-prune` で消す。`APP_KEY` が空なら、報告の口は 500 になる。`docs/login.md`・`docs/security.md`
 - テストの守り：設定 `foundation.test_safety.prevent_stray_requests`（既定は偽）を足した。真にすると、テストの中だけ `Http::preventStrayRequests()` を掛け、`Http::fake()` に当たらない外への要求を送る前に止める。テストの中かは DB の守りと同じ判定。**入れただけでは変わらない。** 説明書に、並列の試しでは元のテスト用 DB を先に作ること（ないと `Unknown database` で全部落ちる）を書いた。`docs/test-safety.md`
 
