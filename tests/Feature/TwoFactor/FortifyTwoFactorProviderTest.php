@@ -18,6 +18,7 @@ use Laravel\Fortify\Fortify;
 use Laravel\Fortify\FortifyServiceProvider;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticationProvider as FortifyOwnProvider;
+use Miraqceed\Foundation\Tests\Support\WrongTotpCodes;
 use Miraqceed\Foundation\Tests\TestCase;
 use Miraqceed\Foundation\TwoFactor\FortifyTwoFactorProvider;
 use Miraqceed\Foundation\TwoFactor\Totp;
@@ -189,7 +190,7 @@ class FortifyTwoFactorProviderTest extends TestCase
         });
 
         $this->provider()->verify($secret, $code);
-        $this->provider()->verify($secret, '000000');
+        $this->provider()->verify($secret, WrongTotpCodes::one($secret));
 
         $this->assertNotEmpty($keys);
         foreach ($keys as $key) {
@@ -202,8 +203,8 @@ class FortifyTwoFactorProviderTest extends TestCase
     public function test_wrong_codes_lock_with_429(): void
     {
         $secret = Totp::generateSecret();
-        for ($i = 0; $i < 3; $i++) {
-            $this->assertFalse($this->provider()->verify($secret, sprintf('%06d', $i)));
+        foreach (WrongTotpCodes::for($secret, 3) as $code) {
+            $this->assertFalse($this->provider()->verify($secret, $code));
         }
 
         $caught = null;
@@ -346,8 +347,8 @@ class FortifyTwoFactorProviderTest extends TestCase
 
     private function lockProvider(string $secret): void
     {
-        for ($i = 0; $i < 3; $i++) {
-            $this->provider()->verify($secret, sprintf('%06d', $i));
+        foreach (WrongTotpCodes::for($secret, 3) as $code) {
+            $this->provider()->verify($secret, $code);
         }
     }
 
