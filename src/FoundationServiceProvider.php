@@ -30,6 +30,7 @@ use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
 use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
 use Miraqceed\Foundation\Monitoring\TaskRuns;
 use Miraqceed\Foundation\Monitoring\WatchList;
+use Miraqceed\Foundation\Redaction\Redactor;
 use Miraqceed\Foundation\Security\CspReportController;
 use Miraqceed\Foundation\Security\Nonce;
 use Miraqceed\Foundation\Security\SecurityHeaders;
@@ -43,6 +44,8 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app->scoped(Nonce::class);
         $this->app->singleton(WatchList::class);
         $this->app->singleton(AiStore::class);
+        // 設定の書き違いは、初めて取り出したときに InvalidRedactionConfig で分かる
+        $this->app->singleton(Redactor::class, fn () => Redactor::fromConfig());
 
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）

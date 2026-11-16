@@ -2,6 +2,8 @@
 
 ## 未公開
 
+- `Redaction\Redactor`：利用者が貼った文・外の誤りの文を、ログ・DB・外の AI に残す前に、形で見つけられる秘密（秘密鍵・AWS・GitHub・`sk-`・Slack のトークン・JWT・`password=` などの値・接続文字列のパスワード・メールアドレス・日本の電話番号）を印（既定 `[REDACTED]`）に替える。口は `text()`・`values()`（入れ子の配列）・`truncate()`（伏せてから字数で切る。出力は上限以下）。見つけたものは種類と場所だけを持つ。壊れた UTF-8 は `UnreadableText` で止める。設定 `foundation.redaction`（印・種類を絞る・形を足す）。漏れを無くすとは約束しない。呼んだときだけ働く。`docs/redaction.md`
+
 ## 0.4.0
 
 **入れただけでは変わらない。** 心拍（`heartbeat_url`）を設定しているアプリだけ、送れなかったときに送り直すようになる。`foundation:cache-prune` は schedule に自動では入らない。見張りの一覧は、Web の要求の中でも読めるようになった（初めて読むときに1回だけ Console Kernel を立ち上げる）。

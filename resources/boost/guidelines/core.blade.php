@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`login.md`・`security.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`security.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -38,6 +38,12 @@ return CsvResponse::download('一覧.csv', ['ID', '会社名'], (function () {
 - 後でメールを送る欄（登録・メールアドレスの変更・招待）には `new NotReservedEmailDomain` を付ける。ログインの欄には付けない。
 - アプリが作る宛先（退会した利用者の伏せ字・E2E の利用者）は、`foundation.mail.drop_reserved_recipients` を真にして送る直前に外す（既定は無効）。有効にするとテストの中でも効くので、`array` のメーラーで確かめる試しの宛先に `example.*`（`fake()->safeEmail()` が作る）を使わない。`Mail::fake()` は影響しない。
 - **メールアドレスの形の確かめではない。** `false` でも形が正しい・届く保証はない。形は `email` の規則で確かめる。
+
+### 文の中の秘密を伏せる（`docs/redaction.md`）
+
+- 利用者が貼った文・AI への問い・外のコマンドや API の誤りの文を、ログ・DB・外の AI に残す前に `Miraqceed\Foundation\Redaction\Redactor`（`app(Redactor::class)`）の `text()`・`values()`・`truncate()` を通す。秘密を見つける正規表現を自前で書かない。
+- 字数で切って残すときは `truncate($text, $maxChars)` を使う。切ってから伏せない（切れ目に秘密の欠片が残る）。知らない形の入れ子は、知っている鍵だけに写してから `values()` に渡す（キーは伏せない）。
+- **漏れを無くす部品ではない。** 形で見つけられる鍵・トークン・パスワード・メールアドレス・電話番号だけを伏せる。人の名前・顧客の名前・IP アドレスは別に扱う。壊れた UTF-8 は `UnreadableText` で止まる（残したい口では `mb_scrub()` してから渡す）。
 
 ### ログインのロック（`docs/login.md`）
 
