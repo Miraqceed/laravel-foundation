@@ -45,6 +45,12 @@ class AttemptKeyTest extends TestCase
         $this->assertNotSame(AttemptKey::for('x', 'a'), AttemptKey::for('y', 'a'));
     }
 
+    public function test_parts_containing_the_separator_are_kept_apart(): void
+    {
+        $this->assertNotSame(AttemptKey::for('x', "a\nb", 'c'), AttemptKey::for('x', 'a', "b\nc"));
+        $this->assertNotSame(AttemptKey::for('x', "a\n1:b"), AttemptKey::for('x', 'a', 'b'));
+    }
+
     public function test_empty_app_key_is_refused(): void
     {
         config(['app.key' => '']);

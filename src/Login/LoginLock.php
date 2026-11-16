@@ -92,11 +92,18 @@ final class LoginLock
      */
     private function guard(array $limits, \Closure $verify): bool
     {
+        // 照合の前の断り（上限）だけをログインのロックの例外にする。照合の中の例外（別の数えの TooManyAttempts も）はそのまま出す
+        $verifying = false;
         try {
-            return app(Attempts::class)->attempt($limits, $verify);
-        } catch (LoginLockedOut $e) {
-            throw $e;
+            return app(Attempts::class)->attempt($limits, function () use ($verify, &$verifying): bool {
+                $verifying = true;
+
+                return $verify();
+            });
         } catch (TooManyAttempts $e) {
+            if ($verifying || $e instanceof LoginLockedOut) {
+                throw $e;
+            }
             throw new LoginLockedOut($e->retryAfter);
         }
     }
