@@ -30,6 +30,8 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | ログインのロック：メールと接続元の失敗を数える（Fortify 対応） | 使うときに組み込む | [docs/login.md](docs/login.md) |
 | 試みの数え：ログイン以外の照合（確認コード・合言葉・カードなど）を、照合の前に数えて止める。続けた失敗のロック | 設定なしで呼んで使う | [docs/attempts.md](docs/attempts.md) |
 | 二段階の認証：認証アプリの確認コード（TOTP）を、使い回しと同時の要求を許さずに確かめる（手書きの認証と Fortify の差し替え） | 設定なしで呼んで使う。列は写したマイグレーションで足す | [docs/two-factor.md](docs/two-factor.md) |
+| DB の接続の時間帯：接続の時間帯がアプリの時間帯とずれていないかを確かめる（`foundation:db-timezone`） | 設定なしで呼んで使う（自動では確かめない） | [docs/database-timezone.md](docs/database-timezone.md) |
+| 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
 | AI の費用の上限と記録（Laravel AI SDK で呼ぶ AI の1日・1か月の金額と1日の回数に上限、呼び出しごとの使用量と原価） | 無効（`foundation.ai.enabled`）。`laravel/ai` ^1.4 が要る | [docs/ai.md](docs/ai.md) |
