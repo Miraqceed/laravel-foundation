@@ -2,6 +2,9 @@
 
 ## 未公開
 
+- `Support\DatabaseTimezone` とコマンド `foundation:db-timezone`：DB の接続の時間帯が、アプリの時間帯とずれていないかを、今の時差で確かめる（PostgreSQL・MySQL）。ずれていればコマンドは終わりの値 1、つながらない・`--connection=` の値が空なら 2。出力に DB のホスト・ユーザー名・DB の名前を出さない（つながらないときの例外の文も出さない）。MySQL の接続を時差で書いてよいのは、夏時間の無い時間帯だけ（説明書）。自動では確かめない。`docs/database-timezone.md`
+- `Support\ChildEnvironment::only()`：子プロセスに親の環境（`.env` の秘密）を受け継がせず、挙げた名前だけを渡す環境の配列。Laravel の `Process::env()`・Symfony の `Process` に渡す。`docs/child-processes.md`
+- AI 向けの指針に、部品によらない「自分で書くときの注意」の節を足した（正規表現の `$`・`\p{Han}`・セッションへの機微な入力・パスワードを変えたときのセッション・試しの偽物の差し方・空の値のオプション・設定の書き違い）。`foundation:install` にも写る。
 - ログインのロック：現在のパスワードの確かめ（`attemptPasswordConfirmation()`）に、利用者ごとの枠（`foundation.login.password_account_max`=10・`password_account_decay_seconds`=1800）を足した。これまでは利用者と接続元の組の枠だけで、接続元を替えれば試し続けられた。**同じ利用者が30分に10回間違えると、接続元を替えても確かめが `LoginLockedOut` で止まる**（ログインは止めない。利用者と接続元の組の枠は残る）。CSP の違反の報告の口：回数の数えの鍵を `APP_KEY` の HMAC にした（これまでは接続元の IP がそのまま鍵に入り、`database` のキャッシュの表に残った）。**鍵が変わるので、版を上げた直後に1分の窓の数えが一度空になる。** 古い鍵の行（IP 入り）は `database` のキャッシュに期限切れのまま残るので、`foundation:cache-prune` で消す。`APP_KEY` が空なら、報告の口は 500 になる。`docs/login.md`・`docs/security.md`
 
 ## 0.6.0

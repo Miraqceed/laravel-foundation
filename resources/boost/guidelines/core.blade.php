@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`security.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`database-timezone.md`・`child-processes.md`・`security.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -77,6 +77,26 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 認証アプリの確認コード（TOTP）を自前で書かない。手書きの認証は `Miraqceed\Foundation\TwoFactor\TwoFactor`（`confirm()`・`verify()`・`pass()`・`passed()`・`reset()`）、Fortify は容器の `Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider` を `FortifyTwoFactorProvider` に替える（`fortify.limiters.two-factor` は `null`）。
 - 列は `vendor:publish --tag=foundation-two-factor-migrations` で足す。使い回しは条件つきの UPDATE で守る（確かめた後に読んで書く2段にしない）。登録に使ったコードの刻みを残す。間違いは続けた失敗で数える。秘密の鍵を平文で置かない。
 - 鍵と QR を含む応答には `Cache-Control: no-store` を付ける。ロックの出来事 `TwoFactorLocked` の聞き手で、運営に知らせる。
+
+### DB の接続の時間帯（`docs/database-timezone.md`）
+
+- `config/database.php` の pgsql・mysql の接続に `timezone` を書き、`app.timezone` と同じ値にする。PostgreSQL は時間帯の名前（`Asia/Tokyo`）で書く（`+09:00` と書くと 9 時間西と読まれる）。MySQL を時差（`+09:00`）で書いてよいのは、夏時間の無い時間帯（`Asia/Tokyo`・`UTC` など）だけ。夏時間のある時間帯は名前で書き、MySQL に時間帯の表を読み込む（時差で書くと、一年の片方の季節だけずれる）。
+- 配置の台本や CI で `php artisan foundation:db-timezone` を流す（ずれていれば終わりの値 1、つながらないなど確かめられなければ 2）。
+
+### 子プロセスの環境変数（`docs/child-processes.md`）
+
+- 外のコマンドを子プロセスで動かすときは、`Process::env(\Miraqceed\Foundation\Support\ChildEnvironment::only(['PATH', …]))` で渡す名前を絞る。何もしないと、子は `.env` の秘密（`DB_PASSWORD`・`APP_KEY` など）を受け継ぐ。
+- 標準入力に書く子は、動かす前に `ExecutableFinder` でコマンドがあるかを確かめる。子の誤りの文をログに残すときは、`Redactor` を通す。
+
+### 自分で書くときの注意
+
+- 値の形を正規表現で確かめるときは、`$` に `D` を付けるか `\z` を使う（`$` は後ろの改行1つの前でも合う）。
+- `/u` の `\p{Han}` は、句読点（`、` `。` `「」`）も含む。漢字だけなら `\p{sc=Han}`（PCRE2 10.40 以上。PHP 8.3 以降に同梱の PCRE2 は満たす。OS の PCRE2 を使うビルドでは `PCRE_VERSION` で確かめる）。
+- セッションを DB に暗号にせずに置くとき（`SESSION_DRIVER=database`・`SESSION_ENCRYPT=false`）、名前や本文などの機微な入力を `withInput()`・`with()` でセッションに入れない。入れるなら `SESSION_ENCRYPT=true` にする。検証の誤りで戻すときの `dontFlash` に機微な欄を足す。
+- パスワードを変えたら、その利用者のほかのセッションを閉じ、今のセッションは残す。`Auth::logoutOtherDevices($変えた後のパスワード)` はパスワードを確かめて再ハッシュするだけで、ほかのセッションを実際に閉じるのは `auth.session`（`AuthenticateSession`）のミドルウェア。守るルートに `auth.session` を入れる（引数が変えた後のパスワードでないと例外）。`database` のセッションの `user_id` の行を消して閉じるなら、`remember_token` も回す（行を消すだけでは「ログインしたままにする」のクッキーで入り直せる）。今のセッションは番号を作り直す。
+- 外を呼ぶ口（外の API・CLI）の偽物は、試しの `createApplication()` で差す（`setUp` で差すと、試しの途中で `refreshApplication` したときに本物に戻る）。
+- コマンドのオプションで、値の無い指定（`--name=`）を「全部」と読まない。値が要るオプションは、空なら断る。
+- 設定の書き違い（知らない値・範囲の外）を、黙って既定に寄せない。分かる文で止めるか、管理の画面・状態のコマンドにはっきり出す。
 
 ### CSP・セキュリティヘッダー（`docs/security.md`）
 

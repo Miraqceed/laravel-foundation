@@ -106,6 +106,13 @@ class InstallCommandTest extends TestCase
             // 利用者の URL をサーバーから開く（守りは別のパッケージ。Guzzle は直った版から。PHP 8.3 では作らずに知らせる）
             'ssrf.md', 'cboxdk/laravel-ssrf', 'Http::ssrf()', 'PublicUrl', '7.15.2', 'HTTP_PROXY', 'assertSafeRedirect',
             'PHP 8.3 のアプリでは',
+            // DB の接続の時間帯（PostgreSQL は名前。MySQL の時差は夏時間の無い時間帯だけ）
+            'database-timezone.md', 'foundation:db-timezone', '9 時間西', '夏時間',
+            // 子プロセスの環境変数
+            'child-processes.md', 'ChildEnvironment::only', 'ExecutableFinder',
+            // 自分で書くときの注意
+            '自分で書くときの注意', '\\z', '\\p{sc=Han}', 'PCRE2 10.40', 'SESSION_ENCRYPT', 'createApplication()',
+            'auth.session', 'remember_token',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
