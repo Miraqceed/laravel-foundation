@@ -112,6 +112,13 @@ return [
         'email_only_decay_seconds' => 1800,
     ],
 
+    // 実在しないメールアドレスへ送らない（Mail\DropReservedRecipients）
+    'mail' => [
+        // 真にすると、実在しないことが決まっている宛先（example.com・.invalid など）を、送る直前に To・Cc・Bcc から外す。
+        // 宛先が残らなければ送信を取りやめる（Mail::send() は null を返す）
+        'drop_reserved_recipients' => false,
+    ],
+
     // AI の費用の上限と記録（laravel/ai を使うアプリだけ）
     'ai' => [
         // 既定で無効。入れただけでは挙動も表も変わらない
