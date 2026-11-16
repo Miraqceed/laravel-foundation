@@ -27,6 +27,14 @@ class ConsecutiveAttemptsTest extends TestCase
         $app['config']->set('cache.default', 'array');
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // ロックの残りの秒を比べる。時刻を止めないと、ロックを立ててから比べるまでに秒の境目をまたいだとき 59 になる
+        $this->freezeSecond();
+    }
+
     private function limit(): ConsecutiveLimit
     {
         return new ConsecutiveLimit(self::KEY, 3, 60);

@@ -24,6 +24,9 @@ class DatabaseCacheStoreTest extends TestCase
     {
         parent::setUp();
 
+        // ロックの残りの秒を比べる。時刻を止めないと、ロックを立ててから断るまでに秒の境目をまたいだとき 59 になる
+        $this->freezeSecond();
+
         Schema::dropIfExists('cache');
         Schema::create('cache', function ($table) {
             $table->string('key')->primary();
