@@ -11,9 +11,11 @@ use Miraqceed\Foundation\DeployCheck\Checks\AttemptsBypass;
 use Miraqceed\Foundation\DeployCheck\Checks\Boost;
 use Miraqceed\Foundation\DeployCheck\Checks\Drivers;
 use Miraqceed\Foundation\DeployCheck\Checks\Mail;
+use Miraqceed\Foundation\DeployCheck\Checks\MailLinks;
 use Miraqceed\Foundation\DeployCheck\Checks\MailViewCache;
 use Miraqceed\Foundation\DeployCheck\Checks\Migrations;
 use Miraqceed\Foundation\DeployCheck\Checks\SessionSecureCookie;
+use Miraqceed\Foundation\DeployCheck\Checks\TrustedHosts;
 use Miraqceed\Foundation\DeployCheck\Checks\TrustedProxies;
 use Miraqceed\Foundation\DeployCheck\Checks\ViteHot;
 use Miraqceed\Foundation\DeployCheck\Checks\ViteManifest;
@@ -50,6 +52,8 @@ final class Runner
         Migrations::class,
         AttemptsBypass::class,
         TrustedProxies::class,
+        TrustedHosts::class,
+        MailLinks::class,
     ];
 
     private const ID_PATTERN = '/\A[a-z][a-z0-9_]*\z/';

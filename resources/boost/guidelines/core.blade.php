@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品は、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -40,6 +40,13 @@ return CsvResponse::download('一覧.csv', ['ID', '会社名'], (function () {
 - 後でメールを送る欄（登録・メールアドレスの変更・招待）には `new NotReservedEmailDomain` を付ける。ログインの欄には付けない。
 - アプリが作る宛先（退会した利用者の伏せ字・E2E の利用者）は、`foundation.mail.drop_reserved_recipients` を真にして送る直前に外す（既定は無効）。有効にするとテストの中でも効くので、`array` のメーラーで確かめる試しの宛先に `example.*`（`fake()->safeEmail()` が作る）を使わない。`Mail::fake()` は影響しない。
 - **メールアドレスの形の確かめではない。** `false` でも形が正しい・届く保証はない。形は `email` の規則で確かめる。
+
+### メールの中の安全と、要求の Host を信じないこと（`docs/mail-safety.md`）
+
+- 訪問者が書いた文（名前・会社名など）をメールの Markdown に入れるときは、`Miraqceed\Foundation\Mail\MailText::escape()` に、つないだ全体を渡す（`MailText::escape($user->name.' さん')`）。`{{ $name }}` のまま入れない。`Markdown::withSecuredEncoding()` だけに頼らない（12.15 からで、12.70・13.36 より前は `view:cache` で外れる）。打ち消しを `\` で書かない（text の版に残る）。
+- メールアドレスの確認が済むまで、利用者が書いた名前をメールに出さない（素の URL は、受け手のメールの道具がリンクにする）。
+- 再設定・確認のリンクを要求の Host から作らない。`foundation.mail.links_from_app_url` を真にする（既定は無効）。全体に `URL::forceRootUrl()` を掛けない。
+- `bootstrap/app.php` で `$middleware->trustHosts()` を足し、`trustProxies` の `headers:` から `X-Forwarded-Host` を外す（`Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_PORT`）。`'*'` と既定の見出しでは、訪問者が直に送った `X-Forwarded-Host` も信じる。
 
 ### 文の中の秘密を伏せる（`docs/redaction.md`）
 

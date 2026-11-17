@@ -30,6 +30,7 @@ use Miraqceed\Foundation\Commands\DbTimezoneCommand;
 use Miraqceed\Foundation\Commands\DeployCheckCommand;
 use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Health\ConfiguredChecks;
+use Miraqceed\Foundation\Mail\AppUrlLinks;
 use Miraqceed\Foundation\Mail\DropReservedRecipients;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
@@ -143,6 +144,12 @@ class FoundationServiceProvider extends ServiceProvider
 
         // 実在しない宛先を送る前に外す聞き手。いつも登録し、送るときに設定を読む（偽なら何もしない）
         $this->app['events']->listen(MessageSending::class, [DropReservedRecipients::class, 'handle']);
+
+        // 再設定・確認のリンクを APP_URL から作る。決めたときだけ登録する（既定は Laravel のまま、要求の Host から作る）。
+        // アプリのプロバイダーはこの後に起動するので、アプリの createUrlUsing が勝つ
+        if (config('foundation.mail.links_from_app_url')) {
+            AppUrlLinks::register();
+        }
 
         // 稼働の確かめで見るもの。書いたときだけ聞き手を足す（Laravel の既定の /up も DiagnosingHealth を出すので、そちらでも効く）。
         // 名前は起動のときに見ない（書き損じで本番の全部の要求を落とさない。確かめの中で NG になる）

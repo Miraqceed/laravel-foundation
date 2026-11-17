@@ -2,7 +2,8 @@
 
 ## 未公開
 
-- コマンド `foundation:deploy-check` と `DeployCheck\Check`：本番の設定を1か所で調べ、違う所の id と説明を出して終わりの値 1 で終わる（`--json`・`--strict`）。既定の調べは15（`APP_ENV`・`APP_DEBUG`・`APP_URL`・暗号の方式に合う `APP_KEY`・Boost・`SESSION_SECURE_COOKIE`・キャッシュとセッションの種類・届くメールの設定・`view:cache` で外れるメールの守り（直っていない版の Laravel だけ）・`public/hot`・Vite の manifest・書き込み・残ったマイグレーション・`foundation.attempts.bypass`・信頼するプロキシ）。アプリは `foundation.deploy_check.checks` に調べのクラスを足す。調べが投げてもその行だけを失敗にし、例外のクラス名だけを出す。設定の値は出さない。流したときだけ働く（schedule に入らない。書き込まない）。`docs/deploy-check.md`
+- コマンド `foundation:deploy-check` と `DeployCheck\Check`：本番の設定を1か所で調べ、違う所の id と説明を出して終わりの値 1 で終わる（`--json`・`--strict`）。既定の調べは17（`APP_ENV`・`APP_DEBUG`・`APP_URL`・暗号の方式に合う `APP_KEY`・Boost・`SESSION_SECURE_COOKIE`・キャッシュとセッションの種類・届くメールの設定・`view:cache` で外れるメールの守り（直っていない版の Laravel だけ）・`public/hot`・Vite の manifest・書き込み・残ったマイグレーション・`foundation.attempts.bypass`・信頼するプロキシ・偽の Host を断る `trustHosts()`・メールのリンクを `APP_URL` から作る設定）。アプリは `foundation.deploy_check.checks` に調べのクラスを足す。調べが投げてもその行だけを失敗にし、例外のクラス名だけを出す。設定の値は出さない。流したときだけ働く（schedule に入らない。書き込まない）。`docs/deploy-check.md`
+- メールの中の安全：訪問者が書いた文をメールの Markdown の中で文字のまま出す `Mail\MailText::escape()`（HTML と Markdown の特別な字を数値の文字参照にし、改行を空白にする。HTML の版でリンク・画像・見出しにならず、text の版では書いたとおりに読める。Laravel の版・`view:cache`・`withSecuredEncoding()` によらない）と、再設定・確認のメールのリンクを要求の Host でなく `APP_URL` から作る設定 `foundation.mail.links_from_app_url`（既定は false。確認のリンクは絶対の URL で署名し、`signed` の経路がそのまま通る。全体の URL の状態は変えず、アプリの `createUrlUsing` が勝つ）。Host を偽った要求を `trustHosts()` で断り、`trustProxies` の `headers:` から `X-Forwarded-Host` を外す書き方を説明書と指針に書き、`foundation:deploy-check` に調べ `trusted_hosts`・`mail_links` を足した。**入れただけでは変わらない。** `docs/mail-safety.md`
 
 ## 0.8.1
 

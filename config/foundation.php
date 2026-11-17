@@ -119,11 +119,14 @@ return [
         'password_account_decay_seconds' => 1800,
     ],
 
-    // 実在しないメールアドレスへ送らない（Mail\DropReservedRecipients）
+    // 実在しないメールアドレスへ送らない（Mail\DropReservedRecipients）・メールのリンクを APP_URL から作る（Mail\AppUrlLinks）
     'mail' => [
         // 真にすると、実在しないことが決まっている宛先（example.com・.invalid など）を、送る直前に To・Cc・Bcc から外す。
         // 宛先が残らなければ送信を取りやめる（Mail::send() は null を返す）
         'drop_reserved_recipients' => false,
+        // 真にすると、再設定・確認のメールのリンクを、要求の Host でなく APP_URL から作る。
+        // アプリが自分で ResetPassword・VerifyEmail の createUrlUsing を書いていれば、アプリのものが使われる
+        'links_from_app_url' => false,
     ],
 
     // 稼働の確かめ（Health\HealthCheck・Health::route()）。経路はアプリが bootstrap/app.php で登録する
