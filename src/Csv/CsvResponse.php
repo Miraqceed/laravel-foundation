@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Csv;
 
 use Miraqceed\Foundation\Failures\FailureReporter;
+use Miraqceed\Foundation\Files\FileName;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -41,11 +42,9 @@ final class CsvResponse
             }
         }, 200, ['Content-Type' => 'text/csv']);
 
-        $fallback = preg_replace('/[^\x20-\x7E]|["\\\\%]/', '_', $filename);
-        $response->headers->set(
-            'Content-Disposition',
-            'attachment; filename="'.$fallback.'"; filename*=UTF-8\'\''.rawurlencode($filename)
-        );
+        // 名前の扱いは FileName の1か所：使えない字（/ など）を _ にし、200バイトに収め、
+        // ASCII の代わりの名前（意味がなければ download.csv）と UTF-8 の名前（filename*）を付ける
+        $response->headers->set('Content-Disposition', FileName::disposition($filename));
 
         return $response;
     }
