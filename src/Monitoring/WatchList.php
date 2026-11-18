@@ -57,9 +57,10 @@ class WatchList
      * アプリの schedule（routes/console.php の watched()）は、Console Kernel が命令を読むとき（bootstrap）にだけ読まれる。
      * Web の要求は HTTP Kernel だけで立ち上がるので、そのままでは印が1つも無く、StallCheck がいつも空になる。
      * そこで Console Kernel を立ち上げて読ませる。読んだかは Kernel が自分で覚えていて（2回目は読まない）、
-     * Console の中（foundation:watch など）では既に読んであるので何も足さない。この一覧でも1回だけにする
+     * Console の中（foundation:watch など）では既に読んであるので何も足さない。この一覧でも1回だけにする。
+     * キューの worker の一覧（Queue\CronWorkers）も、同じ理由でここを呼ぶ
      */
-    private function loadConsoleSchedule(): void
+    public function loadConsoleSchedule(): void
     {
         if ($this->consoleScheduleLoaded) {
             return;
