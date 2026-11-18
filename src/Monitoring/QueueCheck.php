@@ -78,14 +78,16 @@ class QueueCheck
             $expiredBefore = $time - $retryAfter;
 
             // Laravel の DatabaseQueue と同じ境目：取れる = 予約なしで available_at <= 今。期限切れの予約 = reserved_at <= 今 - retry_after
-            $row = DB::connection(is_string($database) && $database !== '' ? $database : null)
-                ->table($table)
+            $db = DB::connection(is_string($database) && $database !== '' ? $database : null);
+            // savepoint で包む：外のトランザクション（画面から呼んだとき）があっても、読めなかったときに
+            // PostgreSQL の current transaction is aborted を起こさない（TaskRuns と同じ）
+            $row = $db->transaction(fn () => $db->table($table)
                 ->where('queue', $queue)
                 ->selectRaw('coalesce(sum(case when reserved_at is null and available_at <= ? then 1 else 0 end), 0) as ready_count', [$time])
                 ->selectRaw('min(case when reserved_at is null and available_at <= ? then available_at else null end) as oldest_ready_at', [$time])
                 ->selectRaw('coalesce(sum(case when reserved_at is not null and reserved_at <= ? then 1 else 0 end), 0) as expired_count', [$expiredBefore])
                 ->selectRaw('min(case when reserved_at is not null and reserved_at <= ? then reserved_at else null end) as oldest_expired_at', [$expiredBefore])
-                ->first();
+                ->first());
 
             $waits = [];
             if ($row?->oldest_ready_at !== null) {

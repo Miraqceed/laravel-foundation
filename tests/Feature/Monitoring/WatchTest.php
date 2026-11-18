@@ -31,6 +31,8 @@ class WatchTest extends TestCase
         $app['config']->set('foundation.monitoring.alerts.channels', ['log']);
         $app['config']->set('foundation.monitoring.external', []);
         $app['config']->set('foundation.monitoring.heartbeat_url', null);
+        // この試しは失敗のジョブを見ない（failed_jobs の表を作らない。WatchQueueTest で見る）
+        $app['config']->set('queue.failed.driver', null);
     }
 
     protected function tearDown(): void
