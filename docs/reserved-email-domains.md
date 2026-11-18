@@ -50,6 +50,7 @@ use Miraqceed\Foundation\Mail\NotReservedEmailDomain;
 - 文は「:attributeには、メールを届けられません。普段お使いのメールアドレスを入れてください。」（`en` は英語）。変えるときは `php artisan vendor:publish --tag=foundation-lang` で `lang/vendor/foundation/{ja,en}/validation.php` に写し、鍵 `reserved_email` を書き換える
 - 文字列でない値は通す（型は `string` の規則で断る）
 - **ログインの欄には付けない。** 登録済みのアドレスでも、「メールアドレスかパスワードが違う」と出すべきため
+- この判定は、判定のためだけに全角・句点・大文字をそろえる。**保存する値は整えない。** 全角のまま保存されないよう、入力は `Mail\NormalizeEmailInput` で検証の前にそろえる（`docs/email-input.md`）
 
 ## 送る前の差し込み
 
