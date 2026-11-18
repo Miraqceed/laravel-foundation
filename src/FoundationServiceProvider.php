@@ -33,6 +33,7 @@ use Miraqceed\Foundation\Failures\FailureReporter;
 use Miraqceed\Foundation\Health\ConfiguredChecks;
 use Miraqceed\Foundation\Mail\AppUrlLinks;
 use Miraqceed\Foundation\Mail\DropReservedRecipients;
+use Miraqceed\Foundation\Mail\MarkAutoSubmitted;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
 use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
@@ -150,6 +151,8 @@ class FoundationServiceProvider extends ServiceProvider
 
         // 実在しない宛先を送る前に外す聞き手。いつも登録し、送るときに設定を読む（偽なら何もしない）
         $this->app['events']->listen(MessageSending::class, [DropReservedRecipients::class, 'handle']);
+        // すべての送るメールに Auto-Submitted を足す聞き手。同じく、いつも登録し、送るときに設定を読む（偽なら何もしない）
+        $this->app['events']->listen(MessageSending::class, [MarkAutoSubmitted::class, 'handle']);
 
         // 再設定・確認のリンクを APP_URL から作る。決めたときだけ登録する（既定は Laravel のまま、要求の Host から作る）。
         // アプリのプロバイダーはこの後に起動するので、アプリの createUrlUsing が勝つ

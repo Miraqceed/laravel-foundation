@@ -13,6 +13,7 @@ use Miraqceed\Foundation\DeployCheck\Checks\DbMaskedBindings;
 use Miraqceed\Foundation\DeployCheck\Checks\Drivers;
 use Miraqceed\Foundation\DeployCheck\Checks\ExceptionArgs;
 use Miraqceed\Foundation\DeployCheck\Checks\Mail;
+use Miraqceed\Foundation\DeployCheck\Checks\MailDomain;
 use Miraqceed\Foundation\DeployCheck\Checks\MailLinks;
 use Miraqceed\Foundation\DeployCheck\Checks\MailViewCache;
 use Miraqceed\Foundation\DeployCheck\Checks\Migrations;
@@ -50,6 +51,7 @@ final class Runner
         SessionSecureCookie::class,
         Drivers::class,
         Mail::class,
+        MailDomain::class,
         MailViewCache::class,
         ViteHot::class,
         ViteManifest::class,
