@@ -51,6 +51,69 @@ app(Attempts::class)->attempt([
 ], fn () => $gateway->registerCard($user, $token));
 ```
 
+- カードの「1日」を組織・利用者の暦の日にするなら、`now($timezone)` で同じに計算する（最初の試みから24時間にしない。「明日以降に」と案内できる）
+
+## 確かめの後に数える（順番）
+
+数えは、**確かめ（ボットの確かめ・入力の検証・権限）をすべて通った後**に、照合（または送信）を包む。
+
+```php
+public function store(StoreContactRequest $request)   // ① 入力の検証と Turnstile（docs/turnstile.md）は FormRequest で
+{
+    $this->authorize('contact', $request->user());     // ② 権限
+
+    app(Attempts::class)->attempt([...], fn () => ...); // ③ 数えて、照合・送信する
+}
+```
+
+- 確かめの前に数えると、機械の送信や入力の誤りで枠が埋まり、同じ接続元（事務所・学校）の正当な利用者が止まる
+- 経路の手前（中間処理の `throttle:`）で数えないのも同じ理由。中間処理は確かめより前に走る
+
+## メールを送る口
+
+再設定の申請・確認のメールの再送・メールアドレスの変更の頼み・資料の請求など、**頼まれるたびにメールを送る口**は、失敗でなく**すべての頼み**を数える（`Counting::Every`）。照合がないので「失敗」はなく、数えないと、他人のアドレスへメールを送り続けさせる。
+
+```php
+use Miraqceed\Foundation\Mail\EmailInput;
+
+$email = EmailInput::canonical((string) $request->input('email'));   // docs/email-input.md
+
+try {
+    app(Attempts::class)->attempt([
+        // 宛先ごと：同じアドレスへは1時間に5回まで（他人のアドレスへ送り続けさせない）
+        new Limit(AttemptKey::for('password-reset-request', $email), 5, 3600, Counting::Every),
+        // 接続元ごと：宛先を替えながら送るのを止める
+        new Limit(AttemptKey::for('password-reset-request-ip', IpBucket::of($request)), 20, 3600, Counting::Every),
+    ], fn () => Password::sendResetLink(['email' => $request->input('email')]));
+} catch (TooManyAttempts $e) {
+    // 宛先の有無を問わず数えるので、断っても「そのアドレスがある」とは漏れない
+    return back()->withErrors(['email' => '頼みが続いたため、しばらく送れません。時間をおいてお試しください。']);
+}
+```
+
+- 宛先の鍵は、比べの形（`EmailInput::canonical()`）にそろえる。そろえないと、`Taro@example.com` と `taro@example.com` で別々に数える
+- 宛先があるかどうかで数えを変えない（あるときだけ数えると、断られたかどうかでアドレスの有無が分かる）
+- Laravel の `throttle:` で数えない：中間処理は確かめより前に走るうえ、`RateLimiter::increment` は窓の始まりに並んだ要求の1回分を書き直しで消すことがある（「限界」）
+
+## 再設定の申請と設定は、数えを分ける
+
+再設定には口が2つあり、数え方も違う。**名前（`AttemptKey::for()` の1つ目）を分け、同じ枠にしない。**
+
+| 口 | 数えるもの | 数え方 |
+|---|---|---|
+| 申請（`/forgot-password`。メールを送る） | すべての頼み（宛先ごと・接続元ごと） | `Counting::Every`（上の「メールを送る口」） |
+| 設定（`/reset-password`。トークンを照合して新しいパスワードを書く） | トークンの照合の失敗（接続元ごと） | `Counting::FailuresShared` |
+
+```php
+// 設定：トークンの照合を包む
+$status = app(Attempts::class)->attempt([
+    new Limit(AttemptKey::for('password-reset', IpBucket::of($request)), 10, 600, Counting::FailuresShared),
+], fn () => Password::reset($credentials, $writeNewPassword) === Password::PASSWORD_RESET);
+```
+
+- 同じ枠にすると、申請のメールを何度か頼んだだけで設定の口が止まり、届いたメールのリンクで設定できなくなる
+- 設定の口は失敗だけを数える（正しいトークンで設定する人を止めない）
+
 ## 続けた失敗（`attemptConsecutive`）
 
 確認コード（TOTP など）のように、時間をかければいつまでも試せては困る照合に使う。

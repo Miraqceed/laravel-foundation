@@ -94,6 +94,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 入力と権限の確かめを通った後に照合を包む。経路の手前（中間処理）で数えない。鍵は `AttemptKey::for(名前, ...値)` で作る（`APP_KEY` の HMAC）。
 - 数え方：本人の枠は `Counting::FailuresOwn`、接続元など共有の枠は `Counting::FailuresShared`、お金の掛かる試みは `Counting::Every`。確認コード（TOTP など）は `attemptConsecutive()`（時間で消えない数えとロック）で数える。
 - 回数の制限には `database`・`redis` などの原子的なキャッシュを使う（`file` では守りが弱まり、`array` では効かない）。アプリの `DB::transaction` の中で呼ばない（同じ接続の `database` のキャッシュだと、巻き戻しで数えも巻き戻る）。`foundation.attempts.bypass` は診断の間だけ。`production` では効かない。
+- 頼まれるたびにメールを送る口（再設定の申請・確認の再送・変更の頼み・資料の請求）は、すべての頼みを `Counting::Every` で、宛先（`EmailInput::canonical()`）ごとと接続元ごとに数える。`throttle:` で数えない。再設定の申請（`Every`）と設定（トークンの照合の失敗、`FailuresShared`）は名前を分ける。数えは Turnstile・入力の検証・権限の確かめの後。
 
 ### 二段階の認証（`docs/two-factor.md`）
 
