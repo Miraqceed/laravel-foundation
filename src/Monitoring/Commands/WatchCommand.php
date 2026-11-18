@@ -105,7 +105,11 @@ class WatchCommand extends Command
             }
 
             $this->warn("新しく失敗したジョブが {$failed->total()}件あります");
-            if ($sender->send('foundation.watch.failed-jobs', '失敗したジョブがあります', $failed->message()) !== null) {
+            $key = 'foundation.watch.failed-jobs';
+            // 間引きの間（失敗のジョブの知らせを少し前に作った）なら、しおりを進める（進めないと、間引きが明けるまで毎回
+            // 健全でない扱いになり、心拍が止まる）。send() の null は書き込みの失敗のときもあるので、間引きは先に見分ける。
+            // 書き込みに失敗したときだけ進めず、次の回に同じ範囲をもう一度読む
+            if ($sender->throttled($key) || $sender->send($key, '失敗したジョブがあります', $failed->message()) !== null) {
                 $failedJobs->advance($failed->until);
             }
         } catch (Throwable $e) {

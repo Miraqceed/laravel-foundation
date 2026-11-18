@@ -10,7 +10,7 @@ use RuntimeException;
  * 新しく失敗したジョブ（failed_jobs）を数える。foundation:watch が使う。
  *
  * 失敗のジョブ専用のしおり（foundation_task_runs の行 BOOKMARK の last_succeeded_at）より後の分だけを数える。
- * - しおりは、知らせを渡せた後（か、数が0のとき）にだけ進める（advance()）。渡せなければ、次の回に同じ範囲をもう一度読む
+ * - しおりは、知らせを渡せた後・間引きの間（少し前に知らせた）・数が0のときに進める（advance()）。知らせを書けなければ進めず、次の回に同じ範囲をもう一度読む
  * - 上の端は「今を秒に切り捨てて1秒引いた時刻」。今の秒の中で後から書かれる失敗を次の回に回す（failed_at は秒まで）
  * - 時刻はアプリの時計とアプリの時間帯：Laravel は failed_at を Date::now() で書く。DB の NOW() は使わない
  * - 初めての回はしおりだけを作り、数えない（入れた直後に、過去の失敗を全部知らせない）
@@ -64,7 +64,7 @@ class FailedJobCheck
         return new FailedJobs($counts, $until);
     }
 
-    /** しおりを進める（知らせを渡せた後か、数が0のときだけ呼ぶ） */
+    /** しおりを進める（知らせを渡せた後・間引きの間・数が0のときだけ呼ぶ） */
     public function advance(string $until): void
     {
         DB::table('foundation_task_runs')->updateOrInsert(

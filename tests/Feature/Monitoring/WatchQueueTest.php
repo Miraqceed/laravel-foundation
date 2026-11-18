@@ -9,10 +9,12 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Miraqceed\Foundation\Monitoring\Alerts\Alert;
+use Miraqceed\Foundation\Monitoring\Alerts\AlertSender;
 use Miraqceed\Foundation\Monitoring\FailedJobCheck;
 use Miraqceed\Foundation\Queue\CronWorker;
 use Miraqceed\Foundation\Tests\Support\RefreshesQueueDatabase;
 use Miraqceed\Foundation\Tests\TestCase;
+use Mockery;
 use RuntimeException;
 
 /** foundation:watch がキューの溜まり・新しい失敗のジョブ・DB の大きさを見て知らせ、問題があれば心拍を送らない */
@@ -143,23 +145,54 @@ class WatchQueueTest extends TestCase
         $this->assertStringContainsString('1件', Alert::sole()->body);
     }
 
-    public function test_知らせを渡せなければしおりを進めない(): void
+    public function test_間引きの間の失敗はしおりを進め_次の回は心拍を送る(): void
     {
         $this->watch();
         Carbon::setTestNow(Carbon::parse('2026-11-18 10:30:00'));
         $this->failJob();
-        // 同じ鍵の知らせを間引きの間に作ってあると、send() は null を返す
-        Alert::create(['key' => 'foundation.watch.failed-jobs', 'subject' => 's', 'body' => 'b', 'created_at' => now()]);
+        Carbon::setTestNow(Carbon::parse('2026-11-18 10:31:00'));
+        $this->assertSame(1, $this->watch());
+        $this->assertSame(1, Alert::count());
+        $this->assertSame('2026-11-18 10:30:59', $this->bookmark());
+
+        // 間引きの間（55分）に、もう1件失敗する
+        Carbon::setTestNow(Carbon::parse('2026-11-18 10:40:00'));
+        $this->failJob();
+        Carbon::setTestNow(Carbon::parse('2026-11-18 10:41:00'));
+        Http::fake();
+
+        // この回は新しい失敗があるので健全でない。知らせは作らない（間引き）が、しおりは進める
+        $this->assertSame(1, $this->watch());
+        $this->assertSame(1, Alert::count());
+        $this->assertSame('2026-11-18 10:40:59', $this->bookmark());
+        Http::assertNothingSent();
+
+        // 次の回は新しい失敗がないので、間引きの間でも心拍を送る
+        Carbon::setTestNow(Carbon::parse('2026-11-18 10:42:00'));
+        $this->assertSame(0, $this->watch());
+        Http::assertSentCount(1);
+    }
+
+    public function test_知らせを書けなければしおりを進めない(): void
+    {
+        $this->watch();
+        Carbon::setTestNow(Carbon::parse('2026-11-18 10:30:00'));
+        $this->failJob();
         Carbon::setTestNow(Carbon::parse('2026-11-18 11:00:00'));
+        // 知らせの書き込みに失敗した（send() が null）。間引きの間ではない
+        $sender = Mockery::mock(AlertSender::class)->makePartial();
+        $sender->shouldReceive('send')->andReturnNull();
+        $this->app->instance(AlertSender::class, $sender);
 
         $this->assertSame(1, $this->watch());
         $this->assertSame('2026-11-18 09:59:59', $this->bookmark());
 
-        // 間引きが明けたら、同じ範囲をもう一度読んで知らせる
-        Carbon::setTestNow(Carbon::parse('2026-11-18 11:40:00'));
+        // 書けるようになったら、同じ範囲をもう一度読んで知らせる
+        $this->app->forgetInstance(AlertSender::class);
+        Carbon::setTestNow(Carbon::parse('2026-11-18 12:00:00'));
         $this->assertSame(1, $this->watch());
-        $this->assertStringContainsString('1件', Alert::where('body', '!=', 'b')->sole()->body);
-        $this->assertSame('2026-11-18 11:39:59', $this->bookmark());
+        $this->assertStringContainsString('1件', Alert::sole()->body);
+        $this->assertSame('2026-11-18 11:59:59', $this->bookmark());
     }
 
     public function test_キューを読めなくても失敗のジョブを読む(): void
