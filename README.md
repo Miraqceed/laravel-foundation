@@ -33,6 +33,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | ログインのロック：メールと接続元の失敗を数える（Fortify 対応） | 使うときに組み込む | [docs/login.md](docs/login.md) |
 | 試みの数え：ログイン以外の照合（確認コード・合言葉・カードなど）を、照合の前に数えて止める。続けた失敗のロック | 設定なしで呼んで使う | [docs/attempts.md](docs/attempts.md) |
 | 二段階の認証：認証アプリの確認コード（TOTP）を、使い回しと同時の要求を許さずに確かめる（手書きの認証と Fortify の差し替え） | 設定なしで呼んで使う。列は写したマイグレーションで足す | [docs/two-factor.md](docs/two-factor.md) |
+| Turnstile：Cloudflare Turnstile のトークンをサーバーで確かめる（閉じる側に倒す・設定の誤りを記録して知らせる・規則とミドルウェア・本番のテスト用の鍵の点検） | 使ったときだけ働く。鍵は `config/services.php` | [docs/turnstile.md](docs/turnstile.md) |
 | アカウントの乗っ取りの守り：パスワードの変更・再設定の後に、ほかの端末のセッションと remember の Cookie を効かなくし、この端末は入り直させる（自前の口と Fortify の聞き手）。メールアドレスの変更を新しいアドレスの確認で切り替え、古いアドレスへの戻すリンクで乗っ取った人を締め出す | セッションは設定なしで呼んで使う（Fortify の聞き手はアプリが登録する）。アドレスの変更は無効（`foundation.email_changes.enabled`。表を作る） | [docs/accounts.md](docs/accounts.md) |
 | DB の接続の時間帯：接続の時間帯がアプリの時間帯とずれていないかを確かめる（`foundation:db-timezone`） | 設定なしで呼んで使う（自動では確かめない） | [docs/database-timezone.md](docs/database-timezone.md) |
 | 本番の設定の点検：`APP_DEBUG`・`APP_KEY`・メール・Vite・マイグレーション・信頼するプロキシなどを1つのコマンドで調べる（`foundation:deploy-check`）。アプリの調べを足せる | 流したときだけ働く（自動では流れない） | [docs/deploy-check.md](docs/deploy-check.md) |

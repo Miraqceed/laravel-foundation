@@ -50,6 +50,7 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `trusted_hosts` | 偽の Host を入口で断る（`bootstrap/app.php` の `trustHosts()`。下） | |
 | `mail_links` | 再設定・確認のメールのリンクを `APP_URL` から作る設定が効いている（下） | `foundation.mail.links_from_app_url` が偽 |
 | `password_sessions` | パスワードの変更・再設定の後に、ほかの端末のセッションを終えられる（下） | |
+| `turnstile` | Turnstile の鍵（`services.turnstile`）が両方入っていて、Cloudflare のテスト用でない（下） | 鍵がどちらも空 |
 | `db_masked_bindings` | 既定の接続（と `foundation.deploy_check.connections`）の `mask_bindings_in_exception_messages` が真（下） | Laravel 13.27 より前（`info`） |
 | `exception_args` | コマンド（CLI）の `zend.exception_ignore_args` が On（下） | |
 | `queue_worker` | キューのジョブを回す worker がある（下） | キューの driver が `database`・`sync` でない |
@@ -111,6 +112,17 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | 真で、パッケージの作り方が効いている | `ok` |
 | 真で、アプリが自分の `createUrlUsing`・`toMailUsing` で作っている | `info`（アプリが勝つ。どちらの通知かだけを出す） |
 | 真なのに、作り方が登録されていない | `FAIL` |
+
+### `turnstile`
+
+`services.turnstile.site_key`・`secret_key`（`docs/turnstile.md`）を見る。値は出さない。
+
+| 設定 | 状態 |
+|---|---|
+| どちらも空 | `skip`（Turnstile を使っていない） |
+| 一方だけが空 | `FAIL`（秘密がなければ確かめがすべて断る・サイトの鍵がなければウィジェットが出ない） |
+| どちらかがテスト用（`1x`・`2x`・`3x` の後に0が並ぶ） | `FAIL`（本番で、誰でも通すか、誰も通さない） |
+| 両方入っていて、テスト用でない | `ok` |
 
 ### `password_sessions`
 

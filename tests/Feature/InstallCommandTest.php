@@ -139,6 +139,9 @@ class InstallCommandTest extends TestCase
             'NotDisposableEmail', 'foundation.mail.disposable_domains',
             // 試みの数え：メールを送る口はすべての頼みを数える。再設定の申請と設定を分ける
             'メールを送る口', '`throttle:` で数えない', '名前を分ける',
+            // Turnstile（閉じる側に倒す。外す切り替えを作らない。IP は既定で送らない）
+            'turnstile.md', 'TurnstilePassed', 'foundation.turnstile', 'VerifyTurnstileOnNamedRoutes', 'foundation.turnstile.send_ip',
+            'challenges.cloudflare.com',
             // 1回だけ使える合言葉（表は有効にしたときだけ。受け取りは Attempts の共有の枠で包む。平文を flash・ログに入れない）
             'one-time-codes.md', 'OneTimeCodes', 'foundation.one_time_codes.enabled', 'FailuresShared', 'no-store',
             'Miraqceed\\Foundation\\OneTimeCodes\\OneTimeCode', '$claimed->result', 'DB::afterCommit()',
