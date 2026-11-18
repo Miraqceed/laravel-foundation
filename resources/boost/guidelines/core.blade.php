@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -113,6 +113,14 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - `label()`・`detail` に設定の値（鍵・パスワード・接続先・URL）を入れない。何が違うかを値なしで書く。
 - 公開の前に要らない値は `Result::later()`。値が入っていて形が違えば、公開の前でも `Result::fail()`。
 - 逆プロキシの後ろで訪問者の本当の IP が要るアプリは、`deploy_check.proxies` を `'required'` にする。
+
+### 失敗の記録と要求の id（`docs/failures.md`）
+
+- 失敗を記録してから続ける `catch` の中では、`report()` でなく `app(\Miraqceed\Foundation\Failures\FailureReporter::class)->report($e)` を使う。`report()` はログのファイルを開けないと投げ、本筋ごと止める。`FailureReporter` は投げず、例外を書き換えない。
+- 同じ失敗が続く所は鍵を渡して間引く（`->report($e, 'checkout.store:'.$e::class, 60)`）。目印は storage のファイルで、DB・キャッシュに触れない。鍵は失敗の種類にし、IP・メールアドレス・id を入れない。`Cache::add` や `$exceptions->throttle()` で自前に間引かない（DB の障害で間引きも落ちる）。
+- このパッケージは例外の文を伏せない。`mask_bindings_in_exception_messages` を真にしても、一意の違反の文（`Duplicate entry`・`DETAIL`）には値が残る。IP を入れる列の失敗は `FailureReporter::redactIp($e->getMessage(), $ip)` で伏せた文で例外を作り直して記録する。メールアドレスは `Redactor` で伏せる。`zend.exception_ignore_args` は Web と CLI の両方で On にする。
+- 要求の id は `bootstrap/app.php` で `$middleware->prepend(\Miraqceed\Foundation\RequestId\AssignRequestId::class)`。利用者の `X-Request-Id` を信じて自前に作らない。外の事業者への HTTP には id を付けない（自分のサービスへは `RequestId::headers()`）。
+- 「記録が壊れても本筋は止まらない」の試しは `ReportFailure::simulate()`（`Exceptions::fake()` の中では使えない）。
 
 ### 子プロセスの環境変数（`docs/child-processes.md`）
 

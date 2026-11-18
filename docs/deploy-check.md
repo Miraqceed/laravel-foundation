@@ -49,6 +49,8 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `trusted_hosts` | 偽の Host を入口で断る（`bootstrap/app.php` の `trustHosts()`。下） | |
 | `mail_links` | 再設定・確認のメールのリンクを `APP_URL` から作る設定が効いている（下） | `foundation.mail.links_from_app_url` が偽 |
 | `password_sessions` | パスワードの変更・再設定の後に、ほかの端末のセッションを終えられる（下） | |
+| `db_masked_bindings` | 既定の接続（と `foundation.deploy_check.connections`）の `mask_bindings_in_exception_messages` が真（下） | Laravel 13.27 より前（`info`） |
+| `exception_args` | コマンド（CLI）の `zend.exception_ignore_args` が On（下） | |
 
 当たらない調べは `skip`。アプリに当たらない既定の調べは、`config/foundation.php` で外す：
 
@@ -116,6 +118,34 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `SESSION_DRIVER=database` | `ok`（行を消せる） |
 | web のグループに `auth.session`（`AuthenticateSession`・その子。`$middleware->authenticateSessions()`） | `ok`（次の要求でログアウトする） |
 | どちらもない | `info`（パスワードを変えても、ほかの端末のセッションが残る） |
+
+### `db_masked_bindings`
+
+失敗した SQL の例外（`QueryException`）の文に、バインドした値（訪問者の IP・メールアドレスなど）を入れない設定（Laravel 13.27 から）を見る。接続の名前だけを出す。
+
+```php
+// config/database.php の接続ごとに
+'mask_bindings_in_exception_messages' => true,
+```
+
+| 設定 | 状態 |
+|---|---|
+| 見た接続がすべて真 | `ok` |
+| 真でない接続がある | `later`（その接続の名前を出す） |
+| Laravel 13.27 より前 | `info`（その版には設定がない） |
+
+**真でも、DB の誤りの文そのものには値が残る**（一意の違反の `Duplicate entry '…'`・`DETAIL: Key (…)=(…)`）。どの状態でも、その旨を `detail` に添える。扱い方は `docs/failures.md`。
+
+### `exception_args`
+
+PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、各段の文字列の引数（15字まで。IPv4 はそのまま収まる）が入る。`php.ini` を読まない PHP と `php.ini-development` では Off。
+
+| 設定 | 状態 |
+|---|---|
+| On | `ok` |
+| Off | `later` |
+
+見えるのはコマンド（CLI）の値だけ。共用サーバーなどで Web が別の `php.ini` を読むなら、そちらも On にする。
 
 ## アプリの調べを足す
 
