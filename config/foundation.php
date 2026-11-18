@@ -135,6 +135,9 @@ return [
         // Mail\NormalizeEmailInput（アプリが入れるミドルウェア）が、検証の前に半角にそろえる欄の名前。
         // 入れ子（rows.0.email）と、それぞれの <名前>_confirmation も整える。new_email などは足す
         'input_fields' => ['email'],
+        // 真にすると、送るすべてのメールに Auto-Submitted: auto-generated を足す（自動の返信を止める。既にあれば変えない）。
+        // 人が書いて人に送るメールも送るアプリは偽のまま、自動のメールにだけ Mail\AutomatedMessage::mark() を使う
+        'auto_submitted' => false,
     ],
 
     // 稼働の確かめ（Health\HealthCheck・Health::route()）。経路はアプリが bootstrap/app.php で登録する
@@ -256,6 +259,8 @@ return [
         // 'required' にすると、信頼するプロキシ（trusted_proxies）に前段の IP・範囲がなければ失敗にする
         // （訪問者の本当の IP が要る、逆プロキシの後ろのアプリ）。null なら状態を見せるだけ
         'proxies' => null,
+        // mail_domain で DKIM を見るときの、メール事業者のセレクター（<セレクター>._domainkey.<ドメイン>）。null なら DKIM は見ない
+        'dkim_selector' => null,
         // db_masked_bindings で、既定の接続のほかに見る接続の名前（例：['mysql_logs']）
         'connections' => [],
     ],
