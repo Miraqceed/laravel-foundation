@@ -124,6 +124,9 @@ class InstallCommandTest extends TestCase
             // アカウントの乗っ取りの守り（聞き手はアプリが登録する。logoutOtherDevices を使わない）
             'accounts.md', 'PasswordSessions', 'afterChange', 'afterReset', 'EndSessionsAfterChange', 'EndSessionsAfterReset',
             'logoutOtherDevices()', 'authenticateSessions()', 'password_sessions',
+            // メールアドレスの変更（表は有効にしたときだけ。確かめは本人のログインの中。管理者の操作も通す）
+            'foundation.email_changes.enabled', 'EmailChanges', 'NotHeldEmail', 'AccountLockdown', 'cancelPending',
+            'session()->invalidate()', '管理者の操作も含めて', 'Miraqceed\\Foundation\\Accounts\\EmailChange`',
             // 1回だけ使える合言葉（表は有効にしたときだけ。受け取りは Attempts の共有の枠で包む。平文を flash・ログに入れない）
             'one-time-codes.md', 'OneTimeCodes', 'foundation.one_time_codes.enabled', 'FailuresShared', 'no-store',
             'Miraqceed\\Foundation\\OneTimeCodes\\OneTimeCode', '$claimed->result', 'DB::afterCommit()',

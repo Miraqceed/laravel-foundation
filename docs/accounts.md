@@ -2,7 +2,8 @@
 
 名前空間 `Miraqceed\Foundation\Accounts`。パスワードかセッションを盗まれても、持ち主が締め出されないようにする。呼んだときだけ働く。経路・画面・メールは作らない。アプリの口（自前の作り・Fortify）から呼ぶ。
 
-- パスワードの変更・再設定の後のセッション：`PasswordSessions`（この版）
+- パスワードの変更・再設定の後のセッション：`PasswordSessions`
+- メールアドレスの変更と戻すリンク：`EmailChanges`・`Rules\NotHeldEmail`（表を作る。既定で無効）
 
 ## パスワードの変更・再設定の後のセッション
 
@@ -88,3 +89,229 @@ Event::listen(\Laravel\Fortify\Events\PasswordUpdatedViaController::class, EndSe
 - セッションが `database` でなく、`auth.session` もないと、ほかの端末のセッションは残る（上）
 - `auth.session` は、そのミドルウェアを通る要求でだけ締め出す。web のグループに入れずに一部の経路にだけ付けると、付いていない経路では残る
 - API のトークン（Sanctum など）は消さない。アプリが同じ口で消す
+
+## メールアドレスの変更と戻すリンク
+
+### いつ使うか
+
+利用者がメールアドレスを変えられるアプリ。Laravel の既定と Fortify・Breeze の雛形では、変更が**その場で切り替わる**（`email` を書き、`email_verified_at` を空にして、新しいアドレスに確認のメールを送るだけ）。セッションかパスワードを盗んだ人が、アドレスを自分のものに変え、再設定でパスワードも取ると、持ち主は戻れない。古いアドレスには何も届かない。
+
+`EmailChanges` は次をする。
+
+- **確かめてから切り替える**：新しいアドレスに届いたリンクを、頼んだ本人がログインして押したときだけ切り替える
+- **古いアドレスへ戻すリンク**（既定 7日）：押すと古いアドレスに戻し、乗っ取った人が持つもの（パスワード・セッション・remember・再設定のトークン・次の頼み）を消す。アプリの差し込みで API キー・外部の連携も消す
+- **押さえ**：戻せる間は、古いアドレスをほかの人に登録・変更させない（`NotHeldEmail`）
+- 同時の要求（2つのタブ・2つのリンク）でも1回だけ切り替える。利用者の行 → 変更の行の順に握り、握った後に比べ直す
+
+### 1. 表を作る
+
+```php
+// config/foundation.php
+'email_changes' => [
+    'enabled' => true,
+],
+```
+
+```bash
+php artisan migrate
+```
+
+`vendor:publish --tag=foundation-email-change-migrations` で写してもよい。表 `foundation_email_changes` は既定の接続に作る。**利用者のモデルも既定の接続に置く**（切り替え・戻すは、利用者の行と変更の行を1つのトランザクションで書く）。古い行は `model:prune` で消す（アプリが schedule に入れる）：
+
+```php
+Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\Accounts\EmailChange::class]])->daily();
+```
+
+### 2. 頼む口
+
+```php
+use Miraqceed\Foundation\Accounts\EmailChanges;
+use Miraqceed\Foundation\Accounts\Rules\NotHeldEmail;
+
+// 経路：['auth', 'password.confirm']。回数は Attempts で利用者ごとに数える（他人のアドレスへメールを送り続けさせない）
+$validated = $request->validate([
+    'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($request->user()), new NotHeldEmail($request->user())],
+]);
+
+$requested = app(EmailChanges::class)->request($request->user(), $validated['email']);
+
+Mail::to($requested->newEmail)->send(new ConfirmEmailChange(
+    route('email-change.confirm', [$requested->id, $requested->token]),
+    $requested->expiresAt,
+));
+```
+
+- 前のまだ確かめていない頼みは取り消す（頼みは1つだけ）
+- `request()` は新しいアドレスを判定しない。形・`unique`・`NotHeldEmail` はアプリの検証で見る（確かめるときに、パッケージが比べ直す）
+- トークンは戻り値にだけある。ログ・flash・監査の記録に入れない
+
+### 3. 確かめる口（新しいアドレスに届いたリンク）
+
+```php
+// GET：表示だけ（メールのスキャナーが開いても動かない）。経路に auth を付ける
+Route::get('/email-change/{id}/{token}', fn ($id, $token) => view('email-change.confirm', compact('id', 'token')))
+    ->middleware('auth')->name('email-change.confirm');
+
+// POST：確かめる
+Route::post('/email-change/{id}/{token}', function (Request $request, string $id, string $token) {
+    $result = app(EmailChanges::class)->confirm($id, $token, $request->user());
+
+    if ($result->confirmed()) {
+        Mail::to($result->oldEmail)->send(new EmailChanged(
+            route('email-change.undo', [$id, $result->undoToken]),
+            $result->undoExpiresAt,
+        ));
+
+        return redirect('/settings')->with('status', 'メールアドレスを変えました');
+    }
+
+    return back()->withErrors(['email' => match ($result->status) {
+        EmailChangeStatus::Expired => 'リンクの期限が切れています。もう一度変更を頼んでください',
+        EmailChangeStatus::Used => 'このリンクは使われています',
+        EmailChangeStatus::Taken, EmailChangeStatus::Held => 'このメールアドレスは使えません',
+        default => 'このリンクは使えません',
+    }]);
+})->middleware(['auth', 'throttle:10,1']);
+```
+
+- **頼んだアカウントにログインしているときだけ切り替える**。ログインしていなければ、`auth` がログインの画面へ送り、ログインの後にリンクへ戻す。戻り先（`url.intended`）を自前で持つなら、だれのリンクかと一緒に持つ（別の人のログインの後に使わない）
+- 断りの理由は `EmailChangeStatus`。トークンが合わないとき（`invalid`）は理由を分けない。本人でない人（`not_requester`）には、切れた・使ったも見せない
+- 切り替えると、`email_verified_at`（`MustVerifyEmail` のモデル）を今にし、古いアドレスの再設定のトークンを消す。コミットの後に `Events\EmailChangeConfirmed` が出る（決済の顧客のアドレスなどは、アプリが聞き手で直す）
+
+### 4. 戻す口（古いアドレスに届いたリンク）
+
+```php
+// GET は表示だけ。ログインは求めない
+Route::post('/email-change/{id}/undo/{token}', function (Request $request, string $id, string $token) {
+    $result = app(EmailChanges::class)->undo($id, $token);
+
+    if ($result->undone()) {
+        // この要求がその利用者でログインしていると、表の行を消しても、要求の終わりにセッションが書き戻される
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/forgot-password')->with('status', 'メールアドレスを元に戻しました。パスワードを設定し直してください');
+    }
+
+    return back()->withErrors(['email' => $result->status === EmailChangeStatus::Expired
+        ? 'リンクの期限が切れています。運営に問い合わせてください'
+        : 'このリンクは使えません']);
+})->middleware('throttle:10,1')->name('email-change.undo');
+```
+
+戻すと、パッケージは必ず次をする（1つのトランザクション）。
+
+- アドレスを古いアドレスに戻す。その後の変更（B → C）もたどって戻す
+- パスワードを乱数の値のハッシュに替える（持ち主は古いアドレスへの再設定で入り直す）
+- remember のトークンを作り直し、すべてのセッションを消す（`PasswordSessions::afterReset()`）
+- たどったすべてのアドレスの再設定のトークンを消す。まだ確かめていない頼みを取り消す
+- アプリの差し込み `AccountLockdown::lockdown()` を呼ぶ。投げたら全部巻き戻る
+- コミットの後に `Events\EmailChangeUndone` が出る（運営に知らせる）
+
+### 5. アプリの差し込み（API キー・外部の連携）
+
+```php
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
+use Miraqceed\Foundation\Accounts\AccountLockdown;
+
+final class AppLockdown implements AccountLockdown
+{
+    /** 確かめたときに残す。秘密を入れない */
+    public function snapshot(Model&Authenticatable $user): array
+    {
+        return ['social_ids' => $user->socialAccounts()->pluck('id')->all()];
+    }
+
+    /** 戻すときに、同じトランザクションの中で呼ばれる */
+    public function lockdown(Model&Authenticatable $user, array $snapshot): void
+    {
+        $user->tokens()->delete();                                                     // Sanctum の API キー
+        $user->socialAccounts()->whereNotIn('id', $snapshot['social_ids'] ?? [])->delete(); // 後から連携したもの
+        $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null])->save(); // 乗っ取った人が登録し直した二段階の認証
+    }
+}
+```
+
+```php
+// config/foundation.php
+'email_changes' => [
+    'enabled' => true,
+    'lockdown' => \App\Accounts\AppLockdown::class,
+],
+```
+
+### 6. 押さえを登録・変更の検証に足す
+
+```php
+'email' => ['required', 'email', new NotHeldEmail],                    // 登録
+'email' => ['required', 'email', new NotHeldEmail($request->user())],  // 変更（本人の押さえは数えない）
+```
+
+- 「同じアドレス」の比べは `EmailKey`（既定 `NormalizedEmailKey`：全角・半角・大文字・前後の空白をそろえる）。Gmail の点と `+` もそろえるアプリは、自分の `EmailKey` を `foundation.email_changes.email_key` に渡す
+- 文は1つ（`foundation::validation.email_held`）。押さえの理由を出さない
+
+### 7. パスワードの再設定・変更の後
+
+まだ確かめていない頼みを取り消す（パスワードを知る他人の頼みを生かさない）。
+
+```php
+app(EmailChanges::class)->cancelPending($user);
+```
+
+### Fortify のアプリ
+
+Fortify のプロフィールの更新（`UpdateUserProfileInformation`）は、メールアドレスをその場で書く。アドレスの欄を、書く代わりに `request()` に替える。
+
+```php
+// app/Actions/Fortify/UpdateUserProfileInformation.php
+public function update(User $user, array $input): void
+{
+    Validator::make($input, [
+        'name' => ['required', 'string', 'max:255'],
+        'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id), new NotHeldEmail($user)],
+    ])->validateWithBag('updateProfileInformation');
+
+    if ($input['email'] !== $user->email) {
+        $requested = app(EmailChanges::class)->request($user, $input['email']);
+        Mail::to($requested->newEmail)->send(new ConfirmEmailChange(route('email-change.confirm', [$requested->id, $requested->token])));
+    }
+
+    $user->forceFill(['name' => $input['name']])->save();
+}
+```
+
+確かめる口・戻す口は、上の 3・4 をアプリに足す（Fortify は持たない）。今のパスワードの確かめは `password.confirm` を経路に付ける。
+
+### 設定
+
+| 設定 | 既定 | |
+|---|---|---|
+| `foundation.email_changes.enabled` | `false` | 真のときだけ表のマイグレーションを読み込む |
+| `confirm_minutes` | `60` | 確認のリンクの期限 |
+| `undo_days` | `7` | 戻すリンクの期限。押さえも同じ間 |
+| `email_column` | `email` | 利用者のモデルのメールアドレスの列 |
+| `email_key` | `null`（`NormalizedEmailKey`） | 押さえの比べ |
+| `availability` | `null`（`ModelEmailAvailability`） | アドレスがほかのアカウントに使われているか。既定はモデルの表の email の列 |
+| `lockdown` | `null`（何もしない） | `AccountLockdown` のクラス |
+| `password_broker` | `null`（`auth.defaults.passwords`） | 再設定のトークンを消すブローカー。`false` なら消さない（再設定を持たないアプリ） |
+| `prune_days` | `7` | もう使えない行を消すまでの日数 |
+
+設定のクラスが無い・契約を満たさないときは、黙って既定に寄せずに `InvalidArgumentException` で止める。
+
+### してはいけないこと
+
+- メールアドレスを、確かめる前に書かない（Fortify・Breeze の雛形のまま使わない）
+- 確かめる口・戻す口を GET で動かさない（メールのスキャナーが開く）
+- 確かめる口から `auth` を外さない（届いたリンクを押しただけの人のアドレスが、他人のアカウントに載る）
+- 頼む口に、今のパスワードの確かめ（`password.confirm`）と回数の数えを付けずにおかない
+- トークンをログ・flash・監査の記録に入れない
+
+### 限界
+
+- **アドレスの変更は、管理者の操作も含めて `EmailChanges` を通す。** 管理の画面・コマンド・DB でアドレスを直に書くと、前の変更とのつながりが切れ、それまでの戻すリンクが `changed` になって、持ち主が戻せなくなる。管理者が直すときも `request()` と `confirm()` を通すか、戻せる間（`undo_days`）が過ぎてから直す
+- 押さえは、登録・変更の検証に `NotHeldEmail` を足したときだけ効く。足していない口（招待・管理の画面）からは、古いアドレスで入れる（戻すときは `taken` で断る）
+- 外部の連携・API キーは、差し込み（`AccountLockdown`）を書かなければ消えない
+- 戻すリンクは古いアドレスに届く。古いアドレスのメールも盗まれていれば守れない
+- 戻せるのは `undo_days` の間だけ。その後は運営が本人を確かめて直す
