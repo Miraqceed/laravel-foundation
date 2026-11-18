@@ -32,6 +32,7 @@ use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Failures\FailureReporter;
 use Miraqceed\Foundation\Health\ConfiguredChecks;
 use Miraqceed\Foundation\Mail\AppUrlLinks;
+use Miraqceed\Foundation\Mail\DisposableEmailDomains;
 use Miraqceed\Foundation\Mail\DropReservedRecipients;
 use Miraqceed\Foundation\Mail\MarkAutoSubmitted;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
@@ -60,6 +61,8 @@ class FoundationServiceProvider extends ServiceProvider
         // 設定の書き違いは、初めて取り出したときに InvalidRedactionConfig で分かる
         $this->app->singleton(Redactor::class, fn () => Redactor::fromConfig());
         $this->app->singleton(Attempts::class);
+        // 使い捨てのメールの一覧は、1つのプロセスで1回だけ読む（約9,000行を検証のたびに読まない）
+        $this->app->singleton(DisposableEmailDomains::class);
         $this->app->singleton(TwoFactor::class);
         $this->app->singleton(FailureReporter::class);
 
