@@ -132,6 +132,9 @@ return [
         // 真にすると、再設定・確認のメールのリンクを、要求の Host でなく APP_URL から作る。
         // アプリが自分で ResetPassword・VerifyEmail の createUrlUsing を書いていれば、アプリのものが使われる
         'links_from_app_url' => false,
+        // Mail\NormalizeEmailInput（アプリが入れるミドルウェア）が、検証の前に半角にそろえる欄の名前。
+        // 入れ子（rows.0.email）と、それぞれの <名前>_confirmation も整える。new_email などは足す
+        'input_fields' => ['email'],
     ],
 
     // 稼働の確かめ（Health\HealthCheck・Health::route()）。経路はアプリが bootstrap/app.php で登録する
