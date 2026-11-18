@@ -41,6 +41,12 @@ return CsvResponse::download('一覧.csv', ['ID', '会社名'], (function () {
 - アプリが作る宛先（退会した利用者の伏せ字・E2E の利用者）は、`foundation.mail.drop_reserved_recipients` を真にして送る直前に外す（既定は無効）。有効にするとテストの中でも効くので、`array` のメーラーで確かめる試しの宛先に `example.*`（`fake()->safeEmail()` が作る）を使わない。`Mail::fake()` は影響しない。
 - **メールアドレスの形の確かめではない。** `false` でも形が正しい・届く保証はない。形は `email` の規則で確かめる。
 
+### メールアドレスの入力の整え方（`docs/email-input.md`）
+
+- 全角のアドレス（`ｔａｒｏ@example.co.jp`）と句点のドメイン（`example。co.jp`）は `email` の規則（`email:rfc,strict` も）を通る。`$middleware->web(append: \Miraqceed\Foundation\Mail\NormalizeEmailInput::class)` を入れて、検証の前にそろえる（`email`・入れ子・`_confirmation`。ほかの名前は `foundation.mail.input_fields` に足す）。ミドルウェアを通らない口（コマンド・外部のログイン・取り込み）は `EmailInput::normalize()` を呼ぶ。
+- 保存する値（送る宛先）は `normalize()`、一意の列と探すとき（ログイン・再設定・外部の連携の照合）は `EmailInput::canonical()`（全体を小文字。Gmail だけ点と `+` を落とす）。Gmail のそろえ方をほかのドメインに広げない。送る宛先に `canonical()` の値を使わない。
+- ログインのロック・`foundation.email_changes.email_key` は `Login\CanonicalEmailKey` にして、比べの列と範囲をそろえる。
+
 ### メールの中の安全と、要求の Host を信じないこと（`docs/mail-safety.md`）
 
 - 訪問者が書いた文（名前・会社名など）をメールの Markdown に入れるときは、`Miraqceed\Foundation\Mail\MailText::escape()` に、つないだ全体を渡す（`MailText::escape($user->name.' さん')`）。`{{ $name }}` のまま入れない。`Markdown::withSecuredEncoding()` だけに頼らない（12.15 からで、12.70・13.36 より前は `view:cache` で外れる）。打ち消しを `\` で書かない（text の版に残る）。
