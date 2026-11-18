@@ -204,6 +204,12 @@ return [
         ],
     ],
 
+    // 投げない記録（Failures\FailureReporter）。呼んだときだけ働く
+    'failures' => [
+        // 記録の間引きの目印を置くディレクトリ。null は storage/framework/foundation/report-throttle
+        'throttle_path' => null,
+    ],
+
     // アカウントの守り（Accounts\PasswordSessions など）。呼んだときだけ働く
     'accounts' => [
         // パスワードの後のセッションの後始末が使うガード（セッションのガード）

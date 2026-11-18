@@ -20,6 +20,9 @@ abstract class TestCase extends Orchestra
         // 実際のアプリは APP_KEY を持つ（セッション・暗号に要る）。数えの鍵（AttemptKey）が HMAC に使う。作り物の値
         $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('t', 32)));
 
+        // 記録の間引きの目印は、試しごとに別の所に置く（storage に残ると、後の試しの記録が間引かれる）
+        $app['config']->set('foundation.failures.throttle_path', sys_get_temp_dir().'/foundation-report-throttle-'.bin2hex(random_bytes(8)));
+
         $connection = env('DB_CONNECTION', 'sqlite');
 
         $app['config']->set('database.default', $connection);
