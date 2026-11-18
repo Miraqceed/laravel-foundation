@@ -53,6 +53,8 @@ return CsvResponse::download('一覧.csv', ['ID', '会社名'], (function () {
 - メールアドレスの確認が済むまで、利用者が書いた名前をメールに出さない（素の URL は、受け手のメールの道具がリンクにする）。
 - 再設定・確認のリンクを要求の Host から作らない。`foundation.mail.links_from_app_url` を真にする（既定は無効）。全体に `URL::forceRootUrl()` を掛けない。
 - `bootstrap/app.php` で `$middleware->trustHosts()` を足し、`trustProxies` の `headers:` から `X-Forwarded-Host` を外す（`Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_PORT`）。`'*'` と既定の見出しでは、訪問者が直に送った `X-Forwarded-Host` も信じる。
+- 自動のメール（通知・再設定・確認）には `withSymfonyMessage(fn (Email $email) => \Miraqceed\Foundation\Mail\AutomatedMessage::mark($email, '通知の id'))` で `Auto-Submitted` と、送り直しても同じ `Message-ID`（`APP_URL` のホスト）を付ける。id に乱数・時刻を入れない。人に宛てたメールを送らないアプリは `foundation.mail.auto_submitted` を真にして、すべてのメールに `Auto-Submitted` を足す。
+- 送信元のドメインの SPF・DMARC（DKIM は `foundation.deploy_check.dkim_selector`）は `foundation:deploy-check` の `mail_domain` が DNS を引いて見る。DNS を引けない・遅い環境では `foundation.deploy_check.skip` に `mail_domain` を足す。
 
 ### 文の中の秘密を伏せる（`docs/redaction.md`）
 

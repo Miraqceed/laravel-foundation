@@ -133,6 +133,8 @@ class InstallCommandTest extends TestCase
             // メールアドレスの入力の整え方（ミドルウェアはアプリが入れる。保存と比べの2つの形。Gmail だけ）
             'email-input.md', 'NormalizeEmailInput', 'EmailInput::normalize()', 'EmailInput::canonical()', 'foundation.mail.input_fields',
             '_confirmation', 'CanonicalEmailKey', 'ほかのドメインに広げない',
+            // 自動のメールの見出しと送信のドメイン（id に乱数を入れない。DNS を引けなければ skip で外す）
+            'AutomatedMessage::mark(', 'Auto-Submitted', 'Message-ID', 'foundation.mail.auto_submitted', 'mail_domain', 'dkim_selector',
             // 1回だけ使える合言葉（表は有効にしたときだけ。受け取りは Attempts の共有の枠で包む。平文を flash・ログに入れない）
             'one-time-codes.md', 'OneTimeCodes', 'foundation.one_time_codes.enabled', 'FailuresShared', 'no-store',
             'Miraqceed\\Foundation\\OneTimeCodes\\OneTimeCode', '$claimed->result', 'DB::afterCommit()',

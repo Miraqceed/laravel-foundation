@@ -39,6 +39,7 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `session_secure_cookie` | `SESSION_SECURE_COOKIE` が真 | |
 | `drivers` | キャッシュ・セッションが `array` でない（種類の名前を出す） | |
 | `mail` | 送り方が `log`・`array` でない。SMTP のホストが空・`127.0.0.1`・`localhost` でない。`MAIL_FROM_ADDRESS` がメールアドレスで、実在しないドメイン（`example.com`・`.test` など。`docs/reserved-email-domains.md`）でない | |
+| `mail_domain` | 送信元のドメインに SPF・DMARC がある。DKIM はセレクターを書いたときだけ（下。**DNS を引く**） | `mail` が失敗する設定 |
 | `mail_view_cache` | 通知のメールの画面が `view:cache` でコンパイルされていない（下） | Laravel 12.15 より前・直った版（12.70・13.36 から）か、`Markdown::withSecuredEncoding()` を使っていない |
 | `vite_hot` | `public/hot`（`npm run dev` の印）がない | |
 | `vite_manifest` | `public/build/manifest.json` があり、JSON として読める | `vite.config.*` がない |
@@ -171,6 +172,34 @@ PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、�
 | すべて満たす | `ok` |
 | `CronWorker` でない `queue:work` だけ | `info`（オプションを読まないので確かめない） |
 | worker がない | `skip` |
+
+### `mail_domain`
+
+送信元（`MAIL_FROM_ADDRESS` の `@` より後）のドメインの DNS の TXT を引き、受け手が確かめる記録があるかを見る。ドメインの名前は出す（秘密でない）。アドレスのローカル部は出さない。
+
+| 設定・DNS | 状態 |
+|---|---|
+| `mail` が失敗する設定（`log`・`array`・例示の送信元など） | `skip`（DNS を引かない） |
+| ドメインの TXT に `v=spf1`、`_dmarc.<ドメイン>` に `v=DMARC1` がある（セレクターがあれば `<セレクター>._domainkey.<ドメイン>` に `p=` も） | `ok` |
+| どれかがない | `later`（公開の直前の `--strict` で失敗。迷惑メールに入る・受け取られない） |
+| DNS を引けない（`dns_get_record()` がない・失敗した） | `info` |
+
+DKIM を見るときは、メール事業者のセレクターを書く：
+
+```php
+// config/foundation.php
+'deploy_check' => [
+    'dkim_selector' => 'mail1',
+],
+```
+
+**DNS の待ち。** 引くのは最大3回（SPF・DMARC・DKIM）。`dns_get_record()` は待つ時間を決められず、DNS が応えない環境では、1回ごとに OS の resolver の待ち（`/etc/resolv.conf` の `timeout`×`attempts`×名前のサーバーの数。数十秒になりうる）だけ止まる。1回でも引けなければ、残りを引かずに `info` で終える（止まるのは1回分）。遅い・外へ DNS を引けない環境（共用サーバー・外への通信を止めた CI）では外す：
+
+```php
+'deploy_check' => [
+    'skip' => ['mail_domain'],
+],
+```
 
 ## アプリの調べを足す
 

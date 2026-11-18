@@ -27,7 +27,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 非負整数：整数の上限を超える和・積・切り上げ・比較 | 設定なしで呼んで使う | [docs/integer-math.md](docs/integer-math.md) |
 | 実在しないメールアドレス：`example.com`・`.invalid` などの判定・入力の検証の規則・送る前に宛先から外す差し込み | 判定と規則は設定なしで使える。差し込みは無効（`foundation.mail.drop_reserved_recipients`） | [docs/reserved-email-domains.md](docs/reserved-email-domains.md) |
 | メールアドレスの入力の整え方：全角・句点のアドレスを検証の前に半角にそろえるミドルウェア、保存する値と一意の列の比べの形（Gmail の別名）、同じ範囲のログインのロックの鍵 | 助けと鍵は設定なしで使える。ミドルウェアはアプリが入れる | [docs/email-input.md](docs/email-input.md) |
-| メールの中の安全：訪問者が書いた名前を文字のまま出す打ち消し・再設定と確認のリンクを要求の Host でなく `APP_URL` から作る設定・Host を偽った要求を入口で断る書き方 | 打ち消しは設定なしで使える。リンクは無効（`foundation.mail.links_from_app_url`） | [docs/mail-safety.md](docs/mail-safety.md) |
+| メールの中の安全：訪問者が書いた名前を文字のまま出す打ち消し・再設定と確認のリンクを要求の Host でなく `APP_URL` から作る設定・Host を偽った要求を入口で断る書き方・自動のメールの見出し（`Auto-Submitted`・送り直しても同じ `Message-ID`） | 打ち消しと見出しの助けは設定なしで使える。リンクとすべてのメールへの `Auto-Submitted` は無効（`foundation.mail.links_from_app_url`・`auto_submitted`） | [docs/mail-safety.md](docs/mail-safety.md) |
 | 秘密を伏せる：文・入れ子の配列の中の鍵・トークン・パスワード・メールアドレス・電話番号を形で見つけて伏せる（漏れを無くすとは約束しない） | 設定なしで呼んで使う | [docs/redaction.md](docs/redaction.md) |
 | ログインのロック：メールと接続元の失敗を数える（Fortify 対応） | 使うときに組み込む | [docs/login.md](docs/login.md) |
 | 試みの数え：ログイン以外の照合（確認コード・合言葉・カードなど）を、照合の前に数えて止める。続けた失敗のロック | 設定なしで呼んで使う | [docs/attempts.md](docs/attempts.md) |

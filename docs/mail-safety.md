@@ -108,12 +108,50 @@ Laravel 12・13 で同じ（13.19・13.33・13.42 で確かめた）。
 - **前段のプロキシの IP が分からないとき**（共用サーバーなど）も、Host は IP なしで閉じる：`headers:` から `X-Forwarded-Host` を外し、`trustHosts()` を足す。IP の扱いは `docs/login.md`
 - `trustHosts()` は、環境が `local` のときと、試しの中（`runningUnitTests()`）では何もしない。試しで確かめるときは、環境を `production` にする
 
+## 自動のメールの見出し
+
+通知・再設定・確認など、アプリが自動で送るメールに付ける。
+
+- **`Auto-Submitted: auto-generated`**（RFC 3834）：休暇の自動返信などが返事をしない
+- **安定した `Message-ID`**：何もしなければ、Symfony が送るたびに乱数で作る。SMTP が受け付けた後に「送った」を書けずに送り直すと、受け手には別のメールに見える。通知の id から作れば、送り直しても同じ `Message-ID` になり、同じメールと分かる（重ねて見せないかは受け手しだい）
+
+```php
+use Miraqceed\Foundation\Mail\AutomatedMessage;
+use Symfony\Component\Mime\Email;
+
+public function toMail(object $notifiable): MailMessage
+{
+    return (new MailMessage)->subject('…')->line('…')
+        ->withSymfonyMessage(fn (Email $email) => AutomatedMessage::mark($email, 'notification.'.$this->notification->id));
+}
+// Message-ID: <notification.01JD…@app.example.jp>（APP_URL のホスト。日本語のドメインは xn-- の形）
+// Auto-Submitted: auto-generated
+```
+
+- `mark($email)`（id なし）は `Auto-Submitted` だけを付ける。既にあれば変えない
+- id は英数字と `.`・`-`・`_` の128字まで。違えば `InvalidArgumentException`（見出しを書き換えさせない）。ホストは `APP_URL` から作り、要求の Host は使わない。`APP_URL` からホストが取れなければ `InvalidArgumentException`
+- id は、送り直しても同じで、ほかのメールと重ならない値にする（通知の id・種類と行の id など）。乱数・時刻を入れない
+
+**すべての送るメールに `Auto-Submitted` を付ける**（既定は無効）：
+
+```php
+// config/foundation.php
+'mail' => [
+    'auto_submitted' => true,
+],
+```
+
+- `MessageSending` の聞き手が、`Mail::raw()`・Mailable・通知のすべてのメールに足す（既にあれば変えない）。聞き手はいつも登録し、送るときに設定を読む（偽なら何もしない）
+- **人が書いて人に送るメール**（問い合わせの転送・利用者どうしのメッセージ）も送るアプリは、偽のまま、自動のメールにだけ `mark()` を使う（それらに付けると、受け手の自動返信が止まる）
+- `Message-ID` は、この設定では付けない（送り直しても同じにする id は、アプリにしかない）
+
 ## 配置の前の点検
 
-`php artisan foundation:deploy-check`（`docs/deploy-check.md`）の2つの調べが見る。
+`php artisan foundation:deploy-check`（`docs/deploy-check.md`）の3つの調べが見る。
 
 - `trusted_hosts`：`TrustHosts` があれば `ok`。なければ、`'*'`・`'**'` で `X-Forwarded-Host`（か `Forwarded`）を信じる設定は `FAIL`、ほかは `later`
 - `mail_links`：`foundation.mail.links_from_app_url` が偽なら `skip`。真なら、パッケージのリンクの作り方が効いていれば `ok`、アプリが自分で作っていれば `info`
+- `mail_domain`：送信元のドメインに SPF・DMARC（DKIM はセレクターを書いたとき）があれば `ok`、足りなければ `later`。DNS を引く
 
 ## 自分で書くときの注意
 
