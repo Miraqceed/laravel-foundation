@@ -121,6 +121,9 @@ class InstallCommandTest extends TestCase
             // 自分で書くときの注意
             '自分で書くときの注意', '\\z', '\\p{sc=Han}', 'PCRE2 10.40', 'SESSION_ENCRYPT', 'createApplication()',
             'auth.session', 'remember_token',
+            // アカウントの乗っ取りの守り（聞き手はアプリが登録する。logoutOtherDevices を使わない）
+            'accounts.md', 'PasswordSessions', 'afterChange', 'afterReset', 'EndSessionsAfterChange', 'EndSessionsAfterReset',
+            'logoutOtherDevices()', 'authenticateSessions()', 'password_sessions',
             // 1回だけ使える合言葉（表は有効にしたときだけ。受け取りは Attempts の共有の枠で包む。平文を flash・ログに入れない）
             'one-time-codes.md', 'OneTimeCodes', 'foundation.one_time_codes.enabled', 'FailuresShared', 'no-store',
             'Miraqceed\\Foundation\\OneTimeCodes\\OneTimeCode', '$claimed->result', 'DB::afterCommit()',

@@ -204,6 +204,12 @@ return [
         ],
     ],
 
+    // アカウントの守り（Accounts\PasswordSessions など）。呼んだときだけ働く
+    'accounts' => [
+        // パスワードの後のセッションの後始末が使うガード（セッションのガード）
+        'guard' => 'web',
+    ],
+
     // 本番の設定の点検（php artisan foundation:deploy-check）。流したときだけ働く
     'deploy_check' => [
         // アプリの調べのクラス（Miraqceed\Foundation\DeployCheck\Check。容器から作る）。並びのとおりに、パッケージの既定の調べの後に走る

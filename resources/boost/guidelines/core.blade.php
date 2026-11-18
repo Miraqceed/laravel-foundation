@@ -85,6 +85,11 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 列は `vendor:publish --tag=foundation-two-factor-migrations` で足す。使い回しは条件つきの UPDATE で守る（確かめた後に読んで書く2段にしない）。登録に使ったコードの刻みを残す。間違いは続けた失敗で数える。秘密の鍵を平文で置かない。
 - 鍵と QR を含む応答には `Cache-Control: no-store` を付ける。ロックの出来事 `TwoFactorLocked` の聞き手で、運営に知らせる。
 
+### アカウントの乗っ取りの守り（`docs/accounts.md`）
+
+- パスワードを変えた後は `app(\Miraqceed\Foundation\Accounts\PasswordSessions::class)->afterChange($request, $user)`、再設定の後は `afterReset($user)` を呼ぶ（同じ要求の中で。キューに載せない）。Fortify は `EndSessionsAfterChange`（`PasswordUpdatedViaController`）・`EndSessionsAfterReset`（`PasswordReset`）を `Event::listen` で登録する。パッケージは登録しない。
+- パスワードを変えた後に `Auth::logoutOtherDevices()` を呼ばない（ハッシュの計算と書き込みが2回）。ほかの端末を締め出すには、`SESSION_DRIVER=database` か、web のグループの `auth.session`（`$middleware->authenticateSessions()`）が要る。`foundation:deploy-check` の `password_sessions` が見る。
+
 ### 1回だけ使える合言葉（`docs/one-time-codes.md`）
 
 - 一度だけ渡したい秘密（機械にトークンを受け取らせる合言葉・1回限りの入場券・確認のリンクの秘密）を自前で書かない。`Miraqceed\Foundation\OneTimeCodes\OneTimeCodes` の `issue()`・`claim()`・`revoke()` を使う。種類は `new CodeKind(名前, 頭の印, 効く秒数)`。`foundation.one_time_codes.enabled` を真にして `php artisan migrate`（表はアプリの既定の接続に置く）。
@@ -116,7 +121,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 値の形を正規表現で確かめるときは、`$` に `D` を付けるか `\z` を使う（`$` は後ろの改行1つの前でも合う）。
 - `/u` の `\p{Han}` は、句読点（`、` `。` `「」`）も含む。漢字だけなら `\p{sc=Han}`（PCRE2 10.40 以上。PHP 8.3 以降に同梱の PCRE2 は満たす。OS の PCRE2 を使うビルドでは `PCRE_VERSION` で確かめる）。
 - セッションを DB に暗号にせずに置くとき（`SESSION_DRIVER=database`・`SESSION_ENCRYPT=false`）、名前や本文などの機微な入力を `withInput()`・`with()` でセッションに入れない。入れるなら `SESSION_ENCRYPT=true` にする。検証の誤りで戻すときの `dontFlash` に機微な欄を足す。
-- パスワードを変えたら、その利用者のほかのセッションを閉じ、今のセッションは残す。`Auth::logoutOtherDevices($変えた後のパスワード)` はパスワードを確かめて再ハッシュするだけで、ほかのセッションを実際に閉じるのは `auth.session`（`AuthenticateSession`）のミドルウェア。守るルートに `auth.session` を入れる（引数が変えた後のパスワードでないと例外）。`database` のセッションの `user_id` の行を消して閉じるなら、`remember_token` も回す（行を消すだけでは「ログインしたままにする」のクッキーで入り直せる）。今のセッションは番号を作り直す。
+- パスワードを変えたら、その利用者のほかのセッションを閉じ、今のセッションは残す。後始末は `PasswordSessions`（上の「アカウントの乗っ取りの守り」）を使い、自前で書かない。自前で書くなら：`Auth::logoutOtherDevices()` は渡した平文でパスワードを再ハッシュして保存するだけで、ほかのセッションを実際に閉じるのは `auth.session`（`AuthenticateSession`）のミドルウェア。`database` のセッションの `user_id` の行を消して閉じるなら、`remember_token` も回す（行を消すだけでは「ログインしたままにする」のクッキーで入り直せる）。今のセッションは番号を作り直す。
 - 外を呼ぶ口（外の API・CLI）の偽物は、試しの `createApplication()` で差す（`setUp` で差すと、試しの途中で `refreshApplication` したときに本物に戻る）。
 - コマンドのオプションで、値の無い指定（`--name=`）を「全部」と読まない。値が要るオプションは、空なら断る。
 - 設定の書き違い（知らない値・範囲の外）を、黙って既定に寄せない。分かる文で止めるか、管理の画面・状態のコマンドにはっきり出す。
