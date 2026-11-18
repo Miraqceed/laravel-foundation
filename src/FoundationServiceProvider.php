@@ -34,7 +34,6 @@ use Miraqceed\Foundation\Health\ConfiguredChecks;
 use Miraqceed\Foundation\Mail\AppUrlLinks;
 use Miraqceed\Foundation\Mail\DropReservedRecipients;
 use Miraqceed\Foundation\Mail\MarkAutoSubmitted;
-use MiraqceedFoundationMailMarkAutoSubmitted;
 use Miraqceed\Foundation\Monitoring\Commands\RecordCommand;
 use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
 use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
