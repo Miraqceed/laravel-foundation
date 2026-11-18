@@ -48,6 +48,7 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `trusted_proxies` | 下 | |
 | `trusted_hosts` | 偽の Host を入口で断る（`bootstrap/app.php` の `trustHosts()`。下） | |
 | `mail_links` | 再設定・確認のメールのリンクを `APP_URL` から作る設定が効いている（下） | `foundation.mail.links_from_app_url` が偽 |
+| `password_sessions` | パスワードの変更・再設定の後に、ほかの端末のセッションを終えられる（下） | |
 
 当たらない調べは `skip`。アプリに当たらない既定の調べは、`config/foundation.php` で外す：
 
@@ -105,6 +106,16 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | 真で、パッケージの作り方が効いている | `ok` |
 | 真で、アプリが自分の `createUrlUsing`・`toMailUsing` で作っている | `info`（アプリが勝つ。どちらの通知かだけを出す） |
 | 真なのに、作り方が登録されていない | `FAIL` |
+
+### `password_sessions`
+
+パスワードの後のセッションの後始末（`Accounts\PasswordSessions`。`docs/accounts.md`）が、ほかの端末を締め出せる形かを見る。部品を使っていないアプリにも当たるので、失敗にはしない。当たらないアプリは `foundation.deploy_check.skip` に `password_sessions` を足す。
+
+| 設定 | 状態 |
+|---|---|
+| `SESSION_DRIVER=database` | `ok`（行を消せる） |
+| web のグループに `auth.session`（`AuthenticateSession`・その子。`$middleware->authenticateSessions()`） | `ok`（次の要求でログアウトする） |
+| どちらもない | `info`（パスワードを変えても、ほかの端末のセッションが残る） |
 
 ## アプリの調べを足す
 
