@@ -24,6 +24,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 |---|---|---|
 | テストの守り：名前に `test` / `testing` の印のない DB へのテストを、DB に触れる前に止める | 常に有効 | [docs/test-safety.md](docs/test-safety.md) |
 | CSV：式の守り・Shift_JIS・ずれない大きな表の読み方 | 常に使える | [docs/csv.md](docs/csv.md) |
+| ファイル名とファイルの中身：利用者の名前をダウンロードの名前・表示・列に収める（書記素で切る・使えない字・`Content-Disposition`）、先頭のバイトで種類を見分ける、写真の位置の情報を向きを残して消す。上げたファイルの流れの手本 | 設定なしで呼んで使う | [docs/files.md](docs/files.md)・[docs/uploads.md](docs/uploads.md) |
 | 非負整数：整数の上限を超える和・積・切り上げ・比較 | 設定なしで呼んで使う | [docs/integer-math.md](docs/integer-math.md) |
 | 実在しないメールアドレス：`example.com`・`.invalid` などの判定・入力の検証の規則・送る前に宛先から外す差し込み | 判定と規則は設定なしで使える。差し込みは無効（`foundation.mail.drop_reserved_recipients`） | [docs/reserved-email-domains.md](docs/reserved-email-domains.md) |
 | メールアドレスの入力の整え方：全角・句点のアドレスを検証の前に半角にそろえるミドルウェア、保存する値と一意の列の比べの形（Gmail の別名）、同じ範囲のログインのロックの鍵、使い捨てのメールのドメインを断る規則 | 助けと鍵は設定なしで使える。ミドルウェアはアプリが入れる。使い捨ての規則は一覧のファイルをアプリが置く（`foundation.mail.disposable_domains`） | [docs/email-input.md](docs/email-input.md) |

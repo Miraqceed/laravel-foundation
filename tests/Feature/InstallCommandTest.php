@@ -146,6 +146,9 @@ class InstallCommandTest extends TestCase
             // 共用サーバーで cron からキューを回す（関数で登録する・timeout と retry_after・sync と cache:clear）
             'queue.md', 'Miraqceed\Foundation\Queue\CronWorker::schedule', 'timeout + 10 <= retry_after', 'pcntl', 'QUEUE_CONNECTION=sync',
             'cache:clear', 'QueueCheck', 'queue_worker', 'queue_timeouts',
+            // ファイル名とファイルの中身（名前を収める・保存のキーにしない・SVG を通さない・位置の情報を消す）
+            'files.md', 'uploads.md', 'Miraqceed\Foundation\Files\FileName::name', 'FileName::forUpload()', 'image:allow_svg',
+            'FileSignature::fromStream()', 'ImageMetadata::strip', 'nosniff',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");

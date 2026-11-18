@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -15,6 +15,13 @@
 - 書き出しは `CsvResponse::download()`。式の守り・BOM・Shift_JIS・途中で失敗した印は内蔵。自前の `fputcsv` や `'` の付与をしない。
 - `lazy()`・`chunk()` で書き出さない（行が重複・欠落する）。`Rows::cursor()` はずれないがメモリーは減らない。大きな表は `Rows::keyset()`（一意の列を非修飾の名前で渡す）。
 - 読み込みは `CsvReader::parse()`（UTF-8・BOM 付き・Shift_JIS を判定する。外れるときは `SourceEncoding` を渡す）。
+
+### ファイル名とファイルの中身（`docs/files.md`・`docs/uploads.md`）
+
+- 利用者が書いた名前をダウンロードの名前に入れるときは `\Miraqceed\Foundation\Files\FileName::name($base, 'csv')` と `FileName::disposition($name, fallback: 'list')`。`/` を含む名前をそのまま `response()->download()` に渡さない（500 になる）。バイトで切らない（書記素の切れ目で200バイト）。
+- 上げたファイルの名前は `FileName::forUpload()` で表示と列に入れる。保存のキーにはアプリが作る名前（ULID）を使う。
+- 上げる規則は `['file', 'max:…', 'mimes:…', 'extensions:…']`（画像は `image`）。`image:allow_svg`・`mimes:svg` を書かない。ストレージに直に上げたファイルは `FileSignature::fromStream()` で先頭を確かめる。
+- 画像は `ImageMetadata::strip($mime, $bytes)` で位置の情報を消してから保存する（向きは残る。壊れた画像は例外）。配るときは `attachment` と `nosniff`。直に上げる流れの手順は `docs/uploads.md`。
 
 @verbatim
 <code-snippet name="CSV を書き出す" lang="php">
