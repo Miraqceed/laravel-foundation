@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Monitoring;
 
 use Illuminate\Support\Facades\DB;
+use Miraqceed\Foundation\Failures\FailureReporter;
 use Throwable;
 
 /**
@@ -54,7 +55,7 @@ class TaskRuns
                 );
             });
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
         }
     }
 }

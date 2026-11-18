@@ -9,6 +9,7 @@ use Laravel\Ai\Events\StepCompleted;
 use Laravel\Ai\Events\StepFailed;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\TextUsage;
+use Miraqceed\Foundation\Failures\FailureReporter;
 use Throwable;
 
 /**
@@ -53,7 +54,7 @@ class AiRecorder
             $responded = $meta->model;
             $cost = AiPrices::fromConfig()->cost($provider->driver(), $model, $responded, $usage);
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
 
             return;
         }
@@ -72,13 +73,13 @@ class AiRecorder
                 'priced' => $cost->priced,
             ]);
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
         }
 
         try {
             $this->store->addCost($cost->countedMicroYen);
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
         }
     }
 
@@ -103,7 +104,7 @@ class AiRecorder
                 'error' => mb_substr(get_class($exception), 0, 255),
             ]);
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
         }
     }
 

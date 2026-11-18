@@ -5,6 +5,7 @@ namespace Miraqceed\Foundation\Health;
 use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Event;
+use Miraqceed\Foundation\Failures\FailureReporter;
 use Throwable;
 
 /**
@@ -22,7 +23,7 @@ final class HealthCheck
             Event::dispatch(new DiagnosingHealth);
         } catch (Throwable $e) {
             // デバッグ中も投げ直さない（既定の /up は投げ直し、エラーの画面に接続先などが出る）。原因は記録にだけ残す
-            report($e);
+            app(FailureReporter::class)->report($e);
 
             return self::respond('NG', 500);
         }

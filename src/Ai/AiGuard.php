@@ -4,6 +4,7 @@ namespace Miraqceed\Foundation\Ai;
 
 use Laravel\Ai\Events\Classifying;
 use Laravel\Ai\Events\StartingStep;
+use Miraqceed\Foundation\Failures\FailureReporter;
 use Miraqceed\Foundation\Monitoring\Alerts\AlertSender;
 use RuntimeException;
 use Throwable;
@@ -43,7 +44,7 @@ class AiGuard
         } catch (Throwable $e) {
             if (self::blank(config('foundation.ai.daily_call_limit'))) {
                 // 回数の上限がなければ、回数を足せなくても効かなくなる上限はない（金額の合計は読めた）
-                report($e);
+                app(FailureReporter::class)->report($e);
 
                 return;
             }
@@ -149,7 +150,7 @@ class AiGuard
     private function uncountable(string $why, ?Throwable $cause = null): void
     {
         $problem = new RuntimeException("AI の使った額を数えられません：{$why}", 0, $cause);
-        report($problem);
+        app(FailureReporter::class)->report($problem);
 
         if (config('foundation.ai.when_uncountable') === 'allow') {
             return;
@@ -180,7 +181,7 @@ class AiGuard
                 $this->alerts->send($key, 'AI の上限に達しました（'.AiLimitReached::REASONS[$reason].'）', $body);
             }
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
         }
     }
 

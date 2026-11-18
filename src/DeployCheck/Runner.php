@@ -9,7 +9,9 @@ use Miraqceed\Foundation\DeployCheck\Checks\AppKey;
 use Miraqceed\Foundation\DeployCheck\Checks\AppUrl;
 use Miraqceed\Foundation\DeployCheck\Checks\AttemptsBypass;
 use Miraqceed\Foundation\DeployCheck\Checks\Boost;
+use Miraqceed\Foundation\DeployCheck\Checks\DbMaskedBindings;
 use Miraqceed\Foundation\DeployCheck\Checks\Drivers;
+use Miraqceed\Foundation\DeployCheck\Checks\ExceptionArgs;
 use Miraqceed\Foundation\DeployCheck\Checks\Mail;
 use Miraqceed\Foundation\DeployCheck\Checks\MailLinks;
 use Miraqceed\Foundation\DeployCheck\Checks\MailViewCache;
@@ -56,6 +58,8 @@ final class Runner
         TrustedHosts::class,
         MailLinks::class,
         PasswordSessions::class,
+        DbMaskedBindings::class,
+        ExceptionArgs::class,
     ];
 
     private const ID_PATTERN = '/\A[a-z][a-z0-9_]*\z/';

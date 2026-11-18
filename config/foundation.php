@@ -204,6 +204,12 @@ return [
         ],
     ],
 
+    // 投げない記録（Failures\FailureReporter）。呼んだときだけ働く
+    'failures' => [
+        // 記録の間引きの目印を置くディレクトリ。null は storage/framework/foundation/report-throttle
+        'throttle_path' => null,
+    ],
+
     // アカウントの守り（Accounts\PasswordSessions など）。呼んだときだけ働く
     'accounts' => [
         // パスワードの後のセッションの後始末が使うガード（セッションのガード）
@@ -242,5 +248,7 @@ return [
         // 'required' にすると、信頼するプロキシ（trusted_proxies）に前段の IP・範囲がなければ失敗にする
         // （訪問者の本当の IP が要る、逆プロキシの後ろのアプリ）。null なら状態を見せるだけ
         'proxies' => null,
+        // db_masked_bindings で、既定の接続のほかに見る接続の名前（例：['mysql_logs']）
+        'connections' => [],
     ],
 ];

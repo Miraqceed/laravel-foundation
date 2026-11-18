@@ -34,6 +34,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | アカウントの乗っ取りの守り：パスワードの変更・再設定の後に、ほかの端末のセッションと remember の Cookie を効かなくし、この端末は入り直させる（自前の口と Fortify の聞き手）。メールアドレスの変更を新しいアドレスの確認で切り替え、古いアドレスへの戻すリンクで乗っ取った人を締め出す | セッションは設定なしで呼んで使う（Fortify の聞き手はアプリが登録する）。アドレスの変更は無効（`foundation.email_changes.enabled`。表を作る） | [docs/accounts.md](docs/accounts.md) |
 | DB の接続の時間帯：接続の時間帯がアプリの時間帯とずれていないかを確かめる（`foundation:db-timezone`） | 設定なしで呼んで使う（自動では確かめない） | [docs/database-timezone.md](docs/database-timezone.md) |
 | 本番の設定の点検：`APP_DEBUG`・`APP_KEY`・メール・Vite・マイグレーション・信頼するプロキシなどを1つのコマンドで調べる（`foundation:deploy-check`）。アプリの調べを足せる | 流したときだけ働く（自動では流れない） | [docs/deploy-check.md](docs/deploy-check.md) |
+| 失敗の記録：ログが書けなくても投げない `report()`・DB に頼らない間引き・文の中の IP を伏せる助け・サーバーで作る要求の id（ログの行とジョブに渡す）・記録が壊れる場面を作る試しの助け | 記録は設定なしで呼んで使う。要求の id はアプリが中間を足したときだけ | [docs/failures.md](docs/failures.md) |
 | 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
 | 1回だけ使える合言葉：期限つき・ハッシュだけで持ち、同時の要求でも1回だけ通す（機械にトークンを受け取らせる合言葉・入場券など） | 無効（`foundation.one_time_codes.enabled`。表を作る） | [docs/one-time-codes.md](docs/one-time-codes.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |

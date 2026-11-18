@@ -130,6 +130,9 @@ class InstallCommandTest extends TestCase
             // 1回だけ使える合言葉（表は有効にしたときだけ。受け取りは Attempts の共有の枠で包む。平文を flash・ログに入れない）
             'one-time-codes.md', 'OneTimeCodes', 'foundation.one_time_codes.enabled', 'FailuresShared', 'no-store',
             'Miraqceed\\Foundation\\OneTimeCodes\\OneTimeCode', '$claimed->result', 'DB::afterCommit()',
+            // 失敗の記録と要求の id（投げない記録・ファイルの間引き・文は伏せない・id はサーバーで作る）
+            'failures.md', 'Miraqceed\\Foundation\\Failures\\FailureReporter', 'redactIp', 'Duplicate entry',
+            'zend.exception_ignore_args', 'AssignRequestId', 'RequestId::headers()', 'ReportFailure::simulate()',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");

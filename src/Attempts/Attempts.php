@@ -4,6 +4,7 @@ namespace Miraqceed\Foundation\Attempts;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
+use Miraqceed\Foundation\Failures\FailureReporter;
 
 /**
  * 照合の試みを数えて止める。
@@ -181,7 +182,7 @@ final class Attempts
 
         if (app()->environment('production')) {
             if (Cache::add('foundation-attempts:bypass-reported', true, 3600)) {
-                report(new \RuntimeException('foundation.attempts.bypass は production では効きません。試みを数え続けます。設定を外してください'));
+                app(FailureReporter::class)->report(new \RuntimeException('foundation.attempts.bypass は production では効きません。試みを数え続けます。設定を外してください'));
             }
 
             return false;

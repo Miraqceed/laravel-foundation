@@ -29,6 +29,7 @@ use Miraqceed\Foundation\Commands\CachePruneCommand;
 use Miraqceed\Foundation\Commands\DbTimezoneCommand;
 use Miraqceed\Foundation\Commands\DeployCheckCommand;
 use Miraqceed\Foundation\Commands\InstallCommand;
+use Miraqceed\Foundation\Failures\FailureReporter;
 use Miraqceed\Foundation\Health\ConfiguredChecks;
 use Miraqceed\Foundation\Mail\AppUrlLinks;
 use Miraqceed\Foundation\Mail\DropReservedRecipients;
@@ -38,6 +39,7 @@ use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
 use Miraqceed\Foundation\Monitoring\TaskRuns;
 use Miraqceed\Foundation\Monitoring\WatchList;
 use Miraqceed\Foundation\Redaction\Redactor;
+use Miraqceed\Foundation\RequestId\AssignRequestId;
 use Miraqceed\Foundation\Security\CspReportController;
 use Miraqceed\Foundation\Security\Nonce;
 use Miraqceed\Foundation\Security\SecurityHeaders;
@@ -56,6 +58,7 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app->singleton(Redactor::class, fn () => Redactor::fromConfig());
         $this->app->singleton(Attempts::class);
         $this->app->singleton(TwoFactor::class);
+        $this->app->singleton(FailureReporter::class);
 
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
@@ -132,6 +135,7 @@ class FoundationServiceProvider extends ServiceProvider
     {
         // 別名はいつも登録する（無効のあいだは何もしない）。グループへは足さない
         $this->app['router']->aliasMiddleware('foundation.security-headers', SecurityHeaders::class);
+        $this->app['router']->aliasMiddleware('foundation.request-id', AssignRequestId::class);
 
         // テストの中だけ、Http::fake() に当たらない外への要求を送る前に止める（既定は偽。入れただけでは掛けない）。
         // 判定は DB の守りと同じ関数。試しごとにアプリを作り直すので、起動のたびに掛ける
