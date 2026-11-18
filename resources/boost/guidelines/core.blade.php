@@ -94,7 +94,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - アドレスの変更は、管理者の操作も含めて `EmailChanges` を通す（直に書くと、それまでの戻すリンクが `changed` になり、持ち主が戻せない）。トークンをログ・flash に入れない。`model:prune` で `Miraqceed\Foundation\Accounts\EmailChange` を指す。
 - 確認のリンクは Laravel の既定（`VerifyEmail`・`EmailVerificationRequest`）を使い、経路から `auth` を外さない。自前で書くなら、ログイン中の本人だけを確認済みにし、`APP_KEY` から用途の名前を入れて作るアドレスの鍵つきの指紋（`hash_hmac`）をリンクに入れて今のアドレスと比べる（`getPreviousKeys()` の前の鍵でも比べる）。戻り先（`url.intended`）を自前で持つなら、だれのリンクかと一緒に持つ。
 - メールアドレスは、決めた1つの形にそろえて保存し、そろえて探す（登録・変更・ログイン・再設定・外部の連携のすべてで）。一意の索引は整えた値の列に付ける。
-- 再設定のときにアドレスが未確認だったアカウントは、他人が先に作ったもの（外部の連携・API キー・二段階の認証・変更の頼み）も消す（`AccountLockdown::lockdown()`・`cancelPending()`）。外部の連携は、確認済みのアドレスにだけ付ける。
+- 再設定のときにアドレスが未確認だったアカウントは、他人が先に作ったもの（外部の連携・API キー・二段階の認証・変更の頼み）も消す（`AccountLockdown::lockdown()`・`cancelPending()`）。未確認だったか（`$wasUnverified`）は、再設定の処理（`markEmailAsVerified()` を含む）より前に読む。外部の連携は、確認済みのアドレスにだけ付ける。
 
 ### 1回だけ使える合言葉（`docs/one-time-codes.md`）
 

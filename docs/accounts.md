@@ -403,14 +403,22 @@ $request->user()->markEmailAsVerified();
 
 - 再設定の後は、すべてのセッションを消し、remember のトークンを作り直す（`PasswordSessions::afterReset()`。Fortify なら `EndSessionsAfterReset` を登録する）
 - **再設定のときにアドレスが未確認だったアカウントは、他人が作ったものも消す**：外部の連携・API キー・二段階の認証・まだ確かめていないアドレスの変更（`EmailChanges::cancelPending()`）。メールアドレスの変更の戻すときと同じ差し込み（`AccountLockdown`）を使うと1か所で済む
+- **未確認だったかは、再設定の処理より前に読む。** 再設定のリンクでアドレスを確かめたとして、再設定の中で `markEmailAsVerified()` を呼ぶアプリでは、パスワードを書いた後に読むといつも確認済みになり、他人の連携が残る
 
   ```php
-  // 再設定の後（パスワードを書いた後、同じ要求の中で）
-  if (! $user->hasVerifiedEmail()) {
+  // 再設定の前に読む（確認済みにする処理より前）
+  $wasUnverified = ! $user->hasVerifiedEmail();
+
+  // …パスワードを書く（確認済みにするなら、ここで markEmailAsVerified()）…
+
+  // パスワードを書いた後（同じ要求の中で）
+  if ($wasUnverified) {
       app(\App\Accounts\AppLockdown::class)->lockdown($user, []);
       app(EmailChanges::class)->cancelPending($user);
   }
   app(PasswordSessions::class)->afterReset($user);
   ```
+
+  Fortify では、アプリの `ResetUserPassword::reset()` の最初で `$wasUnverified` を読み、パスワードを書いた後に同じ所で消す（`EndSessionsAfterReset` はその後の `PasswordReset` で動く）
 
 - **外部の連携は、確認済みのアドレスにだけ付ける。** 外部のログインのアドレスが同じでも、ローカルのアカウントが未確認なら、自動で結び付けない。外部の側でもアドレスが確認済み（Google の `email_verified` など）のときだけ照合に使う
