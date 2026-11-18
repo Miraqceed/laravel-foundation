@@ -14,6 +14,7 @@
 - 使い捨てのメール：規則 `Mail\NotDisposableEmail` と判定 `Mail\DisposableEmailDomains`。一覧のファイルはアプリが置く（`foundation.mail.disposable_domains`。パッケージは一覧を持たず、取りに行かない）。1つのプロセスで1回だけ読み（容器の singleton。道が変われば読み直す）、`#` の行・空の行を飛ばす。判定の前にアドレスを `EmailInput::normalize()` でそろえ（全角・`＠`・句点・末尾の点・大文字）、下位のドメインも当てる（点のない名前の行では当てない）。設定がない・読めないときは `LogicException`。文 `foundation::validation.disposable_email`（ja・en）。**入れただけでは変わらない。** `docs/email-input.md`
 - ファイル名とファイルの中身（名前空間 `Files`）：`FileName`（利用者の名前を、使えない字を `_` にして書記素の切れ目で200バイトに収める `part()`・`name()`、上げた名前を道を除いて NFC にそろえる `forUpload()`、ASCII の名前 `ascii()`、`/` で例外にならない `Content-Disposition` の値 `disposition()`）。先頭のバイトで PNG・JPEG・GIF・WebP・PDF を見分ける `FileSignature`（SVG・HTML などは `null`）。写真の位置の情報を、画像を作り直さずに器だけを書き直して消す `ImageMetadata::strip()`（JPEG は APP0・`ICC_PROFILE` の APP2・APP14 だけを残し、最初の EOI より後ろを捨てる。PNG・WebP も。向き（Orientation）だけは小さな EXIF に書き直して残す。壊れた画像は例外）。上げたファイルの流れの手本 `docs/uploads.md`。呼んだときだけ働く。`docs/files.md`
 - **`CsvResponse::download()` の `Content-Disposition` が変わる**：名前を `FileName` で収める。使えない字（`/` など）は `_`、200バイトを超える名前は拡張子を残して切る。ASCII の代わりの名前（`filename`。`filename*` を読まない古いブラウザだけが使う）は、英数字が残らなければ `download.csv`（日本語の名前で `__.csv` だったもの）。書き方は Symfony の `makeDisposition()` の形（`filename*=utf-8''…`、引用符は要るときだけ）。ブラウザが保存する名前（`filename*`）は、ふつうの名前なら変わらない
+- 試みの数えの説明書に3つの節を足した：確かめ（ボットの確かめ・入力の検証・権限）の後に数える順番、頼まれるたびにメールを送る口（再設定の申請・確認の再送など）はすべての頼みを `Counting::Every` で宛先（`EmailInput::canonical()`）ごとと接続元ごとに数えること、再設定の申請と設定は名前と数え方を分けること。コードは変わらない。`docs/attempts.md`
 
 ## 0.8.1
 
