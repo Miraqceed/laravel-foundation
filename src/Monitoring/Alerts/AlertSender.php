@@ -4,6 +4,7 @@ namespace Miraqceed\Foundation\Monitoring\Alerts;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Miraqceed\Foundation\Failures\FailureReporter;
 use Miraqceed\Foundation\Monitoring\Alerts\Channels\ChatworkChannel;
 use Miraqceed\Foundation\Monitoring\Alerts\Channels\LogChannel;
 use Miraqceed\Foundation\Monitoring\Alerts\Channels\MailChannel;
@@ -67,7 +68,7 @@ class AlertSender
                 return [$alert, $deliveries];
             });
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
 
             return null;
         }
@@ -82,7 +83,7 @@ class AlertSender
                 $delivery->setRelation('alert', $alert);
                 $this->attempt($delivery);
             } catch (Throwable $e) {
-                report($e);
+                app(FailureReporter::class)->report($e);
             }
         }
 
@@ -107,7 +108,7 @@ class AlertSender
                 ->orderBy('last_attempted_at')->orderBy('id')
                 ->limit(max(0, $limit))->get();
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
 
             return 0;
         }
@@ -175,7 +176,7 @@ class AlertSender
                 'channel' => $delivery->channel,
                 'error' => $error,
             ]);
-            report(new RuntimeException("知らせを諦めました: {$key} → {$delivery->channel}（{$error}）"));
+            app(FailureReporter::class)->report(new RuntimeException("知らせを諦めました: {$key} → {$delivery->channel}（{$error}）"));
         } catch (Throwable) {
             // 知らせの後始末で呼び出し元を落とさない
         }
@@ -186,7 +187,7 @@ class AlertSender
         try {
             DB::transaction($write);
         } catch (Throwable $e) {
-            report($e);
+            app(FailureReporter::class)->report($e);
         }
     }
 

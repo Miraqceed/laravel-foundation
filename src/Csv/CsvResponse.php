@@ -2,6 +2,7 @@
 
 namespace Miraqceed\Foundation\Csv;
 
+use Miraqceed\Foundation\Failures\FailureReporter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -34,7 +35,7 @@ final class CsvResponse
                 } catch (Throwable) {
                 }
 
-                report($e);
+                app(FailureReporter::class)->report($e);
             } finally {
                 fclose($out);
             }

@@ -21,6 +21,7 @@ use Miraqceed\Foundation\Ai\AiStore;
 use Miraqceed\Foundation\Ai\AiUsage;
 use Miraqceed\Foundation\FoundationServiceProvider;
 use Miraqceed\Foundation\Monitoring\Alerts\Alert;
+use Miraqceed\Foundation\Testing\ReportFailure;
 use Miraqceed\Foundation\Tests\Support\AiLookupTool;
 use Miraqceed\Foundation\Tests\Support\RefreshesAiDatabase;
 use Miraqceed\Foundation\Tests\TestCase;
@@ -271,6 +272,29 @@ class AiGuardTest extends TestCase
         $this->assertNull($this->attempt());
         Http::assertSentCount(1);
         Exceptions::assertReported(RuntimeException::class);
+    }
+
+    public function test_ログが書けなくても数えられないときの止め方は変わらない(): void
+    {
+        $this->fakeAnthropic();
+        $this->limits(day: 100);
+        config(['foundation.ai.prices' => []]);
+        $attempts = ReportFailure::simulate();
+        // 記録の失敗の1行（error_log）を、試しの出力に出さない
+        $previous = ini_set('error_log', $path = (string) tempnam(sys_get_temp_dir(), 'foundation-error-log-'));
+
+        try {
+            $this->assertSame('uncountable', $this->attempt()?->reason);
+
+            config(['foundation.ai.when_uncountable' => 'allow']);
+            $this->assertNull($this->attempt());
+        } finally {
+            ini_set('error_log', $previous === false ? '' : $previous);
+            @unlink($path);
+        }
+
+        Http::assertSentCount(1);
+        $this->assertNotEmpty($attempts->getArrayCopy());
     }
 
     public function test_allow_で金額を数えられなくても回数の上限は効く(): void
