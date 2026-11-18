@@ -225,10 +225,14 @@ final class EmailChanges
             $account->setAttribute('email_verified_at', $account->freshTimestamp());
         }
         $account->save();
+        // モデルがアドレスを書き換えて保存したとき（小文字にそろえるミューテーターなど）は、保存した値を行に残す。
+        // 頼んだ値のままだと、戻すときのたどり（最後の new_email = 今のアドレス）がいつも合わない
+        $newEmail = (string) $account->getAttribute($column);
 
         $undoToken = CodeFormat::generate(self::UNDO_PREFIX);
         $undoExpiresAt = $now->addDays(max(1, (int) config('foundation.email_changes.undo_days', 7)));
         $this->table()->where('id', $locked->id)->update([
+            'new_email' => $newEmail,
             'confirmed_at' => $now->format(self::FORMAT),
             'undo_token_hash' => CodeFormat::hash($undoToken),
             'undo_expires_at' => $undoExpiresAt->format(self::FORMAT),
@@ -307,6 +311,8 @@ final class EmailChanges
         $passwordColumn = method_exists($account, 'getAuthPasswordName') ? $account->getAuthPasswordName() : 'password';
         $account->setAttribute($passwordColumn, Hash::make(Str::random(64)));
         $account->save();
+        // 結果・出来事には、モデルが保存した値を渡す（確かめるときと同じ）
+        $restoredEmail = (string) $account->getAttribute($column);
         $this->sessions->afterReset($account);
 
         $at = $now->format(self::FORMAT);

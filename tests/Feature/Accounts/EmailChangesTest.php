@@ -17,6 +17,7 @@ use Miraqceed\Foundation\Accounts\RequestedEmailChange;
 use Miraqceed\Foundation\Accounts\Rules\NotHeldEmail;
 use Miraqceed\Foundation\Tests\Support\CreatesEmailChangeTables;
 use Miraqceed\Foundation\Tests\Support\EmailChangeUser;
+use Miraqceed\Foundation\Tests\Support\LowercaseEmailChangeUser;
 use Miraqceed\Foundation\Tests\Support\RecordingLockdown;
 use Miraqceed\Foundation\Tests\TestCase;
 use RuntimeException;
@@ -308,6 +309,31 @@ class EmailChangesTest extends TestCase
 
         $this->assertTrue($this->changes->undo($firstId, $firstUndo)->undone());
         $this->assertSame('alice@example.test', $this->aliceEmail());
+    }
+
+    public function test_モデルがアドレスを書き換えて保存しても_保存した値を残し_戻せる(): void
+    {
+        Event::fake([EmailChangeConfirmed::class]);
+        $carol = LowercaseEmailChangeUser::create(['email' => 'carol@example.test', 'password' => Hash::make('carol-password')]);
+        $requested = $this->changes->request($carol, 'Carol.New@Example.TEST');
+
+        $confirmed = $this->changes->confirm($requested->id, $requested->token, $carol->fresh());
+
+        $this->assertTrue($confirmed->confirmed());
+        $this->assertSame('carol.new@example.test', $confirmed->newEmail);
+        $this->assertSame('carol.new@example.test', DB::table(EmailChanges::TABLE)->where('id', $requested->id)->value('new_email'));
+        Event::assertDispatched(EmailChangeConfirmed::class, fn (EmailChangeConfirmed $event): bool => $event->newEmail === 'carol.new@example.test');
+
+        // 次の変更もそろえて保存される。たどりが合い、最初の変更から戻せる
+        $second = $this->changes->request($carol->fresh(), 'CAROL.THIRD@example.test');
+        $this->assertTrue($this->changes->confirm($second->id, $second->token, $carol->fresh())->confirmed());
+
+        $undone = $this->changes->undo($requested->id, $confirmed->undoToken);
+
+        $this->assertSame(EmailChangeStatus::Undone, $undone->status);
+        $this->assertSame('carol.third@example.test', $undone->oldEmail);
+        $this->assertSame('carol@example.test', $undone->newEmail);
+        $this->assertSame('carol@example.test', (string) $carol->fresh()->email);
     }
 
     public function test_パッケージの外でアドレスを変えると_つながりが切れて_changed(): void
