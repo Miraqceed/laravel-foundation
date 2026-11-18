@@ -248,5 +248,7 @@ return [
         // 'required' にすると、信頼するプロキシ（trusted_proxies）に前段の IP・範囲がなければ失敗にする
         // （訪問者の本当の IP が要る、逆プロキシの後ろのアプリ）。null なら状態を見せるだけ
         'proxies' => null,
+        // db_masked_bindings で、既定の接続のほかに見る接続の名前（例：['mysql_logs']）
+        'connections' => [],
     ],
 ];

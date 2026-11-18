@@ -21,7 +21,7 @@ class DeployCheckCommandTest extends TestCase
     private const DEFAULT_IDS = [
         'app_env', 'app_debug', 'app_url', 'app_key', 'boost', 'session_secure_cookie', 'drivers', 'mail',
         'mail_view_cache', 'vite_hot', 'vite_manifest', 'writable', 'migrations', 'attempts_bypass', 'trusted_proxies',
-        'trusted_hosts', 'mail_links', 'password_sessions',
+        'trusted_hosts', 'mail_links', 'password_sessions', 'db_masked_bindings', 'exception_args',
     ];
 
     /**
