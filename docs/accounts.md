@@ -4,6 +4,7 @@
 
 - パスワードの変更・再設定の後のセッション：`PasswordSessions`
 - メールアドレスの変更と戻すリンク：`EmailChanges`・`Rules\NotHeldEmail`（表を作る。既定で無効）
+- 確認のリンク・アドレスのそろえ方・アカウントの引き取り：クラスはなく、決まりだけ
 
 ## パスワードの変更・再設定の後のセッション
 
@@ -315,3 +316,109 @@ public function update(User $user, array $input): void
 - 外部の連携・API キーは、差し込み（`AccountLockdown`）を書かなければ消えない
 - 戻すリンクは古いアドレスに届く。古いアドレスのメールも盗まれていれば守れない
 - 戻せるのは `undo_days` の間だけ。その後は運営が本人を確かめて直す
+
+## 確認のリンク・アドレスのそろえ方・アカウントの引き取り
+
+クラスは足さない。自分で書くと踏む穴と、その決まり。
+
+### 確認のリンクは Laravel の既定を使う
+
+Laravel の既定の確認のリンク（`VerifyEmail`）は、利用者の id と、アドレスの `sha1`（`hash`）を持つ。確かめる側（`EmailVerificationRequest`）は、**ログイン中の利用者**の id と、**今のアドレス**の `sha1` を比べる。Fortify・Breeze の経路は `auth`・`signed`・`throttle` を付けている。そのため、既定のままなら次の穴はない。
+
+- ログインしていない人が、リンクを押しただけで確認済みにする
+- アドレスを変えた後で、古いアドレスへ送ったリンクが効く
+
+決まり：
+
+- 確認の経路から `auth` を外さない。`EmailVerificationRequest` を自前の検証に替えない
+- リンクの行き先は `APP_URL` から作る（`foundation.mail.links_from_app_url`。`docs/mail-safety.md`）。この部品は `VerifyEmail::createUrlUsing()` を差し替えない
+- 既定の `sha1` には鍵がない。URL（アクセスの記録・履歴・転送）を見た人は、手元の候補のアドレスと突き合わせて「このアドレスの確認のリンク」と分かる。漏れるのはそれだけで、乗っ取りにはつながらない（署名と `auth` が守る）
+
+### 自前の確認のリンクを書くとき
+
+既定を使えないとき（確認を別の画面で受ける・メールを丸ごと作る）は、次の2つを守る。
+
+1. **ログイン中の本人だけを確認済みにする。** リンクの利用者の id と、`$request->user()` が同じときだけ印を付ける。ログインしていなければ、ログインの後にリンクへ戻す（下の「戻り先」）
+2. **リンクをアドレスに結び付ける。** アドレスの**鍵つきの指紋**をリンクに入れ、確かめるときに**今のアドレス**の指紋と比べる。アドレスを変えた後は、古いリンクが効かない。鍵は `APP_KEY` から、用途の名前を入れて作る（同じ鍵の HMAC をほかの用途の値と取り違えない）。鍵を替えた後も、出したリンクが期限まで効くよう、前の鍵（`APP_PREVIOUS_KEYS`）でも比べる
+
+```php
+use Illuminate\Support\Facades\URL;
+
+final class EmailFingerprint
+{
+    public static function of(string $email, ?string $key = null): string
+    {
+        return hash_hmac('sha256', 'email-verification|'.$email, $key ?? app('encrypter')->getKey());
+    }
+
+    public static function matches(string $email, mixed $given): bool
+    {
+        if (! is_string($given)) {
+            return false;
+        }
+        foreach ([app('encrypter')->getKey(), ...app('encrypter')->getPreviousKeys()] as $key) {
+            if (hash_equals(self::of($email, $key), $given)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+// 作る（署名は絶対の URL。docs/mail-safety.md）
+$url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), [
+    'id' => $user->getKey(),
+    'hash' => EmailFingerprint::of($user->getEmailForVerification()),
+]);
+
+// 確かめる（経路に auth と signed）
+abort_unless($request->user()->getKey() == $request->route('id'), 403);
+abort_unless(EmailFingerprint::matches($request->user()->getEmailForVerification(), $request->route('hash')), 403);
+$request->user()->markEmailAsVerified();
+```
+
+メールアドレスの変更の確かめ（`EmailChanges::confirm()`）は、乱数のトークンと本人のログインで守るので、指紋は要らない。
+
+### ログインの後の戻り先
+
+`auth` は、ログインしていない人をログインの画面へ送るとき、元の URL を `url.intended` に置き、ログインの後にそこへ戻す。
+
+- 既定の確認の経路では、別の人がログインして戻っても、`EmailVerificationRequest` が 403 にする（害は小さい）
+- メールアドレスの変更の確かめでは、`confirm()` が `not_requester` を返す
+- **戻り先を自前で持つなら、だれのリンクかと一緒に持つ。** ログインした人がリンクの持ち主でなければ、戻り先を捨てる（別の人のログインの後に、その人のセッションでリンクを動かさない）
+
+### メールアドレスをそろえて保存し、そろえて探す
+
+同じアドレスを違う形で持つと、Google などの外部のログインが小文字で返したときにアカウントが2つできる。一意の索引も、形が違えば同じアドレスを通す。DB によって比べ方も違う（MySQL の既定の照合順序は大文字・小文字を区別せず、PostgreSQL は区別する）。
+
+- 保存する値の形（前後の空白・大文字と小文字・全角と半角・Gmail の点と `+` を落とすか）は、アプリが1つ決める。このパッケージは決めない
+- 決めた形に、**書くとき（登録・変更・外部の連携で作るとき）も、探すとき（ログイン・再設定・外部の連携の照合）も**同じに整える。片方だけでは合わない
+- 一意の索引は、整えた値の列に付ける
+- 回数の制限・押さえで「同じアドレス」とみなす範囲は `EmailKey`（`docs/login.md`）。保存の形とは別に、比べる範囲だけをそろえる
+
+### 未確認のアカウントを引き取るとき
+
+他人が先に本人のアドレスで登録しておき（確認はしない）、パスワードを決め、外部の連携や二段階の認証を付けておく。後で本人が再設定でアカウントを引き取っても、他人のセッション・連携が残ると、他人も入れる。
+
+- 再設定の後は、すべてのセッションを消し、remember のトークンを作り直す（`PasswordSessions::afterReset()`。Fortify なら `EndSessionsAfterReset` を登録する）
+- **再設定のときにアドレスが未確認だったアカウントは、他人が作ったものも消す**：外部の連携・API キー・二段階の認証・まだ確かめていないアドレスの変更（`EmailChanges::cancelPending()`）。メールアドレスの変更の戻すときと同じ差し込み（`AccountLockdown`）を使うと1か所で済む
+- **未確認だったかは、再設定の処理より前に読む。** 再設定のリンクでアドレスを確かめたとして、再設定の中で `markEmailAsVerified()` を呼ぶアプリでは、パスワードを書いた後に読むといつも確認済みになり、他人の連携が残る
+
+  ```php
+  // 再設定の前に読む（確認済みにする処理より前）
+  $wasUnverified = ! $user->hasVerifiedEmail();
+
+  // …パスワードを書く（確認済みにするなら、ここで markEmailAsVerified()）…
+
+  // パスワードを書いた後（同じ要求の中で）
+  if ($wasUnverified) {
+      app(\App\Accounts\AppLockdown::class)->lockdown($user, []);
+      app(EmailChanges::class)->cancelPending($user);
+  }
+  app(PasswordSessions::class)->afterReset($user);
+  ```
+
+  Fortify では、アプリの `ResetUserPassword::reset()` の最初で `$wasUnverified` を読み、パスワードを書いた後に同じ所で消す（`EndSessionsAfterReset` はその後の `PasswordReset` で動く）
+
+- **外部の連携は、確認済みのアドレスにだけ付ける。** 外部のログインのアドレスが同じでも、ローカルのアカウントが未確認なら、自動で結び付けない。外部の側でもアドレスが確認済み（Google の `email_verified` など）のときだけ照合に使う
