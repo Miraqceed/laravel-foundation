@@ -127,6 +127,8 @@ class InstallCommandTest extends TestCase
             // メールアドレスの変更（表は有効にしたときだけ。確かめは本人のログインの中。管理者の操作も通す）
             'foundation.email_changes.enabled', 'EmailChanges', 'NotHeldEmail', 'AccountLockdown', 'cancelPending',
             'session()->invalidate()', '管理者の操作も含めて', 'Miraqceed\\Foundation\\Accounts\\EmailChange`',
+            // 確認のリンク・そろえ方・引き取り（既定を使い auth を外さない。自前なら本人と鍵つきの指紋。外部の連携は確認済みにだけ）
+            'EmailVerificationRequest', '鍵つきの指紋', 'getPreviousKeys()', 'url.intended', 'そろえて保存し、そろえて探す', '確認済みのアドレスにだけ',
             // 1回だけ使える合言葉（表は有効にしたときだけ。受け取りは Attempts の共有の枠で包む。平文を flash・ログに入れない）
             'one-time-codes.md', 'OneTimeCodes', 'foundation.one_time_codes.enabled', 'FailuresShared', 'no-store',
             'Miraqceed\\Foundation\\OneTimeCodes\\OneTimeCode', '$claimed->result', 'DB::afterCommit()',
