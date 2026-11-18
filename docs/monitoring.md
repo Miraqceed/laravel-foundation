@@ -101,6 +101,23 @@ fi
 
 `foundation:watch` は、見張る名前ごとに：最後の成功が許す古さより前なら問題。一度も成功していなければ、**初めて見てから**許す古さがたつまでは問題にしない。問題があれば運営へ知らせ（鍵は止まっている処理の名前の組ごと。下の「間引きの鍵」）、終了コード 1。なければ `heartbeat_url`（あれば）へ GET して 0。つながらない・5xx・429 のときは2秒あけて合わせて3回まで送る（一瞬の失敗で心拍が抜けて、外の監視が止まったと知らせないように）。4xx（URL の書き損じ・鍵の誤り）は送り直さない。送れなくても失敗にしない。
 
+### キュー・失敗のジョブ・DB の大きさ
+
+同じ見張りの回で、次も見る（**どれかに問題があれば、心拍を送らず終了コード 1**。1つが読めなくても、ほかを読む。読めないことも問題として扱う）。
+
+- **キューの溜まり**：`CronWorker::schedule()`（`docs/queue.md`）で登録したキューと、`monitoring.queues` のキュー。一番長く待っているジョブ（取れるジョブか、期限切れの予約）の待ちが、許す待ち（既定 10 分）を超えたら知らせる。鍵は `foundation.watch.queue:<接続>:<キュー>`。`database` のキューだけを見る
+- **新しく失敗したジョブ**：`queue.failed.driver` が `database`・`database-uuids` のとき。前の回より後に失敗した分だけを、接続とキューごとの件数で知らせる（本文・例外の文は出さない）。鍵は `foundation.watch.failed-jobs`。**入れて最初の回は数えない**（入れる前の失敗を全部知らせない）。知らせを作れなかった回（間引きの間など）は、次の回に同じ分を数え直す
+  - 時刻はアプリの時計とアプリの時間帯で比べる（Laravel は `failed_at` を `Date::now()` で書く）。今の秒の中の失敗は、次の回に数える
+- **DB の大きさ**：`monitoring.database.capacity_bytes` を決めたときだけ。容量の `alert_ratio`（既定 0.7）以上で知らせる。鍵は `foundation.watch.database-size`。MySQL・MariaDB・PostgreSQL（SQLite は見ない）
+  - MySQL は `information_schema` の値を既定で24時間キャッシュするので、読む前に `information_schema_stats_expiry` を 0 にする。MariaDB にはこの変数がないので飛ばす（値は少し古いことがある）。共有の表領域（`innodb_file_per_table` が偽）では、空きを1回だけ足す
+
+```php
+'monitoring' => [
+    'queues' => ['database' => ['mail' => 5]],                          // 接続 => [キュー => 許す待ち（分）]
+    'database' => ['capacity_bytes' => 4_500_000_000, 'alert_ratio' => 0.7], // 共用サーバーの DB の容量など
+],
+```
+
 ## 運営への知らせ
 
 ```php

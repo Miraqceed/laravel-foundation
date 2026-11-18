@@ -136,6 +136,9 @@ class InstallCommandTest extends TestCase
             // 失敗の記録と要求の id（投げない記録・ファイルの間引き・文は伏せない・id はサーバーで作る）
             'failures.md', 'Miraqceed\\Foundation\\Failures\\FailureReporter', 'redactIp', 'Duplicate entry',
             'zend.exception_ignore_args', 'AssignRequestId', 'RequestId::headers()', 'ReportFailure::simulate()',
+            // 共用サーバーで cron からキューを回す（関数で登録する・timeout と retry_after・sync と cache:clear）
+            'queue.md', 'Miraqceed\Foundation\Queue\CronWorker::schedule', 'timeout + 10 <= retry_after', 'pcntl', 'QUEUE_CONNECTION=sync',
+            'cache:clear', 'QueueCheck', 'queue_worker', 'queue_timeouts',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
