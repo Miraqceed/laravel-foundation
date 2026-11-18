@@ -51,6 +51,8 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `password_sessions` | パスワードの変更・再設定の後に、ほかの端末のセッションを終えられる（下） | |
 | `db_masked_bindings` | 既定の接続（と `foundation.deploy_check.connections`）の `mask_bindings_in_exception_messages` が真（下） | Laravel 13.27 より前（`info`） |
 | `exception_args` | コマンド（CLI）の `zend.exception_ignore_args` が On（下） | |
+| `queue_worker` | キューのジョブを回す worker がある（下） | キューの driver が `database`・`sync` でない |
+| `queue_timeouts` | `CronWorker` の worker の timeout が `retry_after` より10秒以上短く、timeout が効く（下） | `CronWorker` の worker がない |
 
 当たらない調べは `skip`。アプリに当たらない既定の調べは、`config/foundation.php` で外す：
 
@@ -146,6 +148,29 @@ PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、�
 | Off | `later` |
 
 見えるのはコマンド（CLI）の値だけ。共用サーバーなどで Web が別の `php.ini` を読むなら、そちらも On にする。
+
+### `queue_worker`
+
+キューの既定の接続で、ジョブが回るかを見る（`docs/queue.md`）。接続先は出さない。
+
+| 設定 | 状態 |
+|---|---|
+| driver が `sync` | `later`（`->delay()` が無視され、ジョブが要求の中で動く） |
+| `database` で、`CronWorker::schedule()` の worker か、コマンドが `queue:work` の schedule の処理がある | `ok` |
+| `database` で、どちらもない | `FAIL`（ジョブが溜まるだけ） |
+| ほかの driver（`redis` など） | `skip`（常駐の worker が別にある前提） |
+
+### `queue_timeouts`
+
+`CronWorker::schedule()` で登録した worker ごとに、ジョブが二重に取られないかを見る。
+
+| 設定 | 状態 |
+|---|---|
+| `timeout + 10 > retry_after`（10 秒は余白） | `FAIL`（処理中のジョブを次の worker が取り直す。どの worker かを出す） |
+| CLI に pcntl がない | `later`（`--timeout` が効かない） |
+| すべて満たす | `ok` |
+| `CronWorker` でない `queue:work` だけ | `info`（オプションを読まないので確かめない） |
+| worker がない | `skip` |
 
 ## アプリの調べを足す
 

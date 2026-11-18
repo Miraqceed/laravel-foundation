@@ -64,6 +64,23 @@ class AlertSenderTest extends TestCase
         }
     }
 
+    public function test_throttled_tells_the_throttle_window_apart(): void
+    {
+        $this->channels(['log']);
+        Carbon::setTestNow('2026-11-18 10:00:00');
+
+        $this->assertFalse($this->sender()->throttled('k'));
+        $this->assertNotNull($this->sender()->send('k', 's', 'b'));
+        $this->assertTrue($this->sender()->throttled('k'));
+        $this->assertFalse($this->sender()->throttled('other'));
+        // send() が間引きで null を返す間と同じ（既定の60分では55分）
+        $this->assertNull($this->sender()->send('k', 's', 'b'));
+
+        Carbon::setTestNow('2026-11-18 10:55:01');
+        $this->assertFalse($this->sender()->throttled('k'));
+        $this->assertNotNull($this->sender()->send('k', 's', 'b'));
+    }
+
     public function test_writes_rows_before_delivering(): void
     {
         $this->channels(['webhook']);

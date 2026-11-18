@@ -35,6 +35,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | DB の接続の時間帯：接続の時間帯がアプリの時間帯とずれていないかを確かめる（`foundation:db-timezone`） | 設定なしで呼んで使う（自動では確かめない） | [docs/database-timezone.md](docs/database-timezone.md) |
 | 本番の設定の点検：`APP_DEBUG`・`APP_KEY`・メール・Vite・マイグレーション・信頼するプロキシなどを1つのコマンドで調べる（`foundation:deploy-check`）。アプリの調べを足せる | 流したときだけ働く（自動では流れない） | [docs/deploy-check.md](docs/deploy-check.md) |
 | 失敗の記録：ログが書けなくても投げない `report()`・DB に頼らない間引き・文の中の IP を伏せる助け・サーバーで作る要求の id（ログの行とジョブに渡す）・記録が壊れる場面を作る試しの助け | 記録は設定なしで呼んで使う。要求の id はアプリが中間を足したときだけ | [docs/failures.md](docs/failures.md) |
+| 共用サーバーのキュー：毎分の cron から `database` のキューを回す worker の登録（重なり止め・`retry_after` との整合）と、キューの溜まり・新しく失敗したジョブ・DB の大きさの見張り | 登録はアプリが呼んだときだけ。見張りは無効（`foundation.monitoring.enabled`） | [docs/queue.md](docs/queue.md) |
 | 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
 | 1回だけ使える合言葉：期限つき・ハッシュだけで持ち、同時の要求でも1回だけ通す（機械にトークンを受け取らせる合言葉・入場券など） | 無効（`foundation.one_time_codes.enabled`。表を作る） | [docs/one-time-codes.md](docs/one-time-codes.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |

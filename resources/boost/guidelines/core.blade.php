@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -163,6 +163,14 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 知らせの表は自動では消えない。`model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\Monitoring\Alerts\Alert` を指す（`--model` なしでは `app/Models` しか見ない）。送れたか諦めて `monitoring.alerts.prune_days`（既定 90）日たった知らせが消える。
 - **キャッシュのストアが `database` なら、`foundation:cache-prune` を schedule に入れる**（`Schedule::command('foundation:cache-prune')->hourly()`）。Laravel は期限切れの行を、その鍵がもう一度読まれたときにだけ消すので、回数の制限の行などが残り続ける。パッケージは自分では schedule に入れない。見張りが無効でも使える。
 - `foundation:install` で、この節を `AGENTS.md`・`CLAUDE.md` に写せる。
+
+### 共用サーバーで cron からキューを回す（`docs/queue.md`）
+
+- 常駐の worker を置けない環境で `database` のキューを回すときは、`routes/console.php` で `\Miraqceed\Foundation\Queue\CronWorker::schedule(queues: ['mail', 'default'], maxTime: 20, timeout: 30)` を呼ぶ。`queue:work` の schedule を自前で書かない（ロックの分・`retry_after`・見張りの数がつながっている）。メールは先のキューに、重い仕事は別の worker に分ける。
+- `timeout + 10 <= retry_after` にする（ジョブの `$timeout` も）。満たさないと、処理中のジョブを次の worker が取り直して2回動く。pcntl がないと `--timeout` は効かないので、ジョブの中の外への通信に短い timeout を付ける。
+- 本番で `QUEUE_CONNECTION=sync` にしない。本番で `cache:clear` を流さない（`database` のキャッシュの回数の制限・ロックの数えが消える）。毎分の処理に `withoutOverlapping()` を付ける。
+- 見張りが有効なら、`foundation:watch` がキューの溜まり（許す待ちは `monitoring.queues`、既定 10 分）・新しく失敗したジョブ・DB の大きさ（`monitoring.database.capacity_bytes` を決めたとき）も知らせる。画面には `QueueCheck` を使う。
+- `foundation:deploy-check` の `queue_worker`・`queue_timeouts` を通す。
 
 ### AI の費用の上限と記録（`docs/ai.md`）
 

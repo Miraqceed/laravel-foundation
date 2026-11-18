@@ -77,6 +77,11 @@ return [
         'heartbeat_url' => null,
         // foundation:watch を回す cron の式（monitoring が有効なときだけ schedule に入る）
         'watch_cron' => '0 * * * *',
+        // 見張る database のキュー：接続 => [キュー => 許す待ち（分）]。CronWorker::schedule() で登録したキューは、書かなくても10分で見る
+        // 例：'database' => ['mail' => 5, 'heavy' => 60]
+        'queues' => [],
+        // DB の大きさ（MySQL・MariaDB・PostgreSQL）。capacity_bytes が null なら見ない。容量の alert_ratio 以上で知らせる
+        'database' => ['capacity_bytes' => null, 'alert_ratio' => 0.7],
 
         // 運営への知らせ（AlertSender）
         'alerts' => [

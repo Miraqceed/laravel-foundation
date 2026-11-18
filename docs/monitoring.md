@@ -101,6 +101,23 @@ fi
 
 `foundation:watch` は、見張る名前ごとに：最後の成功が許す古さより前なら問題。一度も成功していなければ、**初めて見てから**許す古さがたつまでは問題にしない。問題があれば運営へ知らせ（鍵は止まっている処理の名前の組ごと。下の「間引きの鍵」）、終了コード 1。なければ `heartbeat_url`（あれば）へ GET して 0。つながらない・5xx・429 のときは2秒あけて合わせて3回まで送る（一瞬の失敗で心拍が抜けて、外の監視が止まったと知らせないように）。4xx（URL の書き損じ・鍵の誤り）は送り直さない。送れなくても失敗にしない。
 
+### キュー・失敗のジョブ・DB の大きさ
+
+同じ見張りの回で、次も見る（**どれかに問題があれば、心拍を送らず終了コード 1**。1つが読めなくても、ほかを読む。読めないことも問題として扱う）。
+
+- **キューの溜まり**：`CronWorker::schedule()`（`docs/queue.md`）で登録したキューと、`monitoring.queues` のキュー。一番長く待っているジョブ（取れるジョブか、期限切れの予約）の待ちが、許す待ち（既定 10 分）を超えたら知らせる。鍵は `foundation.watch.queue:<接続>:<キュー>`。`database` のキューだけを見る
+- **新しく失敗したジョブ**：`queue.failed.driver` が `database`・`database-uuids` のとき。前の回より後に失敗した分だけを、接続とキューごとの件数で知らせる（本文・例外の文は出さない）。鍵は `foundation.watch.failed-jobs`。**入れて最初の回は数えない**（入れる前の失敗を全部知らせない）。間引きの間（少し前に失敗のジョブを知らせた）に失敗した分は、知らせずに数え終える（その回だけ健全でない扱い）。知らせを DB に書けなかった回は、次の回に同じ分を数え直す
+  - 時刻はアプリの時計とアプリの時間帯で比べる（Laravel は `failed_at` を `Date::now()` で書く）。今の秒の中の失敗は、次の回に数える
+- **DB の大きさ**：`monitoring.database.capacity_bytes` を決めたときだけ。容量の `alert_ratio`（既定 0.7）以上で知らせる。鍵は `foundation.watch.database-size`。MySQL・MariaDB・PostgreSQL（SQLite は見ない）
+  - MySQL は `information_schema` の値を既定で24時間キャッシュするので、読む前に `information_schema_stats_expiry` を 0 にする。MariaDB にはこの変数がないので飛ばす（値は少し古いことがある）。共有の表領域（`innodb_file_per_table` が偽）では、空きを1回だけ足す
+
+```php
+'monitoring' => [
+    'queues' => ['database' => ['mail' => 5]],                          // 接続 => [キュー => 許す待ち（分）]
+    'database' => ['capacity_bytes' => 4_500_000_000, 'alert_ratio' => 0.7], // 共用サーバーの DB の容量など
+],
+```
+
 ## 運営への知らせ
 
 ```php
@@ -128,7 +145,7 @@ fi
 ```
 
 - `log.channel` が `null`（既定）なら、アプリの既定のチャネル（`LOG_CHANNEL`）に書く。`log.level`（既定 `error`）は書く重さ。**チャネルの `level`（`LOG_LEVEL`）より低い重さにすると、Monolog が行を捨てるのに、知らせは送れた扱いになる**（送り直さない）。`LOG_LEVEL` を `error` より高くしているアプリは `log.level` も上げる。
-- 自分のコードから知らせるとき：`app(AlertSender::class)->send('鍵', '件名', '本文')`。**投げない**（送り先の失敗も書き込みの失敗も飲む。DB への書き込みは savepoint で包み、PostgreSQL のトランザクションを中断させない）。戻りは `Alert`、間引かれたら `null`。
+- 自分のコードから知らせるとき：`app(AlertSender::class)->send('鍵', '件名', '本文')`。**投げない**（送り先の失敗も書き込みの失敗も飲む。DB への書き込みは savepoint で包み、PostgreSQL のトランザクションを中断させない）。戻りは `Alert`、間引かれたら `null`。間引きと書き込みの失敗を見分けたいときは、先に `throttled('鍵')` を呼ぶ（間引きの間なら真。DB が読めなければ投げる）。
 - 知らせは先に DB へ書いてから送る。送れなかった行は `foundation:watch`（毎回）と `php artisan foundation:alerts:retry --limit=20` で送り直す。`max_attempts` に達したら諦め、`foundation.alert.abandoned` を `Log::error` に残して `report()` する。
 - **間引きの鍵**：`foundation:watch` の鍵は `foundation.watch:` ＋ `sha1(止まっている処理の名前を並べ替えて ',' でつないだもの)`（例：`daily-report` だけなら `foundation.watch:7e5b43f6d13236348a716779f9ef19b9939f886d`）。**新しく止まった処理は、間引きの間でもすぐ知らせる**（組が変わるので鍵が変わる）。同じ組のままなら間引く。
 - **間引きの幅**：同じ鍵の知らせを作っていれば作らない間は、`throttle_minutes` が10より大きいときは `throttle_minutes - 5` 分（既定の60なら55分）、10以下ならそのまま。毎時の見張りと60分の間引きでは、送り直し（最大20行）で前の回の作成が数分遅れると、次の回が間引かれて1時間おきに抜けるため。止まったままなら、毎時の見張りのたびに知らせる。

@@ -34,6 +34,22 @@ class AlertSender
     ];
 
     /**
+     * 同じ鍵の知らせを、間引きの間（throttleWindow()）に作ってあるか。send() が間引きで null を返す条件と同じ。
+     * send() の null は、間引きと書き込みの失敗を見分けられないので、見分けが要る呼び手（失敗のジョブのしおり）が先に呼ぶ。
+     * send() と違い、DB が読めなければ投げる（読めないことを、間引きの間と取り違えないため）
+     */
+    public function throttled(string $key): bool
+    {
+        if (! config('foundation.monitoring.enabled')) {
+            return false;
+        }
+
+        $key = mb_substr(self::scrub($key), 0, 255);
+
+        return Alert::where('key', $key)->where('created_at', '>', now()->subMinutes(self::throttleWindow()))->exists();
+    }
+
+    /**
      * 同じ鍵の知らせを間引きの間（throttleWindow()）に作っていれば（送れたかは問わない）作らず null
      */
     public function send(string $key, string $subject, string $body): ?Alert

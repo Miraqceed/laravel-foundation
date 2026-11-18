@@ -38,6 +38,7 @@ use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
 use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
 use Miraqceed\Foundation\Monitoring\TaskRuns;
 use Miraqceed\Foundation\Monitoring\WatchList;
+use Miraqceed\Foundation\Queue\CronWorkers;
 use Miraqceed\Foundation\Redaction\Redactor;
 use Miraqceed\Foundation\RequestId\AssignRequestId;
 use Miraqceed\Foundation\Security\CspReportController;
@@ -53,6 +54,7 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->app->scoped(Nonce::class);
         $this->app->singleton(WatchList::class);
+        $this->app->singleton(CronWorkers::class);
         $this->app->singleton(AiStore::class);
         // 設定の書き違いは、初めて取り出したときに InvalidRedactionConfig で分かる
         $this->app->singleton(Redactor::class, fn () => Redactor::fromConfig());
