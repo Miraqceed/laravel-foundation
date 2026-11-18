@@ -2,4 +2,5 @@
 
 return [
     'reserved_email' => ':attributeには、メールを届けられません。普段お使いのメールアドレスを入れてください。',
+    'email_held' => ':attributeは、今は使えません。別のメールアドレスを入れてください。',
 ];

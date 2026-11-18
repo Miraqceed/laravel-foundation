@@ -89,6 +89,9 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 
 - パスワードを変えた後は `app(\Miraqceed\Foundation\Accounts\PasswordSessions::class)->afterChange($request, $user)`、再設定の後は `afterReset($user)` を呼ぶ（同じ要求の中で。キューに載せない）。Fortify は `EndSessionsAfterChange`（`PasswordUpdatedViaController`）・`EndSessionsAfterReset`（`PasswordReset`）を `Event::listen` で登録する。パッケージは登録しない。
 - パスワードを変えた後に `Auth::logoutOtherDevices()` を呼ばない（ハッシュの計算と書き込みが2回）。ほかの端末を締め出すには、`SESSION_DRIVER=database` か、web のグループの `auth.session`（`$middleware->authenticateSessions()`）が要る。`foundation:deploy-check` の `password_sessions` が見る。
+- メールアドレスの変更を、その場で書かない（Fortify・Breeze の雛形のまま使わない）。`foundation.email_changes.enabled` を真にして `migrate`、`app(\Miraqceed\Foundation\Accounts\EmailChanges::class)` の `request()`（頼む口に `password.confirm` と回数の数え）→ 新しいアドレスへのリンクの `confirm($id, $token, $request->user())`（経路に `auth`。頼んだ本人のログインの中だけ）→ 古いアドレスへの戻すリンクの `undo()`（戻したら `Auth::logout()` と `session()->invalidate()`）。リンクは GET で表示だけ、POST で動かす。
+- 登録・変更の検証に `new NotHeldEmail`（変更は `new NotHeldEmail($request->user())`）を足す。API キー・外部の連携は `AccountLockdown` を `foundation.email_changes.lockdown` に渡して戻すときに消す。パスワードの再設定・変更の後は `cancelPending($user)`。
+- アドレスの変更は、管理者の操作も含めて `EmailChanges` を通す（直に書くと、それまでの戻すリンクが `changed` になり、持ち主が戻せない）。トークンをログ・flash に入れない。`model:prune` で `Miraqceed\Foundation\Accounts\EmailChange` を指す。
 
 ### 1回だけ使える合言葉（`docs/one-time-codes.md`）
 
