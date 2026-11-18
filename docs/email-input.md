@@ -6,8 +6,9 @@
 - `EmailInput::canonical()`：比べの形（一意の列・探すとき）
 - `NormalizeEmailInput`：入力の欄を、検証の前に `normalize()` でそろえるミドルウェア（アプリが入れる）
 - `Login\CanonicalEmailKey`：回数の制限・押さえを、比べの形と同じ範囲にする鍵
+- `NotDisposableEmail`・`DisposableEmailDomains`：使い捨てのメールのドメインを断る規則（一覧のファイルはアプリが置く。下の 5）
 
-届かないドメイン（`example.com`・`.invalid` など）の判定は `ReservedEmailDomains`（`docs/reserved-email-domains.md`）。この部品は判定をしない。
+届かないドメイン（`example.com`・`.invalid` など）の判定は `ReservedEmailDomains`（`docs/reserved-email-domains.md`）。
 
 ## いつ使うか
 
@@ -150,6 +151,31 @@ final class CanonicalEmailAvailability implements EmailAvailability
 4. `email` の列も `normalize()` で書き直す（全角で入っていた行は、確認のメールが届いていない。確認の印を見直す）
 
 Gmail のそろえ方を後から入れると、`taro.yamada@gmail.com` と `taroyamada@gmail.com` で別々に作られていたアカウントが、2 で重なりとして出る。
+
+## 5. 使い捨てのメールアドレスを断る
+
+```php
+use Miraqceed\Foundation\Mail\NotDisposableEmail;
+
+'email' => ['required', 'email', new NotDisposableEmail],
+```
+
+```php
+// config/foundation.php
+'mail' => [
+    'disposable_domains' => resource_path('data/disposable-email-domains.txt'),
+],
+```
+
+- **一覧のファイルはアプリが置く。** パッケージは一覧を持たず、取りに行かない。公開の一覧（例：GitHub の `disposable-email-domains/disposable-email-domains` の `disposable_email_blocklist.conf`、CC0）を写し、CI か schedule で取り直す（一覧は増え続ける。取り直さないと古くなる）
+- 形：1行に1つのドメイン。`#` で始まる行と空の行は飛ばす。大文字・前後の空白・前後の点はそろえる
+- 1つのプロセスで1回だけ読む（容器の singleton）。設定の道が変われば読み直す
+- 判定の前に、アドレスを `EmailInput::normalize()` でそろえる（全角・`＠`・句点・末尾の点・大文字）。日本語のドメインは xn-- の形で比べる
+- **下位のドメインも当たる**（一覧に `mailinator.com` があれば `a.mailinator.com` も）。点のない名前（`jp` など）の行では当てない
+- 設定がない・ファイルが読めないときは `LogicException`（黙ってすべてを通さない）
+- 文は「使い捨てのメールアドレスは使えません。普段お使いのメールアドレスを入れてください。」（`foundation::validation.disposable_email`。`en` は英語）
+- 登録・メールアドレスの変更の欄に付ける。**ログインの欄には付けない**（登録済みのアドレスには「メールアドレスかパスワードが違う」と出す）
+- 一覧に誤って入った正しいドメインを外す口は持たない。一覧のファイルから消す
 
 ## してはいけないこと
 

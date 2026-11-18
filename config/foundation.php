@@ -138,6 +138,9 @@ return [
         // 真にすると、送るすべてのメールに Auto-Submitted: auto-generated を足す（自動の返信を止める。既にあれば変えない）。
         // 人が書いて人に送るメールも送るアプリは偽のまま、自動のメールにだけ Mail\AutomatedMessage::mark() を使う
         'auto_submitted' => false,
+        // Mail\NotDisposableEmail が読む、使い捨てのメールのドメインの一覧のファイル（1行に1つ。# は注釈）。パッケージは一覧を持たない。
+        // アプリが置き、取り直す（例：base_path('resources/data/disposable-email-domains.txt')）。null のまま規則を使うと LogicException
+        'disposable_domains' => null,
     ],
 
     // 稼働の確かめ（Health\HealthCheck・Health::route()）。経路はアプリが bootstrap/app.php で登録する
