@@ -17,6 +17,8 @@ use Miraqceed\Foundation\DeployCheck\Checks\MailLinks;
 use Miraqceed\Foundation\DeployCheck\Checks\MailViewCache;
 use Miraqceed\Foundation\DeployCheck\Checks\Migrations;
 use Miraqceed\Foundation\DeployCheck\Checks\PasswordSessions;
+use Miraqceed\Foundation\DeployCheck\Checks\QueueTimeouts;
+use Miraqceed\Foundation\DeployCheck\Checks\QueueWorker;
 use Miraqceed\Foundation\DeployCheck\Checks\SessionSecureCookie;
 use Miraqceed\Foundation\DeployCheck\Checks\TrustedHosts;
 use Miraqceed\Foundation\DeployCheck\Checks\TrustedProxies;
@@ -60,6 +62,8 @@ final class Runner
         PasswordSessions::class,
         DbMaskedBindings::class,
         ExceptionArgs::class,
+        QueueWorker::class,
+        QueueTimeouts::class,
     ];
 
     private const ID_PATTERN = '/\A[a-z][a-z0-9_]*\z/';
