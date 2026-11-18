@@ -207,6 +207,10 @@ class FoundationServiceProvider extends ServiceProvider
             ], 'foundation-one-time-code-migrations');
 
             $this->publishes([
+                __DIR__.'/../database/email-change-migrations' => database_path('migrations'),
+            ], 'foundation-email-change-migrations');
+
+            $this->publishes([
                 __DIR__.'/../lang' => $this->app->langPath('vendor/foundation'),
             ], 'foundation-lang');
 
@@ -232,6 +236,11 @@ class FoundationServiceProvider extends ServiceProvider
         // 1回だけ使える合言葉の表も、有効なときだけ読み込む
         if (config('foundation.one_time_codes.enabled')) {
             $this->loadMigrationsFrom(__DIR__.'/../database/one-time-code-migrations');
+        }
+
+        // メールアドレスの変更の表も、有効なときだけ読み込む（入れただけでは作らない）
+        if (config('foundation.email_changes.enabled')) {
+            $this->loadMigrationsFrom(__DIR__.'/../database/email-change-migrations');
         }
 
         if (config('foundation.monitoring.enabled')) {

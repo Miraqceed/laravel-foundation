@@ -210,6 +210,29 @@ return [
         'guard' => 'web',
     ],
 
+    // メールアドレスの変更と戻すリンク（Accounts\EmailChanges・Rules\NotHeldEmail）。呼んだときだけ働く
+    'email_changes' => [
+        // 既定で無効。真のときだけ表のマイグレーションを読み込む（vendor:publish --tag=foundation-email-change-migrations でも写せる）
+        'enabled' => false,
+        // 新しいアドレスへの確認のリンクの期限（分）
+        'confirm_minutes' => 60,
+        // 古いアドレスへの戻すリンクの期限（日）。古いアドレスをほかの人に使わせない押さえも同じ間
+        'undo_days' => 7,
+        // 利用者のモデルのメールアドレスの列
+        'email_column' => 'email',
+        // 押さえで「同じアドレス」とみなす範囲（Login\EmailKey のクラス）。null なら NormalizedEmailKey
+        'email_key' => null,
+        // アドレスがほかのアカウントに使われているか（Accounts\EmailAvailability のクラス）。null なら ModelEmailAvailability
+        'availability' => null,
+        // 戻すときに API キー・連携などを消す差し込み（Accounts\AccountLockdown のクラス）。null なら何もしない
+        'lockdown' => null,
+        // 再設定のトークンを消すブローカー。null なら auth.defaults.passwords。false なら消さない（再設定を持たないアプリ）
+        'password_broker' => null,
+        // もう使えない行を、この日数の後に model:prune で消す（アプリが schedule に入れる：
+        // Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\Accounts\EmailChange::class]])->daily();）
+        'prune_days' => 7,
+    ],
+
     // 本番の設定の点検（php artisan foundation:deploy-check）。流したときだけ働く
     'deploy_check' => [
         // アプリの調べのクラス（Miraqceed\Foundation\DeployCheck\Check。容器から作る）。並びのとおりに、パッケージの既定の調べの後に走る
