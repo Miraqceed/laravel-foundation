@@ -22,7 +22,7 @@ class NotDisposableEmailTest extends TestCase
 
         $this->dir = sys_get_temp_dir().'/foundation-disposable-'.bin2hex(random_bytes(6));
         File::ensureDirectoryExists($this->dir);
-        config(['foundation.mail.disposable_domains' => $this->writeList("# 作り物の一覧\n\nthrowaway.example\n  Burner-Mail.TEST.  \n.trash.invalid\nexample-disposable.jp\n")]);
+        config(['foundation.mail.disposable_domains' => $this->writeList("# 作り物の一覧\n\nthrowaway.example\n  Burner-Mail.TEST.  \n.trash.invalid\ndisposable.example.net\n")]);
     }
 
     protected function tearDown(): void
@@ -47,10 +47,10 @@ class NotDisposableEmailTest extends TestCase
 
     public function test_一覧のドメインと下位のドメインが当たる(): void
     {
-        foreach (['a@throwaway.example', 'a@mx.throwaway.example', 'a@burner-mail.test', 'a@trash.invalid', 'a@x.y.example-disposable.jp'] as $email) {
+        foreach (['a@throwaway.example', 'a@mx.throwaway.example', 'a@burner-mail.test', 'a@trash.invalid', 'a@x.y.disposable.example.net'] as $email) {
             $this->assertTrue($this->domains()->contains($email), $email);
         }
-        foreach (['a@example', 'a@notthrowaway.example', 'a@throwaway.example.jp', 'a@company.jp', 'throwaway.example', 'a@'] as $email) {
+        foreach (['a@example', 'a@notthrowaway.example', 'a@throwaway.example.org', 'a@company.example', 'throwaway.example', 'a@'] as $email) {
             $this->assertFalse($this->domains()->contains($email), $email);
         }
     }
@@ -66,15 +66,15 @@ class NotDisposableEmailTest extends TestCase
     {
         config(['foundation.mail.disposable_domains' => $this->writeList("jp\nexample\n", 'tld.txt')]);
 
-        $this->assertFalse($this->domains()->contains('a@company.jp'));
+        $this->assertFalse($this->domains()->contains('a@company.example'));
     }
 
     public function test_日本語のドメインは_xn_の形で比べる(): void
     {
-        config(['foundation.mail.disposable_domains' => $this->writeList("例え.jp\n", 'idn.txt')]);
+        config(['foundation.mail.disposable_domains' => $this->writeList("例え.example\n", 'idn.txt')]);
 
-        $this->assertTrue($this->domains()->contains('a@例え.jp'));
-        $this->assertTrue($this->domains()->contains('a@xn--r8jz45g.jp'));
+        $this->assertTrue($this->domains()->contains('a@例え.example'));
+        $this->assertTrue($this->domains()->contains('a@xn--r8jz45g.example'));
     }
 
     public function test_1つのプロセスで1回だけ読み_道が変われば読み直す(): void
@@ -100,7 +100,7 @@ class NotDisposableEmailTest extends TestCase
         $this->assertTrue($validator->fails());
         $this->assertSame('使い捨てのメールアドレスは使えません。普段お使いのメールアドレスを入れてください。', $validator->errors()->first('email'));
 
-        $this->assertTrue(Validator::make(['email' => 'a@company.jp'], ['email' => [new NotDisposableEmail]])->passes());
+        $this->assertTrue(Validator::make(['email' => 'a@company.example'], ['email' => [new NotDisposableEmail]])->passes());
         $this->assertTrue(Validator::make(['email' => ['a@throwaway.example']], ['email' => [new NotDisposableEmail]])->passes());
     }
 
@@ -110,7 +110,7 @@ class NotDisposableEmailTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('foundation.mail.disposable_domains');
-        Validator::make(['email' => 'a@company.jp'], ['email' => [new NotDisposableEmail]])->passes();
+        Validator::make(['email' => 'a@company.example'], ['email' => [new NotDisposableEmail]])->passes();
     }
 
     public function test_一覧が読めなければ止める(): void
@@ -118,6 +118,6 @@ class NotDisposableEmailTest extends TestCase
         config(['foundation.mail.disposable_domains' => $this->dir.'/missing.txt']);
 
         $this->expectException(LogicException::class);
-        $this->domains()->contains('a@company.jp');
+        $this->domains()->contains('a@company.example');
     }
 }

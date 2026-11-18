@@ -199,7 +199,7 @@ final class Redactor
         // 切ったことで、前は形に合わなかった文が形に合うことがある（03-1234-56789 → 03-1234-5678）。もう一度当てる
         $redacted = $this->redactString(mb_substr($redacted, 0, $maxChars), '', $findings);
 
-        // もう一度当てると、印が当たった文より長いと上限を超える（6字の a@b.jp が10字の印になる）。上限で切って終える。
+        // もう一度当てると、印が当たった文より長いと上限を超える（6字の a@b.zz が10字の印になる）。上限で切って終える。
         // 末尾に印の欠片が残りうる（限界）
         return new Redacted(mb_substr($redacted, 0, $maxChars), $findings);
     }
@@ -361,7 +361,7 @@ final class Redactor
     /**
      * メールアドレスを伏せる。ドメインの最後の区切りが英字2字以上になるまで、後ろの区切りを外して残す
      * （a@example.com.1 は a@example.com を伏せ、.1 を残す）。最後の区切りが英字2字以上の後に - が続くときは、
-     * 英字の所で終わりとする（a@b.com-x は a@b.com を伏せ、-x を残す）。区切りが1つしか残らなければメールアドレスと読まない
+     * 英字の所で終わりとする（a@b.example-x は a@b.example を伏せ、-x を残す）。区切りが1つしか残らなければメールアドレスと読まない
      */
     private function emailReplacement(string $match): ?string
     {
@@ -373,7 +373,7 @@ final class Redactor
             if (preg_match('/^[A-Za-z]{2,}$/D', $last) === 1) {
                 break;
             }
-            // 最後の区切りが英字2字以上の後に - が続く（a@b.com-x）。英字の所までをメールアドレスと読み、- からは残す
+            // 最後の区切りが英字2字以上の後に - が続く（a@b.example-x）。英字の所までをメールアドレスと読み、- からは残す
             if (preg_match('/^([A-Za-z]{2,})(-.*)$/sD', $last, $split) === 1) {
                 $labels[array_key_last($labels)] = $split[1];
                 $tail = $split[2].$tail;

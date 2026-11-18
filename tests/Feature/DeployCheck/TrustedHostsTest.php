@@ -24,7 +24,7 @@ class TrustedHostsTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('app.url', 'https://app.example.jp');
+        $app['config']->set('app.url', 'https://app.example.com');
     }
 
     protected function tearDown(): void
@@ -40,7 +40,7 @@ class TrustedHostsTest extends TestCase
         $result = (new TrustedHosts)->run();
 
         // detail に Host・アドレスの値を出さない
-        foreach (['app.example.jp', '10.0.0.0'] as $value) {
+        foreach (['app.example.com', '10.0.0.0'] as $value) {
             $this->assertStringNotContainsString($value, (string) $result->detail);
         }
 

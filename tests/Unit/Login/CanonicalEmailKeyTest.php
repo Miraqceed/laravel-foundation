@@ -22,8 +22,8 @@ class CanonicalEmailKeyTest extends TestCase
     {
         $key = new CanonicalEmailKey;
 
-        $this->assertNotSame($key->key('taro.yamada@example.co.jp'), $key->key('taroyamada@example.co.jp'));
-        $this->assertNotSame($key->key('taro+a@example.co.jp'), $key->key('taro@example.co.jp'));
-        $this->assertSame($key->key('Taro@Example.co.jp'), $key->key('taro@example.co.jp'));
+        $this->assertNotSame($key->key('taro.yamada@example.com'), $key->key('taroyamada@example.com'));
+        $this->assertNotSame($key->key('taro+a@example.com'), $key->key('taro@example.com'));
+        $this->assertSame($key->key('Taro@Example.com'), $key->key('taro@example.com'));
     }
 }

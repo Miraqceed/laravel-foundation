@@ -73,12 +73,12 @@ class RedactorTruncateTest extends TestCase
     public function test_output_never_exceeds_the_limit(): void
     {
         $texts = [
-            'メール a@b.jp と a@b.jp を見た',
+            'メール a@b.zz と a@b.zz を見た',
             '番号 03-1234-56789 と 03-1234-56789',
-            'x a@b.jp',
-            // a@b.jp9 はメールアドレスの形に合わない。a@b.jp で切れると形に合い、6字が印（10字）に替わって伸びる
-            'x a@b.jp9',
-            'メール a@b.jp9 です',
+            'x a@b.zz',
+            // a@b.zz9 はメールアドレスの形に合わない。a@b.zz で切れると形に合い、6字が印（10字）に替わって伸びる
+            'x a@b.zz9',
+            'メール a@b.zz9 です',
         ];
         $redactor = new Redactor;
 

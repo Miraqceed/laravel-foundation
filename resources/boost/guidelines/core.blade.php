@@ -50,7 +50,7 @@ return CsvResponse::download('一覧.csv', ['ID', '会社名'], (function () {
 
 ### メールアドレスの入力の整え方（`docs/email-input.md`）
 
-- 全角のアドレス（`ｔａｒｏ@example.co.jp`）と句点のドメイン（`example。co.jp`）は `email` の規則（`email:rfc,strict` も）を通る。`$middleware->web(append: \Miraqceed\Foundation\Mail\NormalizeEmailInput::class)` を入れて、検証の前にそろえる（`email`・入れ子・`_confirmation`。ほかの名前は `foundation.mail.input_fields` に足す）。ミドルウェアを通らない口（コマンド・外部のログイン・取り込み）は `EmailInput::normalize()` を呼ぶ。
+- 全角のアドレス（`ｔａｒｏ@example.com`）と句点のドメイン（`example。com`）は `email` の規則（`email:rfc,strict` も）を通る。`$middleware->web(append: \Miraqceed\Foundation\Mail\NormalizeEmailInput::class)` を入れて、検証の前にそろえる（`email`・入れ子・`_confirmation`。ほかの名前は `foundation.mail.input_fields` に足す）。ミドルウェアを通らない口（コマンド・外部のログイン・取り込み）は `EmailInput::normalize()` を呼ぶ。
 - 保存する値（送る宛先）は `normalize()`、一意の列と探すとき（ログイン・再設定・外部の連携の照合）は `EmailInput::canonical()`（全体を小文字。Gmail だけ点と `+` を落とす）。Gmail のそろえ方をほかのドメインに広げない。送る宛先に `canonical()` の値を使わない。
 - ログインのロック・`foundation.email_changes.email_key` は `Login\CanonicalEmailKey` にして、比べの列と範囲をそろえる。
 - 使い捨てのメールを断るなら、登録・変更の欄に `new \Miraqceed\Foundation\Mail\NotDisposableEmail` を付け、一覧のファイルの道を `foundation.mail.disposable_domains` に書く（パッケージは一覧を持たない。公開の一覧を写して CI か schedule で取り直す）。一覧を自前で読み直す・`in_array` で毎回比べる形を書かない（1回だけ読み、下位のドメインも当てる）。ログインの欄には付けない。

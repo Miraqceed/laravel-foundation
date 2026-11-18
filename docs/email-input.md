@@ -14,8 +14,8 @@
 
 利用者がメールアドレスを打つ口（登録・ログイン・再設定・変更・招待）を持つアプリ。自分で書くと次を踏む。
 
-- 日本語の入力のまま打った全角のアドレス（`ｔａｒｏ@example.co.jp`・`taro@ｅｘａｍｐｌｅ.co.jp`）は、Laravel の `email` の規則（`email:rfc,strict` も）を**通る**。全角のまま保存され、確認のメールは届かず、同じ人が正しいアドレスで登録し直しても「使われている」にならない
-- `taro@example。co.jp`（句点）も規則を通る。`mb_convert_kana()` でも NFKC でも、句点は点にならない
+- 日本語の入力のまま打った全角のアドレス（`ｔａｒｏ@example.com`・`taro@ｅｘａｍｐｌｅ.com`）は、Laravel の `email` の規則（`email:rfc,strict` も）を**通る**。全角のまま保存され、確認のメールは届かず、同じ人が正しいアドレスで登録し直しても「使われている」にならない
+- `taro@example。com`（句点）も規則を通る。`mb_convert_kana()` でも NFKC でも、句点は点にならない
 - 大文字・小文字の違いで、同じ人のアカウントが2つできる（Google などの外部のログインは小文字で返す）。Gmail は点と `+` 以降を区別しないので、`taro.yamada+news@gmail.com` でも2つ目を作れる
 - Gmail のそろえ方を、ほかのドメインに広げると、別の人を同じとみなす（Google Workspace の独自ドメインは点を区別する）
 - 全角を半角にするとき、壊れた UTF-8 を直してしまう（検証で断るべき値が通る）
@@ -36,8 +36,8 @@
 ```php
 use Miraqceed\Foundation\Mail\EmailInput;
 
-EmailInput::normalize(' ｔａｒｏ＠Example。CO.JP。');   // 'taro@example.co.jp'
-EmailInput::normalize('Taro.Yamada@Example.co.jp');      // 'Taro.Yamada@example.co.jp'
+EmailInput::normalize(' ｔａｒｏ＠Example。COM。');   // 'taro@example.com'
+EmailInput::normalize('Taro.Yamada@Example.com');      // 'Taro.Yamada@example.com'
 EmailInput::canonical('Taro.Yamada+news@GoogleMail.com'); // 'taroyamada@gmail.com'
 ```
 
