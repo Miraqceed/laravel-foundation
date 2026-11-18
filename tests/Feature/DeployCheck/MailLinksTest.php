@@ -56,7 +56,7 @@ class MailLinksTest extends TestCase
     #[DefineEnvironment('linksFromAppUrl')]
     public function test_アプリが_createUrlUsing_で上書きしていれば_info(): void
     {
-        ResetPassword::createUrlUsing(fn (object $notifiable, string $token) => 'https://app-own.example.jp/reset-password/'.$token);
+        ResetPassword::createUrlUsing(fn (object $notifiable, string $token) => 'https://app-own.example.com/reset-password/'.$token);
 
         [$status, $detail] = $this->check();
         $this->assertSame(Status::Info, $status);

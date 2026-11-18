@@ -50,7 +50,7 @@ Laravel 12.15 から、`Markdown::withSecuredEncoding()` を呼ぶと、メー�
 
 - 再設定のリンク：`APP_URL` の根で `password.reset` の URL（`token`・`email`）
 - 確認のリンク：`APP_URL` の根で `verification.verify` の署名つきの URL（期限は `auth.verification.expire`、既定 60 分）。署名は絶対の URL で作るので、Fortify・Breeze の `signed` の経路がそのまま通る
-- 経路の名前と引数は Laravel の既定と同じ。`APP_URL` の道（`https://example.jp/app`）も保つ
+- 経路の名前と引数は Laravel の既定と同じ。`APP_URL` の道（`https://example.com/app`）も保つ
 - 全体の `URL` の状態（`URL::forceRootUrl`・`forceScheme`）は変えない。同じ要求の中のほかの `url()`・`route()` は、要求の Host のまま
 - `APP_URL` が空なら、Laravel の既定のまま（要求の Host から作る）
 
@@ -124,7 +124,7 @@ public function toMail(object $notifiable): MailMessage
     return (new MailMessage)->subject('…')->line('…')
         ->withSymfonyMessage(fn (Email $email) => AutomatedMessage::mark($email, 'notification.'.$this->notification->id));
 }
-// Message-ID: <notification.01JD…@app.example.jp>（APP_URL のホスト。日本語のドメインは xn-- の形）
+// Message-ID: <notification.01JD…@app.example.com>（APP_URL のホスト。日本語のドメインは xn-- の形）
 // Auto-Submitted: auto-generated
 ```
 

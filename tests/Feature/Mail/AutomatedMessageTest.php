@@ -26,7 +26,7 @@ class AutomatedMessageTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('app.url', 'https://app.example.jp');
+        $app['config']->set('app.url', 'https://app.example.com');
         $app['config']->set('mail.default', 'array');
     }
 
@@ -47,7 +47,7 @@ class AutomatedMessageTest extends TestCase
         $email = AutomatedMessage::mark(new Email, 'notification.01JD7Z');
 
         $this->assertSame('auto-generated', $this->headerOf($email, 'Auto-Submitted'));
-        $this->assertSame('<notification.01JD7Z@app.example.jp>', $this->headerOf($email, 'Message-ID'));
+        $this->assertSame('<notification.01JD7Z@app.example.com>', $this->headerOf($email, 'Message-ID'));
     }
 
     public function test_id_を渡さなければ_Message_ID_は付けない_既にある_Auto_Submitted_は変えない(): void
@@ -77,11 +77,11 @@ class AutomatedMessageTest extends TestCase
             }
         };
 
-        Notifications::route('mail', 'taro@app-mail.jp')->notifyNow($notification);
-        Notifications::route('mail', 'taro@app-mail.jp')->notifyNow($notification);
+        Notifications::route('mail', 'taro@example-recipient.zz')->notifyNow($notification);
+        Notifications::route('mail', 'taro@example-recipient.zz')->notifyNow($notification);
 
         $this->assertCount(2, $this->sent);
-        $this->assertSame('<notification.42@app.example.jp>', $this->headerOf($this->sent[0], 'Message-ID'));
+        $this->assertSame('<notification.42@app.example.com>', $this->headerOf($this->sent[0], 'Message-ID'));
         $this->assertSame($this->headerOf($this->sent[0], 'Message-ID'), $this->headerOf($this->sent[1], 'Message-ID'));
         $this->assertSame('auto-generated', $this->headerOf($this->sent[1], 'Auto-Submitted'));
     }
@@ -90,14 +90,14 @@ class AutomatedMessageTest extends TestCase
     {
         $this->app['request']->headers->set('Host', 'evil.example.net');
 
-        $this->assertSame('<n.1@app.example.jp>', $this->headerOf(AutomatedMessage::mark(new Email, 'n.1'), 'Message-ID'));
+        $this->assertSame('<n.1@app.example.com>', $this->headerOf(AutomatedMessage::mark(new Email, 'n.1'), 'Message-ID'));
     }
 
     public function test_日本語のホストは_xn_の形(): void
     {
-        config(['app.url' => 'https://例え.jp']);
+        config(['app.url' => 'https://例え.example']);
 
-        $this->assertSame('<n.1@xn--r8jz45g.jp>', $this->headerOf(AutomatedMessage::mark(new Email, 'n.1'), 'Message-ID'));
+        $this->assertSame('<n.1@xn--r8jz45g.example>', $this->headerOf(AutomatedMessage::mark(new Email, 'n.1'), 'Message-ID'));
     }
 
     public function test_id_の形が違えば投げる(): void
@@ -122,7 +122,7 @@ class AutomatedMessageTest extends TestCase
 
     public function test_設定が偽なら_Auto_Submitted_を足さない(): void
     {
-        Mail::raw('本文', fn ($message) => $message->to('taro@app-mail.jp')->subject('件名'));
+        Mail::raw('本文', fn ($message) => $message->to('taro@example-recipient.zz')->subject('件名'));
 
         $this->assertNull($this->sent[0]->getHeaders()->get('Auto-Submitted'));
     }
@@ -131,9 +131,9 @@ class AutomatedMessageTest extends TestCase
     {
         config(['foundation.mail.auto_submitted' => true]);
 
-        Mail::raw('本文', fn ($message) => $message->to('taro@app-mail.jp')->subject('件名'));
-        Mail::to('taro@app-mail.jp')->send(new PlainMailable);
-        Notifications::route('mail', 'taro@app-mail.jp')->notifyNow(new class extends Notification
+        Mail::raw('本文', fn ($message) => $message->to('taro@example-recipient.zz')->subject('件名'));
+        Mail::to('taro@example-recipient.zz')->send(new PlainMailable);
+        Notifications::route('mail', 'taro@example-recipient.zz')->notifyNow(new class extends Notification
         {
             public function via(object $notifiable): array
             {
@@ -157,7 +157,7 @@ class AutomatedMessageTest extends TestCase
         config(['foundation.mail.auto_submitted' => true, 'foundation.mail.drop_reserved_recipients' => true]);
 
         Mail::raw('本文', function ($message) {
-            $message->to('taro@app-mail.jp')->subject('件名');
+            $message->to('taro@example-recipient.zz')->subject('件名');
             $message->getSymfonyMessage()->getHeaders()->addTextHeader('Auto-Submitted', 'auto-replied');
         });
         // 予約の宛先だけのメールは、差し込みが止める（聞き手の並びで止まらない）

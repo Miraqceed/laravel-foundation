@@ -12,7 +12,7 @@ use Miraqceed\Foundation\Tests\TestCase;
 
 /**
  * 知らせのメールは、実在しないことが決まっている宛先を外して送る。残りがなければ送れなかったと記録する。
- * 宛先の example.co.jp は、試しのために届くとみなされる（予約の名前の一覧に入らない）ドメイン。
+ * 宛先の example-ops.zz は、試しのために届くとみなされる（予約の名前の一覧に入らない）ドメイン（.zz は割り当てのないトップレベル。外へは送らない）。
  */
 class MailChannelTest extends TestCase
 {
@@ -59,8 +59,8 @@ class MailChannelTest extends TestCase
     {
         Mail::fake();
 
-        $this->assertNotNull($this->send('ops@example.co.jp')->sent_at);
-        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@example.co.jp'));
+        $this->assertNotNull($this->send('ops@example-ops.zz')->sent_at);
+        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@example-ops.zz'));
     }
 
     public function test_一部だけ届かない宛先なら残りへ送って警告する(): void
@@ -68,11 +68,11 @@ class MailChannelTest extends TestCase
         Mail::fake();
         Log::spy();
 
-        $delivery = $this->send(['ops@example.co.jp', 'ops@example.com']);
+        $delivery = $this->send(['ops@example-ops.zz', 'ops@example.com']);
 
         $this->assertNotNull($delivery->sent_at);
         Mail::assertSent(AlertMail::class, 1);
-        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@example.co.jp') && ! $mail->hasTo('ops@example.com'));
+        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@example-ops.zz') && ! $mail->hasTo('ops@example.com'));
         Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message) => str_contains($message, 'ops@example.com'));
     }
 
@@ -81,10 +81,10 @@ class MailChannelTest extends TestCase
         Mail::fake();
         Log::spy();
 
-        $delivery = $this->send([['email' => 'ops@company.jp', 'name' => '運営'], 'ops@example.com']);
+        $delivery = $this->send([['email' => 'ops@example-ops.zz', 'name' => '運営'], 'ops@example.com']);
 
         $this->assertNotNull($delivery->sent_at);
-        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@company.jp', '運営') && ! $mail->hasTo('ops@example.com'));
+        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@example-ops.zz', '運営') && ! $mail->hasTo('ops@example.com'));
         Log::shouldHaveReceived('warning')->once()->withArgs(fn (string $message) => str_contains($message, 'ops@example.com'));
     }
 
@@ -92,8 +92,8 @@ class MailChannelTest extends TestCase
     {
         Mail::fake();
 
-        $this->assertNotNull($this->send([['email' => 'ops@company.jp', 'name' => '運営']])->sent_at);
-        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@company.jp', '運営'));
+        $this->assertNotNull($this->send([['email' => 'ops@example-ops.zz', 'name' => '運営']])->sent_at);
+        Mail::assertSent(AlertMail::class, fn (AlertMail $mail) => $mail->hasTo('ops@example-ops.zz', '運営'));
     }
 
     public function test_宛先がすべて届かなければ投げる(): void

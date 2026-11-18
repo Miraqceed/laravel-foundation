@@ -20,8 +20,8 @@ class AppUrlLinksTest extends TestCase
         parent::defineEnvironment($app);
 
         $app['config']->set('mail.default', 'array');
-        $app['config']->set('mail.from', ['address' => 'app@example.co.jp', 'name' => 'App']);
-        $app['config']->set('app.url', 'https://app.example.jp');
+        $app['config']->set('mail.from', ['address' => 'app@example.com', 'name' => 'App']);
+        $app['config']->set('app.url', 'https://app.example.com');
     }
 
     protected function linksFromAppUrl($app): void
@@ -95,7 +95,7 @@ class AppUrlLinksTest extends TestCase
     {
         $this->get('http://evil.example/send-reset')->assertOk();
 
-        $this->assertSame('https://app.example.jp/reset-password/reset-token?email=someone%40gmail.com', $this->sentLink());
+        $this->assertSame('https://app.example.com/reset-password/reset-token?email=someone%40gmail.com', $this->sentLink());
     }
 
     #[DefineEnvironment('linksFromAppUrl')]
@@ -104,7 +104,7 @@ class AppUrlLinksTest extends TestCase
         $this->get('http://evil.example/send-verify')->assertOk();
         $link = $this->sentLink();
 
-        $this->assertStringStartsWith('https://app.example.jp/email/verify/7/'.sha1('someone@gmail.com').'?expires=', $link);
+        $this->assertStringStartsWith('https://app.example.com/email/verify/7/'.sha1('someone@gmail.com').'?expires=', $link);
         $this->get($link)->assertOk()->assertSee('verified');
 
         // 書き換えると通らない
@@ -126,11 +126,11 @@ class AppUrlLinksTest extends TestCase
     #[DefineEnvironment('linksFromAppUrl')]
     public function test_APP_URL_の道も保つ(): void
     {
-        config(['app.url' => 'https://example.jp/app/']);
+        config(['app.url' => 'https://example.com/app/']);
 
         $this->get('http://evil.example/send-reset')->assertOk();
 
-        $this->assertSame('https://example.jp/app/reset-password/reset-token?email=someone%40gmail.com', $this->sentLink());
+        $this->assertSame('https://example.com/app/reset-password/reset-token?email=someone%40gmail.com', $this->sentLink());
     }
 
     #[DefineEnvironment('linksFromAppUrl')]
@@ -141,6 +141,6 @@ class AppUrlLinksTest extends TestCase
 
         $this->get('http://evil.example/send-reset')->assertOk();
 
-        $this->assertSame('https://app-own.example.jp/reset-password/reset-token', $this->sentLink());
+        $this->assertSame('https://app-own.example.com/reset-password/reset-token', $this->sentLink());
     }
 }

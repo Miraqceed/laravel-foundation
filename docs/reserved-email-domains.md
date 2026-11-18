@@ -21,7 +21,7 @@
 - ドメイン：`example.com`・`example.net`・`example.org`（そのサブドメインも）
 - 点のないドメイン（`a@intranet`。インターネットの宛先にならない）
 
-比べる前に、最後の ASCII の `@` より後のドメインの、前後の空白・大文字・末尾の点・全角の英数字・全角のピリオド `．` と句点 `。` `｡` をそろえる。比べるのはラベルの境目だけ（`notexample.com`・`example.com.au`・`invalid.jp` は予約でない）。
+比べる前に、最後の ASCII の `@` より後のドメインの、前後の空白・大文字・末尾の点・全角の英数字・全角のピリオド `．` と句点 `。` `｡` をそろえる。比べるのはラベルの境目だけ（`notexample.com`・`example.com.zz`・`invalid.zz` は予約でない）。
 
 ```php
 use Miraqceed\Foundation\Mail\ReservedEmailDomains;

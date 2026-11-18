@@ -27,37 +27,37 @@ class NormalizeEmailInputTest extends TestCase
     public function test_email_と入れ子と_confirmation_をそろえ_ほかの欄は変えない(): void
     {
         $this->postJson('/with', [
-            'email' => 'ｔａｒｏ＠Example。CO.JP。',
-            'email_confirmation' => 'ｔａｒｏ＠Example。CO.JP。',
-            'rows' => [['email' => 'ｈａｎａ@example.co.jp', 'email_confirmation' => 'ｈａｎａ@example.co.jp', 'name' => 'ｈａｎａ']],
+            'email' => 'ｔａｒｏ＠Example。COM。',
+            'email_confirmation' => 'ｔａｒｏ＠Example。COM。',
+            'rows' => [['email' => 'ｈａｎａ@example.com', 'email_confirmation' => 'ｈａｎａ@example.com', 'name' => 'ｈａｎａ']],
             'password' => 'ｐａｓｓ　',
-            'new_email' => 'ｎｅｗ@example.co.jp',
-            'note' => 'ｔａｒｏ@example.co.jp',
+            'new_email' => 'ｎｅｗ@example.com',
+            'note' => 'ｔａｒｏ@example.com',
         ])->assertExactJson([
-            'email' => 'taro@example.co.jp',
-            'email_confirmation' => 'taro@example.co.jp',
-            'rows' => [['email' => 'hana@example.co.jp', 'email_confirmation' => 'hana@example.co.jp', 'name' => 'ｈａｎａ']],
+            'email' => 'taro@example.com',
+            'email_confirmation' => 'taro@example.com',
+            'rows' => [['email' => 'hana@example.com', 'email_confirmation' => 'hana@example.com', 'name' => 'ｈａｎａ']],
             'password' => 'ｐａｓｓ　',
-            'new_email' => 'ｎｅｗ@example.co.jp',
-            'note' => 'ｔａｒｏ@example.co.jp',
+            'new_email' => 'ｎｅｗ@example.com',
+            'note' => 'ｔａｒｏ@example.com',
         ]);
     }
 
     public function test_フォームの本文も同じ(): void
     {
-        $this->post('/with', ['email' => 'ｔａｒｏ@example.co.jp'])->assertJson(['email' => 'taro@example.co.jp']);
+        $this->post('/with', ['email' => 'ｔａｒｏ@example.com'])->assertJson(['email' => 'taro@example.com']);
     }
 
     public function test_全角で両方を打っても_confirmed_と_email_の規則を通る(): void
     {
-        $this->postJson('/register', ['email' => 'ｔａｒｏ@example.co.jp。', 'email_confirmation' => 'ｔａｒｏ@example.co.jp。'])
+        $this->postJson('/register', ['email' => 'ｔａｒｏ@example.com。', 'email_confirmation' => 'ｔａｒｏ@example.com。'])
             ->assertOk()
-            ->assertExactJson(['email' => 'taro@example.co.jp']);
+            ->assertExactJson(['email' => 'taro@example.com']);
     }
 
     public function test_整えた値は_email_の規則を通る(): void
     {
-        foreach (['ｔａｒｏ@example.co.jp', 'taro@ｅｘａｍｐｌｅ.co.jp', 'taro＠example.co.jp', 'taro@example。co.jp', 'taro@example.co.jp。', ' ＴＡＲＯ@example.co.jp　'] as $input) {
+        foreach (['ｔａｒｏ@example.com', 'taro@ｅｘａｍｐｌｅ.com', 'taro＠example.com', 'taro@example。com', 'taro@example.com。', ' ＴＡＲＯ@example.com　'] as $input) {
             $email = $this->postJson('/with', ['email' => $input])->json('email');
             $this->assertTrue(Validator::make(['e' => $email], ['e' => 'email:rfc,strict'])->passes(), $input);
         }
@@ -67,29 +67,29 @@ class NormalizeEmailInputTest extends TestCase
     {
         config(['foundation.mail.input_fields' => ['email', 'new_email']]);
 
-        $this->postJson('/with', ['new_email' => 'ｎｅｗ@example.co.jp', 'new_email_confirmation' => 'ｎｅｗ@example.co.jp'])
-            ->assertExactJson(['new_email' => 'new@example.co.jp', 'new_email_confirmation' => 'new@example.co.jp']);
+        $this->postJson('/with', ['new_email' => 'ｎｅｗ@example.com', 'new_email_confirmation' => 'ｎｅｗ@example.com'])
+            ->assertExactJson(['new_email' => 'new@example.com', 'new_email_confirmation' => 'new@example.com']);
     }
 
     public function test_文字列でない値と壊れた_UTF_8_は変えない(): void
     {
-        $this->post('/with', ['email' => ['ｔａｒｏ@example.co.jp']])->assertJson(['email' => ['ｔａｒｏ@example.co.jp']]);
+        $this->post('/with', ['email' => ['ｔａｒｏ@example.com']])->assertJson(['email' => ['ｔａｒｏ@example.com']]);
 
-        $request = Request::create('/with', 'POST', ['email' => "ｔａｒｏ\xff@example.co.jp"]);
+        $request = Request::create('/with', 'POST', ['email' => "ｔａｒｏ\xff@example.com"]);
         (new NormalizeEmailInput)->handle($request, fn () => null);
-        $this->assertSame("ｔａｒｏ\xff@example.co.jp", $request->input('email'));
+        $this->assertSame("ｔａｒｏ\xff@example.com", $request->input('email'));
     }
 
     public function test_入れなければ何も変わらない(): void
     {
-        $this->postJson('/without', ['email' => 'ｔａｒｏ@example.co.jp'])->assertExactJson(['email' => 'ｔａｒｏ@example.co.jp']);
+        $this->postJson('/without', ['email' => 'ｔａｒｏ@example.com'])->assertExactJson(['email' => 'ｔａｒｏ@example.com']);
     }
 
     public function test_設定の書き違いは止める(): void
     {
         config(['foundation.mail.input_fields' => 'email']);
 
-        $request = Request::create('/with', 'POST', ['email' => 'ｔａｒｏ@example.co.jp']);
+        $request = Request::create('/with', 'POST', ['email' => 'ｔａｒｏ@example.com']);
 
         $this->expectException(InvalidArgumentException::class);
         (new NormalizeEmailInput)->handle($request, fn () => null);

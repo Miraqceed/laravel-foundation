@@ -23,8 +23,8 @@ class MailTextTest extends TestCase
         parent::defineEnvironment($app);
 
         $app['config']->set('mail.default', 'array');
-        $app['config']->set('mail.from', ['address' => 'app@example.co.jp', 'name' => 'App']);
-        $app['config']->set('app.url', 'https://app.example.jp');
+        $app['config']->set('mail.from', ['address' => 'app@example.com', 'name' => 'App']);
+        $app['config']->set('app.url', 'https://app.example.com');
     }
 
     protected function tearDown(): void
@@ -116,7 +116,7 @@ class MailTextTest extends TestCase
             '表' => ['| a | b |'],
             'ふつうの名前' => ['山田 太郎'],
             '記号の入った名前' => ['山田 太郎-営業部'],
-            '会社名' => ['株式会社(テスト).jp'],
+            '会社名' => ['株式会社(テスト).example'],
             'アポストロフィと &' => ["O'Brien a&b"],
             '逆斜線' => ['a\\b'],
             '実体参照の形' => ['&amp;lt; &#91;'],

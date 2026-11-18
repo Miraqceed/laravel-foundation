@@ -15,20 +15,20 @@ class EmailInputTest extends TestCase
     public static function normalized(): array
     {
         return [
-            '全角のローカル部' => ['ｔａｒｏ@example.co.jp', 'taro@example.co.jp'],
-            '全角のドメイン' => ['taro@ｅｘａｍｐｌｅ.co.jp', 'taro@example.co.jp'],
-            '全角の＠' => ['taro＠example.co.jp', 'taro@example.co.jp'],
-            '全角の記号' => ['ｔａｒｏ＿ｘ－ｙ＋ｚ＠ｅｘ．ｊｐ', 'taro_x-y+z@ex.jp'],
-            '前後の全角の空白' => ['　taro@example.co.jp　', 'taro@example.co.jp'],
-            '前後のノーブレークスペースとゼロ幅' => ["\u{00A0}\u{200B}taro@example.co.jp\u{FEFF}", 'taro@example.co.jp'],
-            'ドメインの句点' => ['taro@example。co.jp', 'taro@example.co.jp'],
-            'ドメインの半角の句点' => ['taro@example｡co.jp', 'taro@example.co.jp'],
-            '末尾の点' => ['taro@example.co.jp.', 'taro@example.co.jp'],
-            '末尾の句点' => ['taro@example.co.jp。', 'taro@example.co.jp'],
-            'ドメインは小文字・ローカル部は残す' => ['Taro.Yamada@Example.CO.JP', 'Taro.Yamada@example.co.jp'],
-            '日本語のドメインは打ったまま' => ['taro@例え.JP', 'taro@例え.jp'],
+            '全角のローカル部' => ['ｔａｒｏ@example.com', 'taro@example.com'],
+            '全角のドメイン' => ['taro@ｅｘａｍｐｌｅ.com', 'taro@example.com'],
+            '全角の＠' => ['taro＠example.com', 'taro@example.com'],
+            '全角の記号' => ['ｔａｒｏ＿ｘ－ｙ＋ｚ＠ｅｘ．ｅｘａｍｐｌｅ', 'taro_x-y+z@ex.example'],
+            '前後の全角の空白' => ['　taro@example.com　', 'taro@example.com'],
+            '前後のノーブレークスペースとゼロ幅' => ["\u{00A0}\u{200B}taro@example.com\u{FEFF}", 'taro@example.com'],
+            'ドメインの句点' => ['taro@example。com', 'taro@example.com'],
+            'ドメインの半角の句点' => ['taro@example｡com', 'taro@example.com'],
+            '末尾の点' => ['taro@example.com.', 'taro@example.com'],
+            '末尾の句点' => ['taro@example.com。', 'taro@example.com'],
+            'ドメインは小文字・ローカル部は残す' => ['Taro.Yamada@Example.COM', 'Taro.Yamada@example.com'],
+            '日本語のドメインは打ったまま' => ['taro@例え.EXAMPLE', 'taro@例え.example'],
             '非 ASCII の大文字は変えない' => ['taro@ÄBC.de', 'taro@Äbc.de'],
-            'ローカル部の句点は変えない' => ['ta。ro@example.co.jp', 'ta。ro@example.co.jp'],
+            'ローカル部の句点は変えない' => ['ta。ro@example.com', 'ta。ro@example.com'],
             '最後の @ より後がドメイン' => ['"a@b"@Example.COM', '"a@b"@example.com'],
             '@ のない値' => ['　ｔａｒｏ　', 'taro'],
             '空' => ['', ''],
@@ -43,7 +43,7 @@ class EmailInputTest extends TestCase
 
     public function test_壊れた_UTF_8_は変えない(): void
     {
-        $broken = "ｔａｒｏ\xff@example.co.jp";
+        $broken = "ｔａｒｏ\xff@example.com";
 
         $this->assertSame($broken, EmailInput::normalize($broken));
         $this->assertSame($broken, EmailInput::canonical($broken));
@@ -53,11 +53,11 @@ class EmailInputTest extends TestCase
     public static function canonicals(): array
     {
         return [
-            '全体を小文字' => ['Taro.Yamada@Example.CO.JP', 'taro.yamada@example.co.jp'],
+            '全体を小文字' => ['Taro.Yamada@Example.COM', 'taro.yamada@example.com'],
             'Gmail の点と + 以降' => ['Taro.Yamada+news@Gmail.com', 'taroyamada@gmail.com'],
             'googlemail.com は gmail.com に' => ['taro.yamada@googlemail.com', 'taroyamada@gmail.com'],
             '全角の Gmail' => ['ｔａｒｏ．ｙ＋ａ＠ｇｍａｉｌ．ｃｏｍ', 'taroy@gmail.com'],
-            'ほかのドメインの点と + は残す' => ['taro.yamada+news@example.co.jp', 'taro.yamada+news@example.co.jp'],
+            'ほかのドメインの点と + は残す' => ['taro.yamada+news@example.com', 'taro.yamada+news@example.com'],
             '独自ドメイン（Google Workspace の形）は変えない' => ['taro.yamada@company.example', 'taro.yamada@company.example'],
             'gmail.com の下位のドメインは Gmail でない' => ['taro.y@mail.gmail.com', 'taro.y@mail.gmail.com'],
             '非 ASCII の大文字も小文字' => ['ÄBC@Äbc.de', 'äbc@äbc.de'],

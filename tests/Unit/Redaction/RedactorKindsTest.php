@@ -182,7 +182,7 @@ class RedactorKindsTest extends TestCase
 
     public function test_keeps_a_trailing_label_that_is_not_a_domain(): void
     {
-        $result = (new Redactor)->text('a@example.com.1 と b@example.co.jp');
+        $result = (new Redactor)->text('a@example.com.1 と b@example.com');
 
         $this->assertSame('[REDACTED].1 と [REDACTED]', $result->value);
         $this->assertEquals([new Finding('email', ''), new Finding('email', '')], $result->findings);
@@ -197,13 +197,13 @@ class RedactorKindsTest extends TestCase
     public static function emailsFollowedBySymbols(): array
     {
         return [
-            'hyphen after the domain' => ['a@b.com-x', '[REDACTED]-x'],
-            'hyphen after a two level domain' => ['a@b.co.jp-x', '[REDACTED]-x'],
-            'underscore after the domain' => ['a@b.com_x', '[REDACTED]_x'],
-            'trailing hyphen' => ['a@b.com-', '[REDACTED]-'],
-            'hyphen and a digit label after' => ['a@x.com-x.1', '[REDACTED]-x.1'],
-            'hyphen and a digit' => ['a@b.com-9 です', '[REDACTED]-9 です'],
-            'next to Japanese' => ['連絡はa@b.com-xへ', '連絡は[REDACTED]-xへ'],
+            'hyphen after the domain' => ['a@b.example-x', '[REDACTED]-x'],
+            'hyphen after a two level domain' => ['a@b.example.net-x', '[REDACTED]-x'],
+            'underscore after the domain' => ['a@b.example_x', '[REDACTED]_x'],
+            'trailing hyphen' => ['a@b.example-', '[REDACTED]-'],
+            'hyphen and a digit label after' => ['a@x.example-x.1', '[REDACTED]-x.1'],
+            'hyphen and a digit' => ['a@b.example-9 です', '[REDACTED]-9 です'],
+            'next to Japanese' => ['連絡はa@b.example-xへ', '連絡は[REDACTED]-xへ'],
         ];
     }
 
@@ -218,7 +218,7 @@ class RedactorKindsTest extends TestCase
 
     public function test_a_hyphenated_label_in_the_middle_stays_in_the_domain(): void
     {
-        $this->assertSame('[REDACTED]', (new Redactor)->text('a@b.com-x.org')->value);
+        $this->assertSame('[REDACTED]', (new Redactor)->text('a@b.example-x.org')->value);
     }
 
     public function test_counts_each_match_in_one_text_separately(): void

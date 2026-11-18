@@ -62,18 +62,18 @@ class ReservedEmailDomainsTest extends TestCase
 
         yield 'normal domain' => ['person@ordinary.tld', false];
         yield 'free mail domain' => ['person@gmail.com', false];
-        yield 'Japanese example-like domain' => ['person@example.co.jp', false];
-        yield 'internationalized domain' => ['person@例え.jp', false];
+        yield 'Japanese example-like domain' => ['person@example.co.zz', false];
+        yield 'internationalized domain' => ['person@例え.zz', false];
         yield 'lookalike domain prefix' => ['person@notexample.com', false];
         yield 'lookalike subdomain prefix' => ['person@one.notexample.org', false];
         yield 'reserved domain followed by another domain' => ['person@example.com.other.tld', false];
-        yield 'reserved domain followed by a country code' => ['person@example.com.au', false];
+        yield 'reserved domain followed by a country code' => ['person@example.com.zz', false];
         yield 'reserved TLD in a middle label' => ['person@invalid.other.tld', false];
-        yield 'reserved TLD as the first label' => ['person@invalid.jp', false];
-        yield 'reserved names in the middle' => ['person@test.example.co.jp', false];
+        yield 'reserved TLD as the first label' => ['person@invalid.zz', false];
+        yield 'reserved names in the middle' => ['person@test.example.co.zz', false];
         yield 'TLD with extra characters' => ['person@one.invalidsuffix', false];
-        yield 'TLD-like label' => ['person@testing.jp', false];
-        yield 'similar example name' => ['person@example.co', false];
+        yield 'TLD-like label' => ['person@testing.zz', false];
+        yield 'similar example name' => ['person@example.zz', false];
         yield 'outside the selected special-use names' => ['person@host.local', false];
         yield 'no at sign' => ['example.com', false];
         yield 'no at sign and no dot' => ['taro', false];

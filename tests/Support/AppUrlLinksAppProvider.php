@@ -10,6 +10,6 @@ class AppUrlLinksAppProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        ResetPassword::createUrlUsing(fn (object $notifiable, string $token) => 'https://app-own.example.jp/reset-password/'.$token);
+        ResetPassword::createUrlUsing(fn (object $notifiable, string $token) => 'https://app-own.example.com/reset-password/'.$token);
     }
 }

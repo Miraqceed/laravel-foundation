@@ -23,8 +23,8 @@ class MailDomainTest extends TestCase
         // mail の調べが通る設定
         $app['config']->set('mail.default', 'smtp');
         $app['config']->set('mail.mailers.smtp.transport', 'smtp');
-        $app['config']->set('mail.mailers.smtp.host', 'smtp.app-mail.jp');
-        $app['config']->set('mail.from.address', 'noreply@App-Mail.jp');
+        $app['config']->set('mail.mailers.smtp.host', 'smtp.example-sender.zz');
+        $app['config']->set('mail.from.address', 'noreply@Example-Sender.zz');
     }
 
     /** @param  array<string, list<string>|false>  $records 名前ごとの TXT。無い名前は空 */
@@ -42,9 +42,9 @@ class MailDomainTest extends TestCase
     private function complete(): array
     {
         return [
-            'app-mail.jp' => ['google-site-verification=abc', 'v=spf1 include:_spf.mail.example ~all'],
-            '_dmarc.app-mail.jp' => ['v=DMARC1; p=none'],
-            'mail1._domainkey.app-mail.jp' => ['v=DKIM1; k=rsa; p=MIIBIjAN'],
+            'example-sender.zz' => ['google-site-verification=abc', 'v=spf1 include:_spf.mail.example ~all'],
+            '_dmarc.example-sender.zz' => ['v=DMARC1; p=none'],
+            'mail1._domainkey.example-sender.zz' => ['v=DKIM1; k=rsa; p=MIIBIjAN'],
         ];
     }
 
@@ -54,7 +54,7 @@ class MailDomainTest extends TestCase
 
         $this->assertSame(Status::Ok, $result->status);
         $this->assertStringContainsString('DKIM は見ていない', (string) $result->detail);
-        $this->assertSame(['app-mail.jp', '_dmarc.app-mail.jp'], $this->asked);
+        $this->assertSame(['example-sender.zz', '_dmarc.example-sender.zz'], $this->asked);
         $this->assertStringNotContainsString('noreply', (string) $result->detail);
     }
 
@@ -63,10 +63,10 @@ class MailDomainTest extends TestCase
         config(['foundation.deploy_check.dkim_selector' => 'mail1']);
 
         $this->assertSame(Status::Ok, $this->check($this->complete())->status);
-        $this->assertSame(['app-mail.jp', '_dmarc.app-mail.jp', 'mail1._domainkey.app-mail.jp'], $this->asked);
+        $this->assertSame(['example-sender.zz', '_dmarc.example-sender.zz', 'mail1._domainkey.example-sender.zz'], $this->asked);
 
         $records = $this->complete();
-        unset($records['mail1._domainkey.app-mail.jp']);
+        unset($records['mail1._domainkey.example-sender.zz']);
         $result = $this->check($records);
         $this->assertSame(Status::Later, $result->status);
         $this->assertStringContainsString('DKIM', (string) $result->detail);
@@ -74,14 +74,14 @@ class MailDomainTest extends TestCase
 
     public function test_SPF_か_DMARC_がなければ_later(): void
     {
-        foreach (['app-mail.jp' => 'SPF', '_dmarc.app-mail.jp' => 'DMARC'] as $name => $label) {
+        foreach (['example-sender.zz' => 'SPF', '_dmarc.example-sender.zz' => 'DMARC'] as $name => $label) {
             $records = $this->complete();
             unset($records[$name]);
             $result = $this->check($records);
 
             $this->assertSame(Status::Later, $result->status, $label);
             $this->assertStringContainsString($label, (string) $result->detail);
-            $this->assertStringContainsString('app-mail.jp', (string) $result->detail);
+            $this->assertStringContainsString('example-sender.zz', (string) $result->detail);
         }
 
         $result = $this->check([]);
@@ -92,21 +92,21 @@ class MailDomainTest extends TestCase
     {
         config(['foundation.deploy_check.dkim_selector' => 'mail1']);
 
-        $result = $this->check(['app-mail.jp' => false] + $this->complete());
+        $result = $this->check(['example-sender.zz' => false] + $this->complete());
 
         $this->assertSame(Status::Info, $result->status);
         $this->assertStringContainsString('foundation.deploy_check.skip', (string) $result->detail);
-        $this->assertSame(['app-mail.jp'], $this->asked);
+        $this->assertSame(['example-sender.zz'], $this->asked);
     }
 
     public function test_DMARC_が引けなければ_DKIM_を引かない(): void
     {
         config(['foundation.deploy_check.dkim_selector' => 'mail1']);
 
-        $result = $this->check(['_dmarc.app-mail.jp' => false] + $this->complete());
+        $result = $this->check(['_dmarc.example-sender.zz' => false] + $this->complete());
 
         $this->assertSame(Status::Info, $result->status);
-        $this->assertSame(['app-mail.jp', '_dmarc.app-mail.jp'], $this->asked);
+        $this->assertSame(['example-sender.zz', '_dmarc.example-sender.zz'], $this->asked);
     }
 
     public function test_mail_の調べが失敗する設定なら_skip_で引かない(): void

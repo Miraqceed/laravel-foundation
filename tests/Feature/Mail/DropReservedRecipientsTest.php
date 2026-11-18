@@ -20,7 +20,7 @@ class DropReservedRecipientsTest extends TestCase
         parent::defineEnvironment($app);
 
         $app['config']->set('mail.default', 'array');
-        $app['config']->set('mail.from', ['address' => 'app@example.co.jp', 'name' => 'App']);
+        $app['config']->set('mail.from', ['address' => 'app@example.com', 'name' => 'App']);
         // キューに入れたメールも、このプロセスの中で送る（CI は database のキューで流すため）
         $app['config']->set('queue.default', 'sync');
         $app['config']->set('foundation.mail.drop_reserved_recipients', true);

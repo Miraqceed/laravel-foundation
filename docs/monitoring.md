@@ -127,7 +127,7 @@ fi
     'max_attempts' => 10,           // 送り先ごとの試す回数の上限
     'prune_days' => 90,             // 送れたか諦めてこの日数がたった知らせを model:prune で消す
     'log' => ['channel' => null, 'level' => 'error'], // null はアプリの既定のチャネル
-    'mail' => ['to' => 'ops@your-company.jp'], // 文字列か配列（名前付きの宛先 ['email' => …, 'name' => …] も可）
+    'mail' => ['to' => '…'],          // 運営のメールアドレス。文字列か配列（名前付きの宛先 ['email' => …, 'name' => …] も可）
     'webhook' => ['url' => '…', 'secret' => env('FOUNDATION_WEBHOOK_SECRET')],
     'chatwork' => ['token' => '…', 'room_id' => '…'],
     'slack' => ['webhook_url' => '…'],

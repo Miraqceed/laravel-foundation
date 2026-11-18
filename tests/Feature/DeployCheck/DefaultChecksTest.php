@@ -145,7 +145,7 @@ class DefaultChecksTest extends TestCase
         // .test は予約のドメインなので落ちる
         $this->assertSame(Status::Fail, $this->statusOf(new Mail));
 
-        config(['mail.from.address' => 'noreply@app-mail.jp']);
+        config(['mail.from.address' => 'noreply@mail.example-sender.zz']);
         $this->assertSame(Status::Ok, $this->statusOf(new Mail));
 
         $cases = [
@@ -157,7 +157,7 @@ class DefaultChecksTest extends TestCase
             ['mail.from.address' => 'not-an-address'],
         ];
         foreach ($cases as $case) {
-            config(['mail.from.address' => 'noreply@app-mail.jp'] + $real);
+            config(['mail.from.address' => 'noreply@mail.example-sender.zz'] + $real);
             config($case);
             $result = (new Mail)->run();
             $this->assertSame(Status::Fail, $result->status, json_encode($case));
