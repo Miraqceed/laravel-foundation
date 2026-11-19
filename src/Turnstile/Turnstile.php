@@ -18,7 +18,8 @@ use Throwable;
  *   見張りが有効なら知らせる（すべての送信が断られる大きな事故のため）。届かない・Cloudflare の側の誤りは記録だけ。訪問者の側の誤りは記録しない
  * - 訪問者の IP は既定で送らない（foundation.turnstile.send_ip で送る。送るなら trustProxies が要る）
  * - action は渡したときだけ、hostname は foundation.turnstile.hostnames を書いたときだけ比べる。
- *   秘密の鍵がテスト用で production でなければ比べない（テスト用の鍵の答えは hostname が example.com で action がない）
+ *   秘密の鍵がテスト用で production でなければ比べない（テスト用の鍵の答えは hostname が example.com で action がない）。
+ *   production でテスト用の秘密の鍵なら、外へ送らずにいつも断り、設定の誤りとして記録して知らせる（テスト用の鍵はいつも success を返す）
  * - 記録・知らせに、秘密の鍵・トークン・IP を入れない
  */
 final class Turnstile
@@ -54,6 +55,14 @@ final class Turnstile
         $secret = config('services.turnstile.secret_key');
         if (! is_string($secret) || $secret === '') {
             $this->misconfigured('秘密の鍵（services.turnstile.secret_key）がない');
+
+            return false;
+        }
+
+        // 本番でテスト用の秘密の鍵なら、比べずにいつも断る。テスト用の 1x の鍵には Cloudflare がいつも success を返すので、
+        // action も hostnames も決めていないアプリでは、比べに進むと誰でも通る
+        if (preg_match(self::TEST_KEY, $secret) === 1 && app()->environment('production')) {
+            $this->misconfigured('秘密の鍵が Cloudflare のテスト用');
 
             return false;
         }

@@ -63,6 +63,34 @@ class TurnstileAlertTest extends TestCase
         $this->assertStringNotContainsString('XXXX.TOKEN', (string) $alert->body);
     }
 
+    public function test_本番でテスト用の秘密の鍵なら_success_でも断り_知らせる(): void
+    {
+        // テスト用の 1x の秘密の鍵には、Cloudflare がいつも success を返す。action も hostnames も決めていない
+        $secret = '1x0000000000000000000000000000000AA';
+        config(['services.turnstile.secret_key' => $secret]);
+        $this->app['env'] = 'production';
+        Http::fake([self::ENDPOINT => Http::response(['success' => true, 'hostname' => 'example.com'])]);
+
+        $this->assertFalse($this->app->make(Turnstile::class)->passes('XXXX.TOKEN'));
+
+        Http::assertNothingSent();
+        $alerts = DB::table('foundation_alerts')->where('key', 'foundation.turnstile:misconfigured')->get();
+        $this->assertCount(1, $alerts);
+        $this->assertStringContainsString('秘密の鍵が Cloudflare のテスト用', (string) $alerts[0]->body);
+        $this->assertStringNotContainsString($secret, (string) $alerts[0]->body);
+    }
+
+    public function test_本番でなければテスト用の秘密の鍵で通し_知らせない(): void
+    {
+        config(['services.turnstile.secret_key' => '1x0000000000000000000000000000000AA']);
+        $this->app['env'] = 'local';
+        Http::fake([self::ENDPOINT => Http::response(['success' => true, 'hostname' => 'example.com'])]);
+
+        $this->assertTrue($this->app->make(Turnstile::class)->passes('XXXX.TOKEN'));
+
+        $this->assertSame(0, DB::table('foundation_alerts')->count());
+    }
+
     public function test_届かないときは知らせない(): void
     {
         Http::fake([self::ENDPOINT => fn () => throw new ConnectionException('timed out')]);
