@@ -55,6 +55,7 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `exception_args` | コマンド（CLI）の `zend.exception_ignore_args` が On（下） | |
 | `queue_worker` | キューのジョブを回す worker がある（下） | キューの driver が `database`・`sync` でない |
 | `queue_timeouts` | `CronWorker` の worker の timeout が `retry_after` より10秒以上短く、timeout が効く（下） | `CronWorker` の worker がない |
+| `retention_schedule` | 消す決まりの台帳の、期限で消すモデルとコマンドが schedule にある（下） | `foundation.retention.map` を書いていない |
 
 当たらない調べは `skip`。アプリに当たらない既定の調べは、`config/foundation.php` で外す：
 
@@ -184,6 +185,19 @@ PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、�
 | すべて満たす | `ok` |
 | `CronWorker` でない `queue:work` だけ | `info`（オプションを読まないので確かめない） |
 | worker がない | `skip` |
+
+### `retention_schedule`
+
+消す決まりの台帳（`foundation.retention.map`。`docs/retention.md`）の期限の消し方が、本番の schedule にあるかを見る。試しの `DataMapAssertions::assertScheduled()` と同じことを、本番の設定と環境で確かめる。DB の表は見ない（本番の DB の作りを読まない）。
+
+| 設定 | 状態 |
+|---|---|
+| `foundation.retention.map` を書いていない | `skip` |
+| 台帳を読めない（クラスが `DataMap` でない・書き違い） | `FAIL` |
+| `prunedBy` のモデルの `model:prune`・`prunedByCommand` のコマンドが、今の環境で動く schedule にない | `FAIL`（足りないものと、足す1行を出す） |
+| すべてある | `ok` |
+
+パッケージの表（`foundation_notices` など）は、部品を有効にしているときだけ数える。
 
 ### `mail_domain`
 
