@@ -30,6 +30,7 @@
 // bootstrap/app.php
 ->withMiddleware(function (Middleware $middleware) {
     $middleware->prepend(\Miraqceed\Foundation\Security\SecurityHeaders::class);
+    // 要求の id（docs/failures.md）はこの外側、全体の本文の上限（docs/http.md）はこの内側に置く
 })
 ```
 
