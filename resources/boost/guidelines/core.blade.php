@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`once-notices.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`once-notices.md`・`retention.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -134,6 +134,13 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - トランザクションの中で呼ぶと `NoticeResult::Deferred`（取る・送るは確定の後。結果は返らない）。
 - キューで送るときは、確かめで `claim()` し、ジョブは送る直前に `$claim->holds()` が偽なら送らない。送れたら `sent()`、投げたら `release()`。取り直しの分（`claimMinutes:`・`foundation.notices.claim_minutes`）はキューの待ち＋`retry_after` より長くする。
 - 古い印は `model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\Notices\Notice` を指す。`keepUntil` は回が終わった後にする（印が先に消えると、同じ回をもう一度送る）。
+
+### 消す決まりの台帳と、台帳からの消去（`docs/retention.md`）
+
+- 個人の情報を持つアプリは、DB のすべての表の消し方を1つのクラス（`Miraqceed\Foundation\Retention\DataMap`）に書き、`foundation.retention.map` にクラスの名前を書く。表ごとに `erasedWith`・`anonymizedWith`（すべての列を `erase` か `keep` に分け、理由を書く）・`prunedBy`・`prunedByCommand`・`kept`・`handledByApp` のどれかを書く。退会の消去の処理を、表を並べて自前で書かない。
+- 試しに `DataMapAssertions::assertCoversSchema()` と `DataMapAssertions::assertScheduled()` を置く（表・列を足した PR で、台帳と schedule の書き忘れが落ちる）。Laravel の表（`failed_jobs`・`sessions` など）の消し方もアプリが書く。パッケージのモデルの `model:prune` は `--model` で渡す。
+- 退会・解約したアカウントは `app(\Miraqceed\Foundation\Retention\Erasure::class)->erase('user', $id, when: fn (object $user) => …)` で消す。`when` には、握って読み直した行で消してよいかを書く（消す前に読んだ値で判断しない）。日次のループでは1件ずつ `try` で捕まえる。監査の記録は出来事 `OwnerErased`（id と数だけ）で書く。
+- 本番は `foundation:deploy-check` の `retention_schedule` が、期限の消し方が schedule にあるかを確かめる。
 
 ### DB の接続の時間帯（`docs/database-timezone.md`）
 

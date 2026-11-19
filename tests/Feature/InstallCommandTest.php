@@ -162,6 +162,9 @@ class InstallCommandTest extends TestCase
             // 知らせを1回だけ送る（回を鍵に・戻して繰り返し確かめる・トランザクションの中・キューの holds・期限で消す）
             'once-notices.md', 'Miraqceed\Foundation\Notices\OnceNotices::send', 'foundation.notices.enabled', 'keepOnFailure',
             'NoticeResult::Deferred', '$claim->holds()', 'retry_after', 'Miraqceed\Foundation\Notices\Notice',
+            // 消す決まりの台帳（すべての表・行を残す表のすべての列・試しの2行・握って確かめ直す・本番の schedule）
+            'retention.md', 'Miraqceed\Foundation\Retention\DataMap', 'foundation.retention.map', 'DataMapAssertions::assertCoversSchema()',
+            'DataMapAssertions::assertScheduled()', 'Miraqceed\Foundation\Retention\Erasure', 'OwnerErased', 'retention_schedule',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
