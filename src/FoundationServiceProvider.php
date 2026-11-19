@@ -5,6 +5,7 @@ namespace Miraqceed\Foundation;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\CachesConfiguration;
+use Illuminate\Contracts\Http\Kernel as HttpKernelContract;
 use Illuminate\Database\Connectors\ConnectionFactory;
 use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Foundation\Events\DiagnosingHealth;
@@ -13,6 +14,8 @@ use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Routing\Middleware\ThrottleRequestsWithRedis;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Ai\Events\ClassificationFailed;
@@ -31,6 +34,7 @@ use Miraqceed\Foundation\Commands\DeployCheckCommand;
 use Miraqceed\Foundation\Commands\InstallCommand;
 use Miraqceed\Foundation\Failures\FailureReporter;
 use Miraqceed\Foundation\Health\ConfiguredChecks;
+use Miraqceed\Foundation\Http\LimitBodySize;
 use Miraqceed\Foundation\Mail\AppUrlLinks;
 use Miraqceed\Foundation\Mail\DisposableEmailDomains;
 use Miraqceed\Foundation\Mail\DropReservedRecipients;
@@ -142,6 +146,20 @@ class FoundationServiceProvider extends ServiceProvider
         // 別名はいつも登録する（無効のあいだは何もしない）。グループへは足さない
         $this->app['router']->aliasMiddleware('foundation.security-headers', SecurityHeaders::class);
         $this->app['router']->aliasMiddleware('foundation.request-id', AssignRequestId::class);
+        $this->app['router']->aliasMiddleware('foundation.body-limit', LimitBodySize::class);
+
+        // 本文の上限は、優先の表で回数の制限より前に並べる（大きな本文を数えてから断らない）。掛けた経路でだけ効く。
+        // アプリの withMiddleware() の表（priority([...]) で丸ごと書き換えるものも）は Kernel を作るときに当たるので、
+        // 既に作られていれば今、まだならその後に足す（後に足せば、書き換えで消えない）
+        $prioritize = function ($kernel): void {
+            if (method_exists($kernel, 'addToMiddlewarePriorityBefore')) {
+                $kernel->addToMiddlewarePriorityBefore([ThrottleRequests::class, ThrottleRequestsWithRedis::class], LimitBodySize::class);
+            }
+        };
+        if ($this->app->resolved(HttpKernelContract::class)) {
+            $prioritize($this->app->make(HttpKernelContract::class));
+        }
+        $this->app->afterResolving(HttpKernelContract::class, $prioritize);
 
         // テストの中だけ、Http::fake() に当たらない外への要求を送る前に止める（既定は偽。入れただけでは掛けない）。
         // 判定は DB の守りと同じ関数。試しごとにアプリを作り直すので、起動のたびに掛ける
