@@ -14,8 +14,8 @@ use Throwable;
 /**
  * 要求の本文の大きさの上限。別名 foundation.body-limit:<バイト>。経路に掛けて経路ごとの上限、全体の先頭に足してサイト全体の上限。
  *
- * Laravel の全体の上限は post_max_size（ValidatePostSize）だけで、経路ごとの上限はない。全体の TrimStrings・ConvertEmptyStringsToNull は
- * JSON の本文を経路より前に丸ごと解くので、「解く前に断る」には全体にも（TrimStrings より前に）掛ける（docs/http.md）。
+ * Laravel の全体の上限は post_max_size（ValidatePostSize）だけで、経路ごとの上限はない。上限を超えた本文を、回数の制限・検証・コントローラーより前に断る。
+ * JSON の本文は、Laravel が要求を作るとき（Request::createFromBase()）に丸ごと解くので、どの中間処理でも「解く前」には断れない。解かせないのは Web サーバーの上限だけ（docs/http.md）。
  * パッケージの起動で、優先の表の回数の制限（ThrottleRequests）の前に入れる（大きな本文を数えてから断らない）。
  *
  * - 名乗った大きさ（Content-Length）が上限を超えれば、本文に触らずに断る

@@ -45,7 +45,7 @@ class LimitBodySizeTest extends TestCase
         CountingStream::register();
         $stream = fopen('foundation-counting://body', 'r');
 
-        // JSON でない本文（JSON の本文は、全体の TrimStrings が経路より前に読む。全体に掛けたときの試しは LimitBodySizeOrderTest）
+        // JSON でない本文（JSON の本文は、Laravel が要求を作るときに読む。LimitBodySizeOrderTest）
         $this->postBody('/limited', $stream, ['CONTENT_LENGTH' => '1000', 'CONTENT_TYPE' => 'text/plain'])->assertStatus(413);
 
         $this->assertSame(0, CountingStream::$reads);
