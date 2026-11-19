@@ -244,6 +244,10 @@ class FoundationServiceProvider extends ServiceProvider
             ], 'foundation-email-change-migrations');
 
             $this->publishes([
+                __DIR__.'/../database/notice-migrations' => database_path('migrations'),
+            ], 'foundation-notice-migrations');
+
+            $this->publishes([
                 __DIR__.'/../lang' => $this->app->langPath('vendor/foundation'),
             ], 'foundation-lang');
 
@@ -280,6 +284,11 @@ class FoundationServiceProvider extends ServiceProvider
         // メールアドレスの変更の表も、有効なときだけ読み込む（入れただけでは作らない）
         if (config('foundation.email_changes.enabled')) {
             $this->loadMigrationsFrom(__DIR__.'/../database/email-change-migrations');
+        }
+
+        // 知らせの印の表も、有効なときだけ読み込む
+        if (config('foundation.notices.enabled')) {
+            $this->loadMigrationsFrom(__DIR__.'/../database/notice-migrations');
         }
 
         if (config('foundation.monitoring.enabled')) {

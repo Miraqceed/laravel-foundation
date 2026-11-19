@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`once-notices.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -126,6 +126,14 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 受け取りの口は `Attempts::attempt()` で、接続元ごとの共有の枠（`Counting::FailuresShared`）で包む。合言葉は POST の本文で受け、URL に入れない・GET で消費しない。答えには `Cache-Control: no-store` を付け、断りの文は1つにする。
 - 平文の合言葉を、リダイレクトと flash・ログ・監査の記録に入れない。繰り返し使う API のトークンは Sanctum を使う（この部品で作らない）。
 - 古い行は `model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\OneTimeCodes\OneTimeCode` を指す（`foundation.one_time_codes.prune_days`、既定 7）。
+
+### 知らせを1回だけ送る（`docs/once-notices.md`）
+
+- 条件に達したときに送る知らせ（上限の80%・猶予の終わり・試用の終わり）の「送ったか」を、アプリの列で自前で書かない。`Miraqceed\Foundation\Notices\OnceNotices::send($key, fn () => …, keepUntil: …)` を使う。`foundation.notices.enabled` を真にして `php artisan migrate`。
+- 鍵には回（期間・上限の値）と id を入れ、メールアドレス・名前を入れない。送れなければ印を戻し（`NoticeResult::Failed`、投げない）、次の確かめが送り直すので、確かめは schedule で繰り返し流す。二重が困る送り先だけ `keepOnFailure: true`。条件が戻ったら `forget($key)`。
+- トランザクションの中で呼ぶと `NoticeResult::Deferred`（取る・送るは確定の後。結果は返らない）。
+- キューで送るときは、確かめで `claim()` し、ジョブは送る直前に `$claim->holds()` が偽なら送らない。送れたら `sent()`、投げたら `release()`。取り直しの分（`claimMinutes:`・`foundation.notices.claim_minutes`）はキューの待ち＋`retry_after` より長くする。
+- 古い印は `model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\Notices\Notice` を指す。`keepUntil` は回が終わった後にする（印が先に消えると、同じ回をもう一度送る）。
 
 ### DB の接続の時間帯（`docs/database-timezone.md`）
 
