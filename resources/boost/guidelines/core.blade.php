@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`http.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -169,6 +169,12 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - JSON の本文は Laravel が要求を作る時点で解くので、どの中間処理でも解く前には断れない。解かせないのは Web サーバーの上限（`client_max_body_size` など）と `post_max_size` だけ。
 - 自前の認証は `Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests` を実装する（表にない中間処理は並べ替えで動かず、`throttle` の後に書くと利用者を知らずに数える）。運営の入口・入口の 404 は `prependToPriorityList` で `ThrottleRequests`・`EncryptCookies` の前に入れる。
 - 並びは試しで固定する：`\Miraqceed\Foundation\Testing\RouteMiddleware::assertBefore('GET', '/api/…', AuthenticatesRequests::class, ThrottleRequests::class)`。
+
+### 日本語の入力の誤りの文（`docs/validation-ja.md`）
+
+- `APP_LOCALE=ja` のアプリは `php artisan vendor:publish --tag=foundation-lang-ja` で Laravel の規則・認証・再設定・ページ送りの日本語の文を `lang/ja` に写す（`lang:publish` は英語だけ）。既にあるファイルは上書きしない。使う規則の文だけを自分で書かない（後で使い始めた規則が英語になる）。
+- 欄の名前は、どの画面でも同じ呼び名の欄だけを `attributes` に置く。`name` のように画面で呼び名が違う欄は、確かめる所（`validate()` の3つ目の引数・Form Request の `attributes()`）で渡す。
+- 試しで確かめる：`$this->assertSame([], \Miraqceed\Foundation\Testing\Translations::missing('ja'))` と、欄を空にして送った応答に `Translations::assertNoEnglish($response)`（「current passwordを入力してください。」を見つける）。
 
 ### CSP・セキュリティヘッダー（`docs/security.md`）
 

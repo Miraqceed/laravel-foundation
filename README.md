@@ -42,6 +42,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
 | 1回だけ使える合言葉：期限つき・ハッシュだけで持ち、同時の要求でも1回だけ通す（機械にトークンを受け取らせる合言葉・入場券など） | 無効（`foundation.one_time_codes.enabled`。表を作る） | [docs/one-time-codes.md](docs/one-time-codes.md) |
 | 要求の本文の上限と中間処理の並び順：経路ごとの本文の大きさの上限（回数の制限より前に断る）と、経路の中間処理が実際にどの順で動くかを確かめる試しの助け | 上限はアプリが経路か全体に掛けたときだけ | [docs/http.md](docs/http.md) |
+| 日本語の入力の誤りの文：Laravel の規則・認証・再設定・ページ送りの日本語の文をアプリの `lang/ja` に写す（上書きしない）。足りない鍵と英語の混ざった誤りの文を見つける試しの助け | 写したときだけ効く（`vendor:publish --tag=foundation-lang-ja`） | [docs/validation-ja.md](docs/validation-ja.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 稼働の確かめ：外のスクリプトを読まず、原因を出さない `/up`（text/plain の `OK`／`NG`）。DB の確かめを足せる | アプリが `bootstrap/app.php` で `Health::route('/up')` に書き換えたときだけ。DB は見ない（`foundation.health.checks`） | [docs/health.md](docs/health.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
