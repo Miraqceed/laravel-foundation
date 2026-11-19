@@ -266,6 +266,17 @@ return [
         'prune_days' => 7,
     ],
 
+    // 知らせを1回だけ送る（Miraqceed\Foundation\Notices\OnceNotices）。呼んだときだけ働く
+    'notices' => [
+        // 既定で無効。真のときだけ表のマイグレーションを読み込む（vendor:publish --tag=foundation-notice-migrations でも写せる）
+        'enabled' => false,
+        // 取ったまま送っていない印を、取り直すまでの分。キューで送るときは、キューの待ち＋retry_after より長くする
+        'claim_minutes' => 15,
+        // 印を残す日数（send()・claim() に keepUntil を渡さないとき）。過ぎた行は model:prune で消す（アプリが schedule に入れる：
+        // Schedule::command('model:prune', ['--model' => [\Miraqceed\Foundation\Notices\Notice::class]])->daily();）
+        'keep_days' => 400,
+    ],
+
     // 本番の設定の点検（php artisan foundation:deploy-check）。流したときだけ働く
     'deploy_check' => [
         // アプリの調べのクラス（Miraqceed\Foundation\DeployCheck\Check。容器から作る）。並びのとおりに、パッケージの既定の調べの後に走る
