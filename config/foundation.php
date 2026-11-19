@@ -277,6 +277,12 @@ return [
         'keep_days' => 400,
     ],
 
+    // 消す決まりの台帳（Miraqceed\Foundation\Retention）。書かなければ、試しの助け・deploy-check（skip）・Erasure は働かない
+    'retention' => [
+        // アプリの台帳のクラス（Miraqceed\Foundation\Retention\DataMap を実装する）。null なら台帳なし
+        'map' => null,
+    ],
+
     // 本番の設定の点検（php artisan foundation:deploy-check）。流したときだけ働く
     'deploy_check' => [
         // アプリの調べのクラス（Miraqceed\Foundation\DeployCheck\Check。容器から作る）。並びのとおりに、パッケージの既定の調べの後に走る
