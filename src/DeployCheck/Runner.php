@@ -23,6 +23,7 @@ use Miraqceed\Foundation\DeployCheck\Checks\QueueWorker;
 use Miraqceed\Foundation\DeployCheck\Checks\SessionSecureCookie;
 use Miraqceed\Foundation\DeployCheck\Checks\TrustedHosts;
 use Miraqceed\Foundation\DeployCheck\Checks\TrustedProxies;
+use Miraqceed\Foundation\DeployCheck\Checks\Turnstile;
 use Miraqceed\Foundation\DeployCheck\Checks\ViteHot;
 use Miraqceed\Foundation\DeployCheck\Checks\ViteManifest;
 use Miraqceed\Foundation\DeployCheck\Checks\Writable;
@@ -62,6 +63,7 @@ final class Runner
         TrustedHosts::class,
         MailLinks::class,
         PasswordSessions::class,
+        Turnstile::class,
         DbMaskedBindings::class,
         ExceptionArgs::class,
         QueueWorker::class,

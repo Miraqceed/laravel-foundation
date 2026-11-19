@@ -224,6 +224,19 @@ return [
         'throttle_path' => null,
     ],
 
+    // Cloudflare Turnstile（Turnstile\Turnstile・TurnstilePassed・VerifyTurnstile）。使ったときだけ働く。
+    // 鍵はここに置かない：アプリが config/services.php の turnstile.site_key・secret_key に書く
+    'turnstile' => [
+        // 真にすると、訪問者の IP を Cloudflare へ送る（remoteip。任意の値）。送るなら trustProxies が要る（前段の IP を送らないため）
+        'send_ip' => false,
+        // 答えの hostname を比べるときの、受ける名前の配列（例：['app.example.com']）。null なら比べない
+        'hostnames' => null,
+        // ウィジェットのトークンの欄の名前（ミドルウェアが読む）
+        'field' => 'cf-turnstile-response',
+        // VerifyTurnstileOnNamedRoutes（web のグループに入れる）が確かめる経路の名前（例：['login.store', 'register.store', 'password.email']）
+        'routes' => [],
+    ],
+
     // アカウントの守り（Accounts\PasswordSessions など）。呼んだときだけ働く
     'accounts' => [
         // パスワードの後のセッションの後始末が使うガード（セッションのガード）

@@ -51,6 +51,7 @@ use Miraqceed\Foundation\Security\CspReportController;
 use Miraqceed\Foundation\Security\Nonce;
 use Miraqceed\Foundation\Security\SecurityHeaders;
 use Miraqceed\Foundation\TestSafety\GuardedConnectionFactory;
+use Miraqceed\Foundation\Turnstile\VerifyTurnstile;
 use Miraqceed\Foundation\TestSafety\TestDatabaseGuard;
 use Miraqceed\Foundation\TwoFactor\TwoFactor;
 
@@ -147,6 +148,8 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app['router']->aliasMiddleware('foundation.security-headers', SecurityHeaders::class);
         $this->app['router']->aliasMiddleware('foundation.request-id', AssignRequestId::class);
         $this->app['router']->aliasMiddleware('foundation.body-limit', LimitBodySize::class);
+        // 付けた経路だけで働く（どこにも付けなければ何もしない）
+        $this->app['router']->aliasMiddleware('foundation.turnstile', VerifyTurnstile::class);
 
         // 本文の上限は、優先の表で回数の制限より前に並べる（大きな本文を数えてから断らない）。掛けた経路でだけ効く。
         // アプリの withMiddleware() の表（priority([...]) で丸ごと書き換えるものも）は Kernel を作るときに当たるので、

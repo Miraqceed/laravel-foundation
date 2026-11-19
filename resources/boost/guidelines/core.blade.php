@@ -96,6 +96,12 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 回数の制限には `database`・`redis` などの原子的なキャッシュを使う（`file` では守りが弱まり、`array` では効かない）。アプリの `DB::transaction` の中で呼ばない（同じ接続の `database` のキャッシュだと、巻き戻しで数えも巻き戻る）。`foundation.attempts.bypass` は診断の間だけ。`production` では効かない。
 - 頼まれるたびにメールを送る口（再設定の申請・確認の再送・変更の頼み・資料の請求）は、すべての頼みを `Counting::Every` で、宛先（`EmailInput::canonical()`）ごとと接続元ごとに数える。`throttle:` で数えない。再設定の申請（`Every`）と設定（トークンの照合の失敗、`FailuresShared`）は名前を分ける。数えは Turnstile・入力の検証・権限の確かめの後。
 
+### Turnstile（`docs/turnstile.md`）
+
+- Cloudflare Turnstile の確かめを自前で書かない。フォームは `'cf-turnstile-response' => ['required', new \Miraqceed\Foundation\Turnstile\TurnstilePassed]`、規則を足せない経路は `->middleware('foundation.turnstile')`、Fortify の経路は `VerifyTurnstileOnNamedRoutes` を web のグループに入れて `foundation.turnstile.routes` に名前を書く。鍵は `config/services.php` の `turnstile.site_key`・`secret_key`。
+- 確かめられないとき（秘密がない・届かない）は断る。手元・試しで外す切り替えを作らない：手元は Cloudflare のテスト用の鍵、試しは `Http::fake(['challenges.cloudflare.com/*' => …])`。本番のテスト用の鍵は `foundation:deploy-check` の `turnstile` が `FAIL` にする。
+- 訪問者の IP は既定で送らない。`foundation.turnstile.send_ip` を真にするなら `trustProxies` を書く。試みの数えは Turnstile の確かめを通った後。
+
 ### 二段階の認証（`docs/two-factor.md`）
 
 - 認証アプリの確認コード（TOTP）を自前で書かない。手書きの認証は `Miraqceed\Foundation\TwoFactor\TwoFactor`（`confirm()`・`verify()`・`pass()`・`passed()`・`reset()`）、Fortify は容器の `Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider` を `FortifyTwoFactorProvider` に替える（`fortify.limiters.two-factor` は `null`）。
