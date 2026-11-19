@@ -247,6 +247,12 @@ class FoundationServiceProvider extends ServiceProvider
                 __DIR__.'/../lang' => $this->app->langPath('vendor/foundation'),
             ], 'foundation-lang');
 
+            // Laravel の規則・認証・ページ送りの日本語の文。アプリの lang/ja に写す（既にあるファイルは上書きしない）。
+            // 自動では読ませない：addPath() はアプリの lang より後に足され、アプリの訳を上書きするため
+            $this->publishes([
+                __DIR__.'/../lang-ja' => $this->app->langPath('ja'),
+            ], 'foundation-lang-ja');
+
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
             // foundation:cache-prune は schedule に入れない（入れるのはアプリ。入れただけでは何も消えない）
             $this->commands([InstallCommand::class, CachePruneCommand::class, DbTimezoneCommand::class, DeployCheckCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
