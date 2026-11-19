@@ -159,6 +159,9 @@ class InstallCommandTest extends TestCase
             'prependToPriorityList', 'Miraqceed\Foundation\Testing\RouteMiddleware::assertBefore',
             // 日本語の入力の誤りの文（写す・上書きしない・name を attributes に置かない・試しで確かめる）
             'validation-ja.md', 'foundation-lang-ja', 'Translations::missing', 'Translations::assertNoEnglish', 'Form Request の `attributes()`',
+            // 知らせを1回だけ送る（回を鍵に・戻して繰り返し確かめる・トランザクションの中・キューの holds・期限で消す）
+            'once-notices.md', 'Miraqceed\Foundation\Notices\OnceNotices::send', 'foundation.notices.enabled', 'keepOnFailure',
+            'NoticeResult::Deferred', '$claim->holds()', 'retry_after', 'Miraqceed\Foundation\Notices\Notice',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");

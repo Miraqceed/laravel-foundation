@@ -41,6 +41,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 共用サーバーのキュー：毎分の cron から `database` のキューを回す worker の登録（重なり止め・`retry_after` との整合）と、キューの溜まり・新しく失敗したジョブ・DB の大きさの見張り | 登録はアプリが呼んだときだけ。見張りは無効（`foundation.monitoring.enabled`） | [docs/queue.md](docs/queue.md) |
 | 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
 | 1回だけ使える合言葉：期限つき・ハッシュだけで持ち、同時の要求でも1回だけ通す（機械にトークンを受け取らせる合言葉・入場券など） | 無効（`foundation.one_time_codes.enabled`。表を作る） | [docs/one-time-codes.md](docs/one-time-codes.md) |
+| 知らせを1回だけ送る：条件に達したときの知らせを鍵ごとに1回だけ送る。送れなければ印を戻して送り直す。止まった印の取り直し・トランザクションの中・キューのジョブでも1回 | 無効（`foundation.notices.enabled`。表を作る） | [docs/once-notices.md](docs/once-notices.md) |
 | 要求の本文の上限と中間処理の並び順：経路ごとの本文の大きさの上限（回数の制限より前に断る）と、経路の中間処理が実際にどの順で動くかを確かめる試しの助け | 上限はアプリが経路か全体に掛けたときだけ | [docs/http.md](docs/http.md) |
 | 日本語の入力の誤りの文：Laravel の規則・認証・再設定・ページ送りの日本語の文をアプリの `lang/ja` に写す（上書きしない）。足りない鍵と英語の混ざった誤りの文を見つける試しの助け | 写したときだけ効く（`vendor:publish --tag=foundation-lang-ja`） | [docs/validation-ja.md](docs/validation-ja.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
