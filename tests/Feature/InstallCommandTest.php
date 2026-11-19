@@ -157,6 +157,8 @@ class InstallCommandTest extends TestCase
             // 要求の本文の上限と中間処理の並び順（回数の制限より前・JSON は解く前に断れない・認証の印・試しで固定）
             'http.md', 'foundation.body-limit', 'Miraqceed\Foundation\Http\LimitBodySize', 'client_max_body_size', 'AuthenticatesRequests',
             'prependToPriorityList', 'Miraqceed\Foundation\Testing\RouteMiddleware::assertBefore',
+            // 日本語の入力の誤りの文（写す・上書きしない・name を attributes に置かない・試しで確かめる）
+            'validation-ja.md', 'foundation-lang-ja', 'Translations::missing', 'Translations::assertNoEnglish', 'Form Request の `attributes()`',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
