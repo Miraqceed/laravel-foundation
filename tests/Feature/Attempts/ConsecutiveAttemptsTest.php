@@ -269,8 +269,10 @@ class ConsecutiveAttemptsTest extends TestCase
                 \Fiber::suspend('after-lock-check');
             }
         });
-        $store->beforeIncrement = function (string $key, int $value) use ($b) {
-            if ($key === self::KEY.':count' && $value < 0 && \Fiber::getCurrent() === $b) {
+        // キャッシュに入る鍵は RateLimiter が作る（foundation.privacy.keyed_rate_limiter なら HMAC。既定ではそのまま）
+        $countKey = app(CacheRateLimiter::class)->cleanRateLimiterKey(self::KEY.':count');
+        $store->beforeIncrement = function (string $key, int $value) use ($b, $countKey) {
+            if ($key === $countKey && $value < 0 && \Fiber::getCurrent() === $b) {
                 \Fiber::suspend('before-give-back');
             }
         };

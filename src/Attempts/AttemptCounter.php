@@ -6,7 +6,8 @@ use Illuminate\Cache\RateLimiter;
 
 /**
  * 試みの数えの足し算と返し。RateLimiter と同じ鍵（数えと :timer）を使うので、読む側（tooManyAttempts・attempts・availableIn・clear）は
- * RateLimiter のままでよい。
+ * RateLimiter のままでよい。鍵の作り（cleanRateLimiterKey）は容器の RateLimiter に任せる（foundation.privacy.keyed_rate_limiter で
+ * HMAC の鍵に差し替えたときも、足す側と読む側の鍵が同じになる）。
  *
  * RateLimiter::increment を使わない。increment は、鍵を add できなかったのに足した後の数が足した数と同じとき、put で数えを書き直す。
  * 窓の始まりに要求が並ぶと、別の要求が足した後の数を、その put が上書きして1回分が消える（上限より多く照合する）。
@@ -23,6 +24,17 @@ final class AttemptCounter extends RateLimiter
     public static function make(): self
     {
         return new self(app('cache')->driver(config('cache.limiter')));
+    }
+
+    /**
+     * 容器の RateLimiter と同じ鍵にする（差し替えていれば HMAC。読む側は容器の RateLimiter で読む）
+     *
+     * @param  string  $key
+     * @return string
+     */
+    public function cleanRateLimiterKey($key)
+    {
+        return app(RateLimiter::class)->cleanRateLimiterKey($key);
     }
 
     /**

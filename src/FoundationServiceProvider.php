@@ -2,6 +2,7 @@
 
 namespace Miraqceed\Foundation;
 
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Foundation\CachesConfiguration;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Middleware\ThrottleRequestsWithRedis;
+use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Ai\Events\ClassificationFailed;
@@ -45,6 +47,8 @@ use Miraqceed\Foundation\Monitoring\Commands\RetryAlertsCommand;
 use Miraqceed\Foundation\Monitoring\Commands\WatchCommand;
 use Miraqceed\Foundation\Monitoring\TaskRuns;
 use Miraqceed\Foundation\Monitoring\WatchList;
+use Miraqceed\Foundation\Privacy\DatabaseSessionHandlerWithoutIp;
+use Miraqceed\Foundation\Privacy\KeyedRateLimiter;
 use Miraqceed\Foundation\Queue\CronWorkers;
 use Miraqceed\Foundation\Redaction\Redactor;
 use Miraqceed\Foundation\RequestId\AssignRequestId;
@@ -81,6 +85,12 @@ class FoundationServiceProvider extends ServiceProvider
                 $config->get('foundation', []),
             ));
         }
+
+        // 回数の制限の鍵を APP_KEY の HMAC にする（foundation.privacy.keyed_rate_limiter。既定は偽で、RateLimiter はそのまま）。
+        // singleton で結び付け直すと、遅れて読む CacheServiceProvider に上書きされるので extend にする。設定は作るときに読む
+        $this->app->extend(RateLimiter::class, fn (RateLimiter $limiter, $app) => $app['config']->get('foundation.privacy.keyed_rate_limiter')
+            ? KeyedRateLimiter::from($limiter)
+            : $limiter);
 
         // テストの DB の守り。いつも登録し、テストの中のときだけ確かめる。
         // ほかのプロバイダーの boot が DB へつなぐ前に効くよう、register で登録する。
@@ -183,6 +193,20 @@ class FoundationServiceProvider extends ServiceProvider
         // アプリのプロバイダーはこの後に起動するので、アプリの createUrlUsing が勝つ
         if (config('foundation.mail.links_from_app_url')) {
             AppUrlLinks::register();
+        }
+
+        // database のセッションの表に訪問者の IP を書かない。決めたときだけ差し替える（既定は Laravel のまま）。
+        // driver の名前は database のまま（PasswordSessions・deploy-check が名前を見る）。アプリのプロバイダーが後で
+        // Session::extend('database', …) を書けば、アプリが勝つ
+        if (config('foundation.privacy.sessions_without_ip')) {
+            $this->callAfterResolving('session', function (SessionManager $manager): void {
+                $manager->extend('database', fn ($app) => new DatabaseSessionHandlerWithoutIp(
+                    $app['db']->connection($app['config']->get('session.connection')),
+                    $app['config']->get('session.table'),
+                    $app['config']->get('session.lifetime'),
+                    $app,
+                ));
+            });
         }
 
         // 稼働の確かめで見るもの。書いたときだけ聞き手を足す（Laravel の既定の /up も DiagnosingHealth を出すので、そちらでも効く）。
