@@ -165,6 +165,9 @@ class InstallCommandTest extends TestCase
             // 消す決まりの台帳（すべての表・行を残す表のすべての列・試しの2行・握って確かめ直す・本番の schedule）
             'retention.md', 'Miraqceed\Foundation\Retention\DataMap', 'foundation.retention.map', 'DataMapAssertions::assertCoversSchema()',
             'DataMapAssertions::assertScheduled()', 'Miraqceed\Foundation\Retention\Erasure', 'OwnerErased', 'retention_schedule',
+            // 住所まわり（外の API に問い合わせない・一覧はアプリが作る・桁の数で区切らない・出典を残す）
+            'japan-address.md', 'Miraqceed\Foundation\Japan\PostalAddressBook', 'foundation:postal-codes', 'foundation.japan.postal_codes.path',
+            'postal_codes', 'PhoneNumber::format()', 'Rules\JapanesePhoneNumber', 'Rules\JapanesePostalCode', '加工して作成',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");

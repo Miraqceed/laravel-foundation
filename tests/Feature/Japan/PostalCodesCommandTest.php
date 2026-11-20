@@ -2,6 +2,9 @@
 
 namespace Miraqceed\Foundation\Tests\Feature\Japan;
 
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Psr7\PumpStream;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -88,6 +91,29 @@ class PostalCodesCommandTest extends TestCase
             self::ADDRESS_URL => $answer($address, self::addressZip()),
             self::OFFICE_URL => $answer($office, self::officeZip()),
         ]);
+    }
+
+    /**
+     * 本文を少しずつ作る答え（大きな本文を試しの側で持たない）
+     *
+     * @param  array<string, string>  $headers
+     */
+    private static function streamed(int $bytes, array $headers = []): \Closure
+    {
+        return function () use ($bytes, $headers) {
+            $left = $bytes;
+            $body = new PumpStream(function (int $length) use (&$left) {
+                if ($left <= 0) {
+                    return false;
+                }
+                $chunk = str_repeat('a', min($length, $left));
+                $left -= strlen($chunk);
+
+                return $chunk;
+            });
+
+            return Create::promiseFor(new Psr7Response(200, $headers, $body));
+        };
     }
 
     /** 置き場所の今の中身（名前 → 中身） */
@@ -202,8 +228,8 @@ class PostalCodesCommandTest extends TestCase
             '事業所の 404' => [fn () => [null, Http::response('', 404)], 'jigyosyo.zip を取れません（HTTP 404'],
             'つながらない' => [fn () => [Http::failedConnection(), null], 'ConnectionException'],
             '上限を超える Content-Length' => [fn () => [Http::response($good(), 200, ['Content-Length' => (string) (20 * 1024 * 1024 + 1)]), null], '大きすぎます'],
-            '名乗らずに上限を超える本文' => [fn () => [str_repeat('a', 20 * 1024 * 1024 + 1), null], '大きすぎます'],
-            '小さく名乗って上限を超える本文' => [fn () => [Http::response(str_repeat('a', 20 * 1024 * 1024 + 1), 200, ['Content-Length' => '100']), null], '大きすぎます'],
+            '名乗らずに上限を超える本文' => [fn () => [self::streamed(20 * 1024 * 1024 + 1), null], '大きすぎます'],
+            '小さく名乗って上限を超える本文' => [fn () => [self::streamed(20 * 1024 * 1024 + 1, ['Content-Length' => '100']), null], '大きすぎます'],
             '中のファイルが2つ' => [fn () => [ZipBuilder::make()->add('utf_ken_all.csv', self::addressCsv())->add('extra.csv', 'x')->build(), null], '1つではありません'],
             '名前の違う CSV' => [fn () => [ZipBuilder::single('KEN_ALL.CSV', self::addressCsv()), null], '名前'],
             '道を外へ向ける名前' => [fn () => [ZipBuilder::single('../utf_ken_all.csv', self::addressCsv()), null], '名前'],
