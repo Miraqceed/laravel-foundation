@@ -53,6 +53,10 @@ class ZipEntriesTest extends TestCase
             '終わりの印がない' => [substr(ZipBuilder::single('utf_ken_all.csv', 'a'), 0, -22), '終わりの印'],
             'ZIP でない' => ['<html>not a zip</html>', '終わりの印'],
             '空' => ['', '終わりの印'],
+            'ありえない日付（13月）' => [ZipBuilder::single('utf_ken_all.csv', 'a', '2026-13-01'), '日付がありえません'],
+            'ありえない日付（0月）' => [ZipBuilder::single('utf_ken_all.csv', 'a', '2026-00-10'), '日付がありえません'],
+            'ありえない日付（0日）' => [ZipBuilder::single('utf_ken_all.csv', 'a', '2026-10-00'), '日付がありえません'],
+            'ありえない日付（2月30日）' => [ZipBuilder::single('utf_ken_all.csv', 'a', '2026-02-30'), '日付がありえません'],
             '途中で切れた' => [substr(ZipBuilder::single('utf_ken_all.csv', str_repeat('abc', 100)), 40), '読めません'],
         ];
     }

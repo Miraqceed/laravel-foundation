@@ -138,9 +138,15 @@ final class ZipEntries
         throw new PostalCodesException('ZIP の終わりの印が見つかりません（ZIP でないか、壊れている）');
     }
 
+    /** ZIP に書かれた更新日。ありえない日付（月が 0・13〜15、日が 0 など）は止める（source.json に書くと、古さの点検と減りの止めが外れる） */
     private static function date(int $dosDate): string
     {
-        return sprintf('%04d-%02d-%02d', ($dosDate >> 9) + 1980, ($dosDate >> 5) & 15, $dosDate & 31);
+        [$year, $month, $day] = [($dosDate >> 9) + 1980, ($dosDate >> 5) & 15, $dosDate & 31];
+        if (! checkdate($month, $day, $year)) {
+            throw new PostalCodesException('ZIP の中のファイルの日付がありえません');
+        }
+
+        return sprintf('%04d-%02d-%02d', $year, $month, $day);
     }
 
     private static function u16(string $bytes, int $at): int

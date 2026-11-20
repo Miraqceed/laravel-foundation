@@ -2,6 +2,7 @@
 
 namespace Miraqceed\Foundation\Commands;
 
+use Carbon\CarbonInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -18,8 +19,8 @@ use Throwable;
  *   php artisan foundation:postal-codes --check    # 置いたデータが、今の日本郵便のデータから今の決まりで作ったものと同じか（書かない）
  *
  * 取るのは日本郵便の決まった2つの URL だけで、ほかへ送らない。外から取ったものを信じない：
- * - リダイレクトに従わない。200 のほかは失敗。時間の上限（つなぐ 10秒・全体 60秒）と取る大きさの上限
- * - ZIP は ZipEntries が、数・名前・方式・展開後の大きさ・CRC を確かめる
+ * - リダイレクトに従わない。200 のほかは失敗。時間の上限（全体 60秒。つなぐ 10秒は cURL で送るとき）と取る大きさの上限
+ * - ZIP は ZipEntries が、数・名前・方式・展開後の大きさ・CRC・日付を確かめる。番号は7桁の数字だけ。番号が1つもなければ止める
  * - すべて読めてから置き場所の隣の一時の所に書き、名前の付け替えで入れ替える。途中で失敗したら置き場所はそのまま
  * - 番号の数が前の版より 5% を超えて減れば止める（日本郵便の側の欠けたデータで、多くの番号を黙って消さない。--force で通す）
  */
@@ -86,6 +87,10 @@ class PostalCodesCommand extends Command
             try {
                 $entry = ZipEntries::single($zip, $entryName);
                 $map = $key === 'address' ? PostalCodeData::addressEntries($entry['data']) : PostalCodeData::officeEntries($entry['data']);
+                // 空のデータで一覧を消さない（前の版がない初回は、5% の減りの止めが効かない）
+                if ($map === []) {
+                    throw new PostalCodesException('番号が1つもありません');
+                }
             } catch (PostalCodesException $e) {
                 throw new PostalCodesException("{$url}：{$e->getMessage()}", previous: $e);
             }
@@ -102,17 +107,31 @@ class PostalCodesCommand extends Command
         return ['files' => $files, 'meta' => $meta, 'metaText' => self::metaText($meta)];
     }
 
-    /** 決まった URL を、リダイレクトに従わず、時間と大きさの上限つきで取る */
+    /**
+     * 決まった URL を、リダイレクトに従わず、時間と大きさの上限つきで取る。
+     * 'stream' にしない（Guzzle は PHP のストリームで送り、connect_timeout が効かず、timeout が読みの間の待ちだけになる）。
+     * cURL では connect_timeout・timeout（全体）が効く。どちらで送っても、進みの知らせ（progress）で大きさと全体の時間を見て止める
+     */
     private function fetch(string $url): string
     {
+        $deadline = now()->addSeconds(self::TIMEOUT);
+
         try {
             $response = Http::withUserAgent(self::USER_AGENT)
                 ->withoutRedirecting()
                 ->connectTimeout(self::CONNECT_TIMEOUT)
                 ->timeout(self::TIMEOUT)
-                ->withOptions(['stream' => true])
+                ->withOptions(['progress' => function (int|float $total, int|float $received) use ($url, $deadline): void {
+                    self::guard($url, (int) max($total, $received), $deadline);
+                }])
                 ->get($url);
         } catch (Throwable $e) {
+            // 進みの知らせで止めたときは、その理由を出す
+            for ($cause = $e; $cause !== null; $cause = $cause->getPrevious()) {
+                if ($cause instanceof PostalCodesException) {
+                    throw $cause;
+                }
+            }
             throw new PostalCodesException("{$url} を取れません（".$e::class.'）', previous: $e);
         }
 
@@ -132,9 +151,7 @@ class PostalCodesCommand extends Command
             $stream = $response->toPsrResponse()->getBody();
             while (! $stream->eof()) {
                 $body .= $stream->read(self::READ_CHUNK);
-                if (strlen($body) > self::MAX_DOWNLOAD_BYTES) {
-                    throw new PostalCodesException("{$url} が大きすぎます（上限 ".self::MAX_DOWNLOAD_BYTES.' バイトを超えた）');
-                }
+                self::guard($url, strlen($body), $deadline);
             }
         } catch (PostalCodesException $e) {
             throw $e;
@@ -143,6 +160,17 @@ class PostalCodesCommand extends Command
         }
 
         return $body;
+    }
+
+    /** 取った大きさが上限を超えた・取り始めから全体の時間を過ぎたら止める */
+    private static function guard(string $url, int $bytes, CarbonInterface $deadline): void
+    {
+        if ($bytes > self::MAX_DOWNLOAD_BYTES) {
+            throw new PostalCodesException("{$url} が大きすぎます（上限 ".self::MAX_DOWNLOAD_BYTES.' バイトを超えた）');
+        }
+        if (now()->greaterThan($deadline)) {
+            throw new PostalCodesException("{$url} を取り終えられません（全体 ".self::TIMEOUT.' 秒を超えた）');
+        }
     }
 
     /**

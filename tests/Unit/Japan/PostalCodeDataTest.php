@@ -207,6 +207,30 @@ class PostalCodeDataTest extends TestCase
         }
     }
 
+    public function test_番号が7桁の数字でない行があれば止める(): void
+    {
+        foreach (['../1234', 'abc1234', '100001', '10000011', '１０００００１', '1000001 ', ''] as $code) {
+            foreach ([
+                fn () => PostalCodeData::addressEntries(self::addr('1000001', '東京都', '千代田区', '千代田')."\n".self::addr($code, '東京都', '千代田区', '架空町')),
+                fn () => self::offices([self::office('1008799', '東京都', '千代田区', '大手町', '１'), self::office($code, '東京都', '千代田区', '大手町', '１', '1')]),
+            ] as $read) {
+                try {
+                    $read();
+                    $this->fail("{$code} で止まらなかった");
+                } catch (PostalCodesException $e) {
+                    $this->assertSame('2行目の郵便番号が7桁の数字ではありません。日本郵便のデータの形を確かめてください', $e->getMessage());
+                }
+            }
+        }
+    }
+
+    public function test_ファイルに分けるときも_7桁の数字でない番号は止める(): void
+    {
+        $this->expectException(PostalCodesException::class);
+
+        PostalCodeData::shardFiles(['../1234' => [['東京都', '千代田区', '架空町']]]);
+    }
+
     public function test_読めない文字があれば止める(): void
     {
         foreach ([

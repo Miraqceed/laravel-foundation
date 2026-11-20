@@ -6,11 +6,13 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Miraqceed\Foundation\Commands\PostalCodesCommand;
 use Miraqceed\Foundation\Japan\PostalAddressBook;
 use Miraqceed\Foundation\Japan\PostalCodeData;
+use Miraqceed\Foundation\Japan\PostalCodesException;
 use Miraqceed\Foundation\Tests\Support\Japan\ZipBuilder;
 use Miraqceed\Foundation\Tests\TestCase;
 use Miraqceed\Foundation\Tests\Unit\Japan\PostalCodeDataTest;
@@ -143,6 +145,18 @@ class PostalCodesCommandTest extends TestCase
         $this->assertSame([], glob($this->parent.'/.postal-codes.*') ?: [], '一時の所が残った');
     }
 
+    /** 置き場所の親には、置き場所のほかに何もない（一時の所も、置き場所の外へ向けた名前のファイルも） */
+    private function assertNothingOutside(): void
+    {
+        $this->assertSame(['postal-codes'], array_values(array_diff(scandir($this->parent) ?: [], ['.', '..'])), '置き場所の外に書いた');
+    }
+
+    /** 住所の CSV の1行だけを、番号を替えて入れた ZIP */
+    private static function addressZipWithCode(string $code): string
+    {
+        return ZipBuilder::single('utf_ken_all.csv', self::addressCsv().PostalCodeDataTest::addr($code, '東京都', '千代田区', '架空町')."\r\n");
+    }
+
     public function test_日本郵便の2つの_ZIP_から一覧を書き_引ける(): void
     {
         $this->fakeJapanPost();
@@ -241,6 +255,16 @@ class PostalCodesCommandTest extends TestCase
             '壊れた ZIP（終わりの印がない）' => [fn () => [substr(self::addressZip(), 0, -22), null], '終わりの印'],
             '列の数が違う' => [fn () => [ZipBuilder::single('utf_ken_all.csv', "13101,\"100  \",\"1000001\"\r\n"), null], '列の数'],
             '事業所の読めない文字' => [fn () => [null, ZipBuilder::single('JIGYOSYO.CSV', "13101,\"\x81\"")], 'Shift_JIS'],
+            '番号が置き場所の外へ向く（../1234）' => [fn () => [self::addressZipWithCode('../1234'), null], '3行目の郵便番号が7桁の数字ではありません'],
+            '番号に英字（abc1234）' => [fn () => [self::addressZipWithCode('abc1234'), null], '3行目の郵便番号が7桁の数字ではありません'],
+            '番号が6桁' => [fn () => [self::addressZipWithCode('100001'), null], '3行目の郵便番号が7桁の数字ではありません'],
+            '番号が8桁' => [fn () => [self::addressZipWithCode('10000011'), null], '3行目の郵便番号が7桁の数字ではありません'],
+            '番号が全角' => [fn () => [self::addressZipWithCode('１０００００１'), null], '3行目の郵便番号が7桁の数字ではありません'],
+            '事業所の番号の形が違う' => [fn () => [null, ZipBuilder::single('JIGYOSYO.CSV', mb_convert_encoding(PostalCodeDataTest::office('../9999', '東京都', '千代田区', '大手町', '１'), 'CP932', 'UTF-8'))], '1行目の郵便番号が7桁の数字ではありません'],
+            '住所の番号が0件' => [fn () => [ZipBuilder::single('utf_ken_all.csv', "\r\n"), null], 'utf_ken_all.zip：番号が1つもありません'],
+            '事業所の番号が0件（私書箱だけ）' => [fn () => [null, ZipBuilder::single('JIGYOSYO.CSV', mb_convert_encoding(PostalCodeDataTest::office('1008798', '東京都', '千代田区', '大手町', '１', '1'), 'CP932', 'UTF-8'))], 'jigyosyo.zip：番号が1つもありません'],
+            'ありえない日付の ZIP（13月）' => [fn () => [ZipBuilder::single('utf_ken_all.csv', self::addressCsv(), '2026-13-01'), null], '日付がありえません'],
+            'ありえない日付の ZIP（0日）' => [fn () => [null, ZipBuilder::single('JIGYOSYO.CSV', self::officeCsv(), '2026-10-00')], '日付がありえません'],
         ];
     }
 
@@ -261,6 +285,77 @@ class PostalCodesCommandTest extends TestCase
 
         $this->assertSame($before, $this->placed());
         $this->assertNoTemporaryLeft();
+        $this->assertNothingOutside();
+    }
+
+    public function test_初回でも_形の違う番号では何も書かない(): void
+    {
+        $this->fakeJapanPost(self::addressZipWithCode('../1234'));
+
+        $this->artisan('foundation:postal-codes')
+            ->expectsOutputToContain('郵便番号が7桁の数字ではありません')
+            ->assertFailed();
+
+        $this->assertSame([], array_values(array_diff(scandir($this->parent) ?: [], ['.', '..'])));
+    }
+
+    public function test_全体の時間を過ぎた本文は止め_置き場所は前のまま(): void
+    {
+        $before = $this->placePrevious();
+        $chunks = 0;
+        // 遅い本文：2つ目の塊を返す前に、時計を 61 秒進める
+        $slow = new PumpStream(function (int $length) use (&$chunks) {
+            if (++$chunks === 2) {
+                Carbon::setTestNow(Carbon::now()->addSeconds(61));
+            }
+
+            return $chunks <= 3 ? str_repeat('a', min($length, 1024)) : false;
+        });
+        $this->fakeJapanPost(fn () => Create::promiseFor(new Psr7Response(200, [], $slow)));
+
+        $this->artisan('foundation:postal-codes')
+            ->expectsOutputToContain('utf_ken_all.zip を取り終えられません（全体 60 秒を超えた）')
+            ->assertFailed();
+
+        $this->assertSame($before, $this->placed());
+        $this->assertNoTemporaryLeft();
+    }
+
+    public function test_送るときに_つなぐ時間・全体の時間・進みの知らせを渡し_stream_にしない(): void
+    {
+        $seen = [];
+        Http::fake(function (Request $request, array $options) use (&$seen) {
+            $seen[] = $options;
+
+            return Http::response(str_contains($request->url(), 'jigyosyo') ? self::officeZip() : self::addressZip());
+        });
+
+        $this->artisan('foundation:postal-codes')->assertSuccessful();
+
+        $this->assertCount(2, $seen);
+        foreach ($seen as $options) {
+            $this->assertSame(10, $options['connect_timeout']);
+            $this->assertSame(60, $options['timeout']);
+            $this->assertFalse($options['allow_redirects']);
+            $this->assertArrayNotHasKey('stream', $options);
+            $this->assertIsCallable($options['progress']);
+        }
+
+        // 進みの知らせ：名乗る大きさ・受けた大きさが上限を超える、または全体の時間を過ぎれば投げる（cURL・PHP のストリームが送るとき）
+        $progress = $seen[0]['progress'];
+        $progress(1000, 1000, 0, 0);
+        foreach ([[20 * 1024 * 1024 + 1, 0], [0, 20 * 1024 * 1024 + 1]] as [$total, $received]) {
+            try {
+                $progress($total, $received, 0, 0);
+                $this->fail('大きさで止まらなかった');
+            } catch (PostalCodesException $e) {
+                $this->assertStringContainsString('大きすぎます', $e->getMessage());
+            }
+        }
+        $this->travel(61)->seconds();
+        $this->expectException(PostalCodesException::class);
+        $this->expectExceptionMessage('全体 60 秒を超えた');
+        $progress(1000, 1000, 0, 0);
     }
 
     public function test_失敗の文に_取った_URL_と理由を書き_中身は書かない(): void

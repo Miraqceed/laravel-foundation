@@ -26,6 +26,9 @@ final class PostalCodeData
 
     private const FLOOR = '/（(地階・階層不明|[0-9０-９]+階)）$/u';
 
+    /** 郵便番号の形（日本郵便のデータは半角の7桁。そろえずに確かめる） */
+    private const CODE = '/\A[0-9]{7}\z/';
+
     /**
      * 住所の郵便番号（UTF-8 の1行1レコード）の文から、番号 → 候補の一覧
      *
@@ -34,8 +37,9 @@ final class PostalCodeData
     public static function addressEntries(string $text): array
     {
         $rows = array_map(
-            fn (array $r) => ['code' => $r[2], 'pref' => $r[6], 'city' => $r[7], 'town' => $r[8]],
-            self::rows(self::utf8($text), self::ADDRESS_COLUMNS),
+            fn (array $r, int $i) => ['code' => self::code($r[2], $i + 1), 'pref' => $r[6], 'city' => $r[7], 'town' => $r[8]],
+            $all = self::rows(self::utf8($text), self::ADDRESS_COLUMNS),
+            array_keys($all),
         );
 
         // 高層ビルの階ごとの番号の町名は、同じ市区町村の「（次のビルを除く）」の町名から分かる
@@ -76,8 +80,9 @@ final class PostalCodeData
     public static function officeEntries(string $shiftJis): array
     {
         $map = [];
-        foreach (self::rows(self::shiftJis($shiftJis), self::OFFICE_COLUMNS) as $r) {
+        foreach (self::rows(self::shiftJis($shiftJis), self::OFFICE_COLUMNS) as $i => $r) {
             [, , , $pref, $city, $town, $detail, $code, , , $kind] = $r;
+            $code = self::code($code, $i + 1);
             if ($kind !== '0') {
                 continue;
             }
@@ -120,6 +125,10 @@ final class PostalCodeData
 
         $groups = [];
         foreach ($codes as $code) {
+            // ファイルの名前は、7桁の数字に確かめた番号の上3桁だけから作る（読む所でも確かめている。外のデータを道に入れない）
+            if (! preg_match(self::CODE, $code)) {
+                throw new PostalCodesException('番号の形が7桁の数字ではありません');
+            }
             $groups[substr($code, 0, 3).'.json'][] = self::json($code).':'.self::json($map[$code]);
         }
         ksort($groups, SORT_STRING);
@@ -242,6 +251,16 @@ final class PostalCodeData
         }
 
         return mb_convert_encoding($bytes, 'UTF-8', 'CP932');
+    }
+
+    /** 番号が7桁の数字でなければ止める（ファイルの名前に使うので、外のデータを信じない）。文には行の番号だけを書く */
+    private static function code(string $code, int $line): string
+    {
+        if (! preg_match(self::CODE, $code)) {
+            throw new PostalCodesException("{$line}行目の郵便番号が7桁の数字ではありません。日本郵便のデータの形を確かめてください");
+        }
+
+        return $code;
     }
 
     private static function stripParens(string $town): string
