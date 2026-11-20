@@ -12,6 +12,8 @@ use Miraqceed\Foundation\DeployCheck\Checks\Boost;
 use Miraqceed\Foundation\DeployCheck\Checks\DbMaskedBindings;
 use Miraqceed\Foundation\DeployCheck\Checks\Drivers;
 use Miraqceed\Foundation\DeployCheck\Checks\ExceptionArgs;
+use Miraqceed\Foundation\DeployCheck\Checks\IpHashKey;
+use Miraqceed\Foundation\DeployCheck\Checks\LimiterKeys;
 use Miraqceed\Foundation\DeployCheck\Checks\Mail;
 use Miraqceed\Foundation\DeployCheck\Checks\MailDomain;
 use Miraqceed\Foundation\DeployCheck\Checks\MailLinks;
@@ -22,6 +24,7 @@ use Miraqceed\Foundation\DeployCheck\Checks\PostalCodes;
 use Miraqceed\Foundation\DeployCheck\Checks\QueueTimeouts;
 use Miraqceed\Foundation\DeployCheck\Checks\QueueWorker;
 use Miraqceed\Foundation\DeployCheck\Checks\RetentionSchedule;
+use Miraqceed\Foundation\DeployCheck\Checks\SessionIp;
 use Miraqceed\Foundation\DeployCheck\Checks\SessionSecureCookie;
 use Miraqceed\Foundation\DeployCheck\Checks\TrustedHosts;
 use Miraqceed\Foundation\DeployCheck\Checks\TrustedProxies;
@@ -72,6 +75,9 @@ final class Runner
         QueueTimeouts::class,
         RetentionSchedule::class,
         PostalCodes::class,
+        SessionIp::class,
+        LimiterKeys::class,
+        IpHashKey::class,
     ];
 
     private const ID_PATTERN = '/\A[a-z][a-z0-9_]*\z/';
