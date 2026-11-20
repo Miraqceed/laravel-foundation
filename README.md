@@ -45,6 +45,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 消す決まりの台帳：すべての表の消し方を1つのクラスに書き、表・列・schedule の書き忘れを試しで止める。退会・解約したアカウントを、握って確かめ直してから台帳のとおりに消す | 台帳（`foundation.retention.map`）を書いたときだけ | [docs/retention.md](docs/retention.md) |
 | 要求の本文の上限と中間処理の並び順：経路ごとの本文の大きさの上限（回数の制限より前に断る）と、経路の中間処理が実際にどの順で動くかを確かめる試しの助け | 上限はアプリが経路か全体に掛けたときだけ | [docs/http.md](docs/http.md) |
 | 日本語の入力の誤りの文：Laravel の規則・認証・再設定・ページ送りの日本語の文をアプリの `lang/ja` に写す（上書きしない）。足りない鍵と英語の混ざった誤りの文を見つける試しの助け | 写したときだけ効く（`vendor:publish --tag=foundation-lang-ja`） | [docs/validation-ja.md](docs/validation-ja.md) |
+| 住所まわり（日本向け）：郵便番号から住所を引く（外のサービスに問い合わせない。一覧はアプリが `foundation:postal-codes` で日本郵便のデータから作る）・電話番号を市外局番の表で区切る・検証の規則 | 呼んだときだけ働く。郵便番号の一覧はアプリが作る（`foundation.japan.postal_codes.path`） | [docs/japan-address.md](docs/japan-address.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 稼働の確かめ：外のスクリプトを読まず、原因を出さない `/up`（text/plain の `OK`／`NG`）。DB の確かめを足せる | アプリが `bootstrap/app.php` で `Health::route('/up')` に書き換えたときだけ。DB は見ない（`foundation.health.checks`） | [docs/health.md](docs/health.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |
@@ -95,3 +96,8 @@ Schedule::command('foundation:cache-prune')->hourly();
 ## ライセンス
 
 MIT
+
+### 出典
+
+- 市外局番の表（`resources/japan/area-codes.json`）：総務省ホームページ「電気通信番号指定状況」（https://www.soumu.go.jp/main_sosiki/joho_tsusin/top/tel_number/number_shitei.html）を加工して作成（公共データ利用規約（第1.0版）。CC BY 4.0 互換）
+- 郵便番号の一覧はパッケージに入れていない。アプリが日本郵便株式会社の郵便番号データから作る（`docs/japan-address.md`）

@@ -32,6 +32,7 @@ use Miraqceed\Foundation\Commands\CachePruneCommand;
 use Miraqceed\Foundation\Commands\DbTimezoneCommand;
 use Miraqceed\Foundation\Commands\DeployCheckCommand;
 use Miraqceed\Foundation\Commands\InstallCommand;
+use Miraqceed\Foundation\Commands\PostalCodesCommand;
 use Miraqceed\Foundation\Failures\FailureReporter;
 use Miraqceed\Foundation\Health\ConfiguredChecks;
 use Miraqceed\Foundation\Http\LimitBodySize;
@@ -259,7 +260,7 @@ class FoundationServiceProvider extends ServiceProvider
 
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
             // foundation:cache-prune は schedule に入れない（入れるのはアプリ。入れただけでは何も消えない）
-            $this->commands([InstallCommand::class, CachePruneCommand::class, DbTimezoneCommand::class, DeployCheckCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
+            $this->commands([InstallCommand::class, CachePruneCommand::class, DbTimezoneCommand::class, DeployCheckCommand::class, PostalCodesCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
         }
 
         // マイグレーションは monitoring が有効なときだけ読み込む。

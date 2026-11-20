@@ -18,6 +18,7 @@ use Miraqceed\Foundation\DeployCheck\Checks\MailLinks;
 use Miraqceed\Foundation\DeployCheck\Checks\MailViewCache;
 use Miraqceed\Foundation\DeployCheck\Checks\Migrations;
 use Miraqceed\Foundation\DeployCheck\Checks\PasswordSessions;
+use Miraqceed\Foundation\DeployCheck\Checks\PostalCodes;
 use Miraqceed\Foundation\DeployCheck\Checks\QueueTimeouts;
 use Miraqceed\Foundation\DeployCheck\Checks\QueueWorker;
 use Miraqceed\Foundation\DeployCheck\Checks\RetentionSchedule;
@@ -70,6 +71,7 @@ final class Runner
         QueueWorker::class,
         QueueTimeouts::class,
         RetentionSchedule::class,
+        PostalCodes::class,
     ];
 
     private const ID_PATTERN = '/\A[a-z][a-z0-9_]*\z/';

@@ -142,6 +142,14 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 退会・解約したアカウントは `app(\Miraqceed\Foundation\Retention\Erasure::class)->erase('user', $id, when: fn (object $user) => …)` で消す。`when` には、握って読み直した行で消してよいかを書く（消す前に読んだ値で判断しない）。日次のループでは1件ずつ `try` で捕まえる。監査の記録は出来事 `OwnerErased`（id と数だけ）で書く。
 - 本番は `foundation:deploy-check` の `retention_schedule` が、期限の消し方が schedule にあるかを確かめる。
 
+### 住所まわり（日本向け）（`docs/japan-address.md`）
+
+- 郵便番号から住所を引くのに、外の API に問い合わせない（利用者の入れた番号を第三者に送らない）。`app(\Miraqceed\Foundation\Japan\PostalAddressBook::class)->lookup($input)` を使う。候補が複数なら画面で選ばせる。
+- 一覧はパッケージに入っていない。`php artisan foundation:postal-codes` でアプリの倉庫に作り、毎月作り直して PR にする（`--check` で今の日本郵便のデータと同じかを確かめる）。置き場所（`foundation.japan.postal_codes.path`）は一覧だけのディレクトリにする。古さは `foundation:deploy-check` の `postal_codes` が見る。
+- 日本郵便のデータを自前で読まない（町域の注記・括弧・高層ビルの階・事業所の番地の後ろの会社名を住所の欄に入れてしまう）。
+- 電話番号を桁の数で区切らない。`PhoneNumber::format()`（入力の区切り・番号の種類・市外局番の表）で区切った形を保存し、`Rules\JapanesePhoneNumber`・`Rules\JapanesePostalCode` で断る（理由 `shape`・`grouping` で文を分ける）。
+- 市外局番の表を写して配るときは、出典と「加工して作成」の記載を残す。
+
 ### DB の接続の時間帯（`docs/database-timezone.md`）
 
 - `config/database.php` の pgsql・mysql の接続に `timezone` を書き、`app.timezone` と同じ値にする。PostgreSQL は時間帯の名前（`Asia/Tokyo`）で書く（`+09:00` と書くと 9 時間西と読まれる）。MySQL を時差（`+09:00`）で書いてよいのは、夏時間の無い時間帯（`Asia/Tokyo`・`UTC` など）だけ。夏時間のある時間帯は名前で書き、MySQL に時間帯の表を読み込む（時差で書くと、一年の片方の季節だけずれる）。

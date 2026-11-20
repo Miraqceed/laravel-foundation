@@ -56,6 +56,7 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `queue_worker` | キューのジョブを回す worker がある（下） | キューの driver が `database`・`sync` でない |
 | `queue_timeouts` | `CronWorker` の worker の timeout が `retry_after` より10秒以上短く、timeout が効く（下） | `CronWorker` の worker がない |
 | `retention_schedule` | 消す決まりの台帳の、期限で消すモデルとコマンドが schedule にある（下） | `foundation.retention.map` を書いていない |
+| `postal_codes` | 郵便番号の一覧が、日本郵便の更新日から3か月以内（下） | 一覧を置いていない（`source.json` がない） |
 
 当たらない調べは `skip`。アプリに当たらない既定の調べは、`config/foundation.php` で外す：
 
@@ -198,6 +199,17 @@ PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、�
 | すべてある | `ok` |
 
 パッケージの表（`foundation_notices` など）は、部品を有効にしているときだけ数える。
+
+### `postal_codes`
+
+郵便番号の一覧（`foundation:postal-codes` が `foundation.japan.postal_codes.path` に作る。`docs/japan-address.md`）の `source.json` の更新日（日本郵便の2つの元のうち古い方）を見る。日本郵便は毎月更新する。
+
+| 一覧 | 状態 |
+|---|---|
+| `source.json` がない | `skip`（郵便番号の部品を使っていない） |
+| `source.json` を読めない（JSON でない・更新日がない・日付でない） | `FAIL`（作り直す） |
+| 更新日から3か月の日（日本時間）の終わりまで | `ok`（更新日を出す） |
+| それより古い | `later`（古くても引けるので止めない。公開の直前の `--strict` で失敗。`php artisan foundation:postal-codes` で作り直して PR にする） |
 
 ### `mail_domain`
 
