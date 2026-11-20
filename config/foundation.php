@@ -283,6 +283,14 @@ return [
         'map' => null,
     ],
 
+    // 日本の住所まわり（Miraqceed\Foundation\Japan）。呼んだときだけ働く
+    'japan' => [
+        'postal_codes' => [
+            // 郵便番号の一覧の置き場所（php artisan foundation:postal-codes が作る。一覧だけのディレクトリ）。null なら resource_path('postal-codes')
+            'path' => null,
+        ],
+    ],
+
     // 本番の設定の点検（php artisan foundation:deploy-check）。流したときだけ働く
     'deploy_check' => [
         // アプリの調べのクラス（Miraqceed\Foundation\DeployCheck\Check。容器から作る）。並びのとおりに、パッケージの既定の調べの後に走る
