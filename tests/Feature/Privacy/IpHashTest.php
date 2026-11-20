@@ -36,6 +36,17 @@ class IpHashTest extends TestCase
         $this->assertNotSame($value, IpHash::of('2001:db8::8'));
     }
 
+    public function test_an_ipv4_written_inside_an_ipv6_address_gives_the_ipv4_value(): void
+    {
+        $value = IpHash::of('203.0.113.7');
+
+        foreach (['::ffff:203.0.113.7', '::FFFF:cb00:7107', '0:0:0:0:0:ffff:cb00:7107', '64:ff9b::203.0.113.7'] as $spelling) {
+            $this->assertSame($value, IpHash::of($spelling), $spelling);
+        }
+        // IPv4 を埋め込んだ形でない IPv6 は、そろえない
+        $this->assertNotSame($value, IpHash::of('2001:db8::cb00:7107'));
+    }
+
     public function test_it_does_not_use_the_app_key(): void
     {
         $before = IpHash::of('203.0.113.7');

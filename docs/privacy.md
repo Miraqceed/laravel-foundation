@@ -74,7 +74,7 @@ FOUNDATION_IP_HASH_KEY=
 ```
 
 - 鍵は `foundation.privacy.ip_hash_key`。空・32字より短ければ、呼んだところで `RuntimeException`（呼ばないアプリは何も要らない）。`foundation:deploy-check` の `ip_hash_key` が長さを見る
-- IP の書き方の違い（IPv6 の大文字・`::` の省略・0 の省略）は、正規の形にそろえてから作る。IP として読めない値は `InvalidArgumentException`（文に値を入れない）
+- IP の書き方の違い（IPv6 の大文字・`::` の省略・0 の省略）は、正規の形にそろえてから作る。IPv4 を埋め込んだ IPv6（`::ffff:203.0.113.7`・`64:ff9b::203.0.113.7`）は、その IPv4 と同じ値（デュアルスタックのソケット・プロキシの設定で `$request->ip()` の形が変わっても、比べが切れない）。IP として読めない値は `InvalidArgumentException`（文に値を入れない）
 - `APP_KEY` は使わない。残す値は日をまたいで比べるので、漏れたときに入れ替える `APP_KEY` に結び付けない
 - **ハッシュにしても、個人に関する情報であることは変わらない**（同じ回線を日をまたいで結び付けられる）。保存の期間を決め、消す決まりの台帳（`docs/retention.md`）に書く
 

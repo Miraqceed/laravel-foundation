@@ -16,8 +16,15 @@ final class IpHash
 {
     public const MIN_KEY_LENGTH = 32;
 
+    /** IPv4-mapped (::ffff:0:0/96) */
+    private const IPV4_MAPPED_PREFIX = "\0\0\0\0\0\0\0\0\0\0\xff\xff";
+
+    /** NAT64 の既定の接頭辞 (64:ff9b::/96, RFC 6052) */
+    private const NAT64_PREFIX = "\0\x64\xff\x9b\0\0\0\0\0\0\0\0";
+
     /**
-     * IP の書き方の違い（IPv6 の大文字・:: の省略・0 の省略）は、正規の形にそろえてから作る
+     * IP の書き方の違い（IPv6 の大文字・:: の省略・0 の省略）は、正規の形にそろえてから作る。
+     * IPv4 を埋め込んだ IPv6（::ffff:203.0.113.7・64:ff9b::203.0.113.7）は、その IPv4 と同じ値
      *
      * @throws \InvalidArgumentException IP として読めないとき
      * @throws \RuntimeException 鍵が空・短いとき
@@ -47,6 +54,12 @@ final class IpHash
         if ($packed === false) {
             // 値は文に入れない（IP そのものか、利用者の入力）
             throw new \InvalidArgumentException('IP として読めない値です');
+        }
+
+        // IPv4 を埋め込んだ IPv6（::ffff:0:0/96・64:ff9b::/96）は IPv4 にそろえる（IpBucket・IpSpellings と同じ見方）。
+        // デュアルスタックのソケット・プロキシの設定で $request->ip() の形が変わっても、同じ接続元は同じ値にする
+        if (strlen($packed) === 16 && in_array(substr($packed, 0, 12), [self::IPV4_MAPPED_PREFIX, self::NAT64_PREFIX], true)) {
+            $packed = substr($packed, 12);
         }
 
         return (string) inet_ntop($packed);
