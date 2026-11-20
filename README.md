@@ -43,6 +43,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 1回だけ使える合言葉：期限つき・ハッシュだけで持ち、同時の要求でも1回だけ通す（機械にトークンを受け取らせる合言葉・入場券など） | 無効（`foundation.one_time_codes.enabled`。表を作る） | [docs/one-time-codes.md](docs/one-time-codes.md) |
 | 知らせを1回だけ送る：条件に達したときの知らせを鍵ごとに1回だけ送る。送れなければ印を戻して送り直す。止まった印の取り直し・トランザクションの中・キューのジョブでも1回 | 無効（`foundation.notices.enabled`。表を作る） | [docs/once-notices.md](docs/once-notices.md) |
 | 消す決まりの台帳：すべての表の消し方を1つのクラスに書き、表・列・schedule の書き忘れを試しで止める。退会・解約したアカウントを、握って確かめ直してから台帳のとおりに消す | 台帳（`foundation.retention.map`）を書いたときだけ | [docs/retention.md](docs/retention.md) |
+| 生の IP を残さない：`database` のセッションの表に IP を書かない差し替え・回数の制限の鍵をすべて `APP_KEY` の HMAC にする差し替え（Laravel の `throttle`・Fortify の鍵も）・DB に残す IP の値を別の鍵の HMAC にする助け・試しの DB に IP が残っていないかを確かめる試しの助け | 無効（`foundation.privacy.sessions_without_ip`・`keyed_rate_limiter`）。ハッシュは呼んだときだけ（鍵 `FOUNDATION_IP_HASH_KEY`） | [docs/privacy.md](docs/privacy.md) |
 | 要求の本文の上限と中間処理の並び順：経路ごとの本文の大きさの上限（回数の制限より前に断る）と、経路の中間処理が実際にどの順で動くかを確かめる試しの助け | 上限はアプリが経路か全体に掛けたときだけ | [docs/http.md](docs/http.md) |
 | 日本語の入力の誤りの文：Laravel の規則・認証・再設定・ページ送りの日本語の文をアプリの `lang/ja` に写す（上書きしない）。足りない鍵と英語の混ざった誤りの文を見つける試しの助け | 写したときだけ効く（`vendor:publish --tag=foundation-lang-ja`） | [docs/validation-ja.md](docs/validation-ja.md) |
 | 住所まわり（日本向け）：郵便番号から住所を引く（外のサービスに問い合わせない。一覧はアプリが `foundation:postal-codes` で日本郵便のデータから作る）・電話番号を市外局番の表で区切る・検証の規則 | 呼んだときだけ働く。郵便番号の一覧はアプリが作る（`foundation.japan.postal_codes.path`） | [docs/japan-address.md](docs/japan-address.md) |

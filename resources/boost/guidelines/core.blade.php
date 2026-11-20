@@ -142,6 +142,14 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 退会・解約したアカウントは `app(\Miraqceed\Foundation\Retention\Erasure::class)->erase('user', $id, when: fn (object $user) => …)` で消す。`when` には、握って読み直した行で消してよいかを書く（消す前に読んだ値で判断しない）。日次のループでは1件ずつ `try` で捕まえる。監査の記録は出来事 `OwnerErased`（id と数だけ）で書く。
 - 本番は `foundation:deploy-check` の `retention_schedule` が、期限の消し方が schedule にあるかを確かめる。
 
+### 生の IP を残さない（`docs/privacy.md`）
+
+- 生の IP を保存しないと決めたアプリは、`foundation.privacy.sessions_without_ip` を真にする（`database` のセッションは、ログインしていない訪問者の IP も `sessions.ip_address` に書く）。driver の名前は `database` のまま。自前で `Session::extend('database', …)` を書かない。有効にすると、`ip_address` を見せる画面（ほかのブラウザのセッションの一覧など）で IP の欄が空になる。
+- 回数の制限の鍵に `$request->ip()` をそのまま渡さない（`Limit::by($request->ip())` は秘密のない md5、数だけの `throttle:60,1` は sha1 でキャッシュの表に残り、IP に戻せる）。`AttemptKey::for('contact', IpBucket::of($request))` で鍵を作るか、`foundation.privacy.keyed_rate_limiter` を真にする。切り替えた時点で、ログインのロックを含む数えが一度空になるので、人の少ない時間に切り替える。
+- DB に残す IP の値（同じ回線の数えなど）は `\Miraqceed\Foundation\Privacy\IpHash::of($ip)`（IPv6 を /64 で数えるなら `IpHash::ofBucket($request)`）。鍵は `APP_KEY` と別の `FOUNDATION_IP_HASH_KEY`（32字以上）。秘密のない `sha256($ip)` で残さない。鍵を入れ替えると前の値と比べられなくなる。
+- IP を受ける口の試しに `RawIp::assertNotStored('203.0.113.7')` を置く（すべての表の文字の列に、その IP の書き方が残っていれば落ちる）。
+- 本番は `foundation:deploy-check` の `session_ip`・`limiter_keys`・`ip_hash_key` が見る。
+
 ### 住所まわり（日本向け）（`docs/japan-address.md`）
 
 - 郵便番号から住所を引くのに、外の API に問い合わせない（利用者の入れた番号を第三者に送らない）。`app(\Miraqceed\Foundation\Japan\PostalAddressBook::class)->lookup($input)` を使う。候補が複数なら画面で選ばせる。
