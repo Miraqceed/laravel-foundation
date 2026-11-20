@@ -291,6 +291,18 @@ return [
         ],
     ],
 
+    // 生の IP を残さない（Miraqceed\Foundation\Privacy）。既定ではどれも効かない
+    'privacy' => [
+        // 真にすると、SESSION_DRIVER=database の表に訪問者の IP を書かない（ip_address は null。user_agent は残す）。
+        // driver の名前は database のまま。ip_address を見せる画面（ほかのブラウザのセッションの一覧など）では、IP の欄が空になる
+        'sessions_without_ip' => false,
+        // 真にすると、回数の制限の鍵（Laravel の throttle・Fortify・アプリの Limit::by()・パッケージの数え）を、すべて
+        // APP_KEY の HMAC にしてキャッシュに入れる。切り替えた時点で、今までの数え（ログインのロックを含む）が一度空になる
+        'keyed_rate_limiter' => false,
+        // DB に残す IP のハッシュ（Privacy\IpHash）の鍵。APP_KEY と別の、32字以上の乱数。入れ替えると前の値と比べられなくなる
+        'ip_hash_key' => env('FOUNDATION_IP_HASH_KEY'),
+    ],
+
     // 本番の設定の点検（php artisan foundation:deploy-check）。流したときだけ働く
     'deploy_check' => [
         // アプリの調べのクラス（Miraqceed\Foundation\DeployCheck\Check。容器から作る）。並びのとおりに、パッケージの既定の調べの後に走る

@@ -129,7 +129,7 @@ Laravel の表の保存の期間は、アプリが決める（パッケージは
 | `failed_jobs` | `queue:prune-failed`（既定 24時間より前。`--hours=` で変える） | `->prunedByCommand('queue:prune-failed')` |
 | `job_batches` | `queue:prune-batches` | `->prunedByCommand('queue:prune-batches')` |
 | `password_reset_tokens` | `auth:clear-resets`（期限切れのもの） | `->prunedByCommand('auth:clear-resets')` |
-| `sessions` | 要求のたびのくじ（`session.lottery`、既定 2/100）で期限切れを消す。schedule は要らない | `->erasedWith('user', column: 'user_id')`（退会でログインを終える） |
+| `sessions` | 要求のたびのくじ（`session.lottery`、既定 2/100）で期限切れを消す。schedule は要らない。`ip_address` の列には、ログインしていない訪問者の IP も入る（入れないなら `foundation.privacy.sessions_without_ip`。`docs/privacy.md`） | `->erasedWith('user', column: 'user_id')`（退会でログインを終える） |
 | `cache` | 期限切れの行は消えない。`foundation:cache-prune` | `->prunedByCommand('foundation:cache-prune')` |
 | `jobs`・`cache_locks` | 処理すると・解くと消える | `->handledByApp('…')` |
 

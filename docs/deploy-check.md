@@ -57,6 +57,9 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `queue_timeouts` | `CronWorker` の worker の timeout が `retry_after` より10秒以上短く、timeout が効く（下） | `CronWorker` の worker がない |
 | `retention_schedule` | 消す決まりの台帳の、期限で消すモデルとコマンドが schedule にある（下） | `foundation.retention.map` を書いていない |
 | `postal_codes` | 郵便番号の一覧が、日本郵便の更新日から3か月以内（下） | 一覧を置いていない（`source.json` がない） |
+| `session_ip` | `database` のセッションの表に訪問者の IP を書かない（下。書いていても `info`） | セッションが `database` でない |
+| `limiter_keys` | 回数の制限の鍵を `APP_KEY` の HMAC にしてキャッシュに入れる（下。していなくても `info`） | |
+| `ip_hash_key` | DB に残す IP のハッシュの鍵（`foundation.privacy.ip_hash_key`）が32字以上（下） | 鍵が空（`IpHash` を使っていない） |
 
 当たらない調べは `skip`。アプリに当たらない既定の調べは、`config/foundation.php` で外す：
 
@@ -210,6 +213,25 @@ PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、�
 | `source.json` を読めない（JSON でない・更新日がない・日付でない） | `FAIL`（作り直す） |
 | 更新日から3か月の日（日本時間）の終わりまで | `ok`（更新日を出す） |
 | それより古い | `later`（古くても引けるので止めない。公開の直前の `--strict` で失敗。`php artisan foundation:postal-codes` で作り直して PR にする） |
+
+### `session_ip`・`limiter_keys`・`ip_hash_key`
+
+生の IP を残さない設定（`docs/privacy.md`）を見る。IP を残してよいアプリもあるので、設定していなければ `info` だけで、失敗にしない。`FAIL` は、設定したのに効かないときだけ。値（鍵）は出さない。
+
+| 調べ | 設定 | 状態 |
+|---|---|---|
+| `session_ip` | セッションが `database` でない | `skip`（IP を書く driver は `database` だけ） |
+| | handler が IP を書かない（`foundation.privacy.sessions_without_ip`・アプリが `ipAddress()` を書き換えた handler） | `ok` |
+| | Laravel のまま IP を書く | `info` |
+| | アプリが `DatabaseSessionHandler` でない handler に差し替えている | `info`（IP を書くかは見ない） |
+| `limiter_keys` | `RateLimiter` が `KeyedRateLimiter` | `ok` |
+| | 差し替えていない | `info`（鍵が生か、秘密のない sha1・md5 で入る） |
+| | `foundation.privacy.keyed_rate_limiter` が真なのに、`APP_KEY` が空・`RateLimiter` が差し替わっていない | `FAIL` |
+| `ip_hash_key` | 空 | `skip` |
+| | 32字以上 | `ok` |
+| | 32字より短い | `FAIL`（`IpHash` が投げる） |
+
+`session_ip` は handler を作って `ipAddress()` がどのクラスのものかを見る。DB には問い合わせない。
 
 ### `mail_domain`
 

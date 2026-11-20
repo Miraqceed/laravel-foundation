@@ -142,6 +142,13 @@ try {
 - `AttemptKey::for(名前, ...値)` は、値を `APP_KEY` の HMAC-SHA256 にして鍵を作る。キャッシュの表の鍵から、IP・メールアドレスを総当たりで戻せない
 - 名前（`token-claim`・`card` など）は鍵にそのまま入る。IP・メールアドレスを名前に入れない。口ごとに名前を分ける（再設定の申請と設定の数えを分ける、など）
 - `APP_KEY` が空なら `RuntimeException`（黙って秘密のない鍵に戻さない）。`APP_KEY` を入れ替えると、鍵が変わって数えが消える
+- Laravel の `throttle` の名前の付いた制限にも使える。`->by($request->ip())` と書くと、鍵は秘密のない md5 でキャッシュに入る：
+
+```php
+RateLimiter::for('contact', fn (Request $request) => Limit::perHour(5)->by(AttemptKey::for('contact', IpBucket::of($request))));
+```
+
+- Laravel・Fortify が作る鍵（数だけの `throttle:60,1` など）までまとめて HMAC にするなら、`foundation.privacy.keyed_rate_limiter`（`docs/privacy.md`）
 
 ## 診断の間に外す（`bypass`）
 

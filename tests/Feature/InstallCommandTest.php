@@ -87,6 +87,8 @@ class InstallCommandTest extends TestCase
             'test-safety.md', 'ignore_connections', '入れた時点で効く', 'prevent_stray_requests', 'Unknown database',
             // CSV
             'CsvResponse::download', 'Rows::keyset', 'CsvReader::parse',
+            // 生の IP を残さない：セッション・回数の制限の鍵（既定は無効）・残す値のハッシュの鍵は APP_KEY と別・試しの助け
+            'privacy.md', 'foundation.privacy.sessions_without_ip', 'foundation.privacy.keyed_rate_limiter', 'IpHash::of', 'FOUNDATION_IP_HASH_KEY', 'RawIp::assertNotStored',
             // 実在しないメールアドレス：判定・欄の規則・送る前の差し込み（既定は無効）。形の確かめではない
             'reserved-email-domains.md', 'ReservedEmailDomains::isReserved', 'NotReservedEmailDomain', 'drop_reserved_recipients', 'メールアドレスの形の確かめではない',
             // 本番の設定の点検：自前で書き直さず、調べを足す。値を出さない

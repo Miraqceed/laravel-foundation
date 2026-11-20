@@ -68,6 +68,8 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 
 `fortify.limiters.login` を `null` にするだけでは足りない（Fortify が別の制限を流れに入れる）。**`authenticateThrough` とセット**。ロック中は 429 の `ValidationException`（Fortify の `auth.throttle` の文言）。
 
+Fortify の既定の制限の鍵は、キャッシュの表に IP を残す。雛形の `RateLimiter::for('login', …)` は `メールアドレス|IP` を秘密のない md5 で、`EnsureLoginIsNotThrottled`（`LoginRateLimiter`）はそのまま鍵にする。上の3つで Fortify の制限を外せば、どちらも通らない（このロックの鍵は `APP_KEY` の HMAC）。外さずに使うなら `foundation.privacy.keyed_rate_limiter`（`docs/privacy.md`）。
+
 ## Fortify なしで使う
 
 ```php

@@ -3,7 +3,7 @@
 namespace Miraqceed\Foundation\Failures;
 
 /**
- * 1つの IP の、文に出うる書き方を集めて伏せる（FailureReporter::redactIp() の中身）。
+ * 1つの IP の、文に出うる書き方を集めて伏せる（FailureReporter::redactIp() の中身。Testing\RawIp も書き方を使う）。
  *
  * IPv6 は書き方が揺れる（大文字・小文字、:: の省略、0 の省略、全部の形）。str_replace 1回では伏せきれない。
  * IPv4 を埋め込んだ IPv6（::ffff:0:0/96・64:ff9b::/96）は、中の IPv4 が別に出ることがある。
@@ -24,11 +24,42 @@ final class IpSpellings
             return $message;
         }
 
-        $packed = @inet_pton($ip);
+        $forms = self::forms($ip);
 
         // IP として読めない値は、書いたとおりだけを伏せる
-        if ($packed === false) {
+        if ($forms === null) {
             return str_ireplace($ip, $marker, $message);
+        }
+
+        ['ipv4' => $ipv4, 'ipv6' => $ipv6] = $forms;
+
+        $patterns = [];
+        foreach (self::longestFirst($ipv6) as $form) {
+            // 前後に16進の字・: が続くときは、もっと長いアドレスの一部なので当てない
+            $patterns[] = '/(?<![0-9a-f:])'.preg_quote($form, '/').'(?![0-9a-f:])(?!\.[0-9])/i';
+        }
+        foreach (self::longestFirst($ipv4) as $form) {
+            // 前後に数字が続く（1203.0.113.5・203.0.113.50・203.0.113.5.1）ときは当てない。文の終わりの . は当てる
+            $patterns[] = '/(?<![0-9])(?<![0-9]\.)'.preg_quote($form, '/').'(?![0-9])(?!\.[0-9])/';
+        }
+
+        // u を付けない（壊れた UTF-8 の文でも、バイトのまま扱って失敗しない）
+        $redacted = preg_replace($patterns, $marker, $message);
+
+        // 正規表現が失敗したら（上限に掛かるなど）、境目を見ずに伏せる。伏せずに返さない
+        return is_string($redacted) ? $redacted : str_ireplace([...$ipv6, ...$ipv4], $marker, $message);
+    }
+
+    /**
+     * 1つの IP の、文に出うる書き方（IPv4 の組と IPv6 の組）。IP として読めなければ null
+     *
+     * @return array{ipv4: list<string>, ipv6: list<string>}|null
+     */
+    public static function forms(string $ip): ?array
+    {
+        $packed = @inet_pton($ip);
+        if ($packed === false) {
+            return null;
         }
 
         $ipv4 = [];
@@ -58,21 +89,7 @@ final class IpSpellings
             $ipv4[] = $given;
         }
 
-        $patterns = [];
-        foreach (self::longestFirst($ipv6) as $form) {
-            // 前後に16進の字・: が続くときは、もっと長いアドレスの一部なので当てない
-            $patterns[] = '/(?<![0-9a-f:])'.preg_quote($form, '/').'(?![0-9a-f:])(?!\.[0-9])/i';
-        }
-        foreach (self::longestFirst($ipv4) as $form) {
-            // 前後に数字が続く（1203.0.113.5・203.0.113.50・203.0.113.5.1）ときは当てない。文の終わりの . は当てる
-            $patterns[] = '/(?<![0-9])(?<![0-9]\.)'.preg_quote($form, '/').'(?![0-9])(?!\.[0-9])/';
-        }
-
-        // u を付けない（壊れた UTF-8 の文でも、バイトのまま扱って失敗しない）
-        $redacted = preg_replace($patterns, $marker, $message);
-
-        // 正規表現が失敗したら（上限に掛かるなど）、境目を見ずに伏せる。伏せずに返さない
-        return is_string($redacted) ? $redacted : str_ireplace([...$ipv6, ...$ipv4], $marker, $message);
+        return ['ipv4' => self::longestFirst($ipv4), 'ipv6' => self::longestFirst($ipv6)];
     }
 
     /** IPv4 を ::ffff: の後ろの16進の2組の形にする（::ffff:cb00:7105） */
