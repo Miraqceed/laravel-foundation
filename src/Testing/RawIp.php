@@ -18,9 +18,6 @@ use PHPUnit\Framework\Assert;
  */
 final class RawIp
 {
-    /** 1つの列で、PHP で確かめ直す行の上限（LIKE で拾った候補） */
-    private const ROWS_PER_COLUMN = 1000;
-
     /**
      * @throws \InvalidArgumentException IP として読めないとき
      */
@@ -58,7 +55,9 @@ final class RawIp
             default => 'CAST('.$grammar->wrap($column).' AS TEXT)',
         };
 
-        $query = $db->table($table)->select($column)->limit(self::ROWS_PER_COLUMN);
+        // 候補を上限で切らない。長い数の一部（203.0.113.70 など）の行が先に並んでも、本当に残っている行を見落とさない。
+        // cursor() で1行ずつ読む（並びの列が要らず、候補が多くても配列に溜めない）
+        $query = $db->table($table)->select($column);
         $query->where(function ($where) use ($forms, $text): void {
             foreach ($forms as $form) {
                 // ! で LIKE の %・_・! を逃がす（どの DB でも同じ書き方になる）
@@ -66,8 +65,8 @@ final class RawIp
             }
         });
 
-        foreach ($query->pluck($column) as $value) {
-            $value = (string) $value;
+        foreach ($query->cursor() as $row) {
+            $value = (string) $row->{$column};
             // LIKE は長い数の一部でも当たる。境目は IpSpellings と同じ決まりで確かめ直す
             if (IpSpellings::redact($value, $ip, "\0") !== $value) {
                 return true;

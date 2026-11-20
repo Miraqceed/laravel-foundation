@@ -90,6 +90,17 @@ class RawIpTest extends TestCase
         $this->assertNull($this->failure('203.0.113.7'));
     }
 
+    public function test_many_rows_with_a_longer_number_do_not_hide_the_ip(): void
+    {
+        // LIKE では当たるが、境目で外れる行を先に多く入れる（候補を数で切ると、後ろの本当の行を見落とす）
+        foreach (array_chunk(array_fill(0, 1500, ['label' => '203.0.113.70']), 500) as $rows) {
+            DB::table('raw_ip_probes')->insert($rows);
+        }
+        DB::table('raw_ip_probes')->insert(['label' => 'visitor 203.0.113.7']);
+
+        $this->assertStringContainsString('raw_ip_probes.label', (string) $this->failure('203.0.113.7'));
+    }
+
     public function test_like_wildcards_in_the_data_do_not_match(): void
     {
         // % と _ が LIKE の特別な字として働けば、どの値にも当たる
