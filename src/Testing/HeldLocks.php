@@ -48,7 +48,7 @@ final class HeldLocks
 
         try {
             // 先に握らずに読む：MySQL の握る読み方は、コミットされていない行を見つけると、その確定まで待つ
-            if (! $holder->table($table)->where($column, $id)->exists()) {
+            if (! $holder->table($table)->useWritePdo()->where($column, $id)->exists()) {
                 throw new LogicException(
                     "2本目の接続から、表 {$table} の行が見えません。RefreshDatabase の中で作った行はコミットされないので、"
                     .'DatabaseTruncation などで片付ける試しにして、コミットした行を握ってください',
@@ -79,15 +79,22 @@ final class HeldLocks
 
         try {
             $got = LockDriver::of($holder) === LockDriver::MySql
-                ? (int) $holder->selectOne('select GET_LOCK(?, 0) as got', [$serverName])->got === 1
-                : in_array($holder->selectOne('select pg_try_advisory_lock(?::bigint) as got', [$serverName])->got, [true, 1, '1', 't'], true);
+                ? (int) $holder->selectOne('select GET_LOCK(?, 0) as got', [$serverName], false)->got === 1
+                : in_array($holder->selectOne('select pg_try_advisory_lock(?::bigint) as got', [$serverName], false)->got, [true, 1, '1', 't'], true);
             if (! $got) {
                 throw new LogicException('2本目の接続で名前つきのロックを握れませんでした（ほかの接続が既に握っています）');
             }
 
             return $fn();
         } finally {
-            // 閉じればサーバーが放す
+            // 閉じる前に放す：閉じるだけだと、サーバーが名前を放すのは切断の片付けの後になり、戻った直後にまだ取れないことがある
+            try {
+                LockDriver::of($holder) === LockDriver::MySql
+                    ? $holder->selectOne('select RELEASE_LOCK(?) as released', [$serverName], false)
+                    : $holder->selectOne('select pg_advisory_unlock(?::bigint) as released', [$serverName], false);
+            } catch (Throwable) {
+                // 放せなくても、閉じればサーバーが放す
+            }
             self::close($holder);
         }
     }

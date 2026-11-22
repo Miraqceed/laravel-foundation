@@ -185,6 +185,40 @@ class LockWaitTest extends TestCase
         $this->assertSame([], Exceptions::reported());
     }
 
+    public function test_postgres_a_limit_set_outside_a_transaction_that_cannot_be_restored_is_recorded(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('PostgreSQL だけ（トランザクションが壊れる）');
+        }
+        Exceptions::fake();
+
+        // 外で設定した後、work がトランザクションを始め、壊れたまま（巻き戻さずに）投げる。外で設定した値は確定済みで、
+        // 巻き戻しても消えないので、戻せなかったことを黙らない
+        try {
+            $this->wait()->atMost(7, function (): void {
+                DB::beginTransaction();
+                try {
+                    DB::select('select * from lock_wait_no_such_table');
+                } catch (QueryException) {
+                    // トランザクションは壊れた
+                }
+
+                throw new RuntimeException('work failed');
+            });
+            $this->fail('処理の例外が要る');
+        } catch (RuntimeException $e) {
+            $this->assertSame('work failed', $e->getMessage());
+        } finally {
+            $messages = collect(Exceptions::reported())->map(fn (Throwable $e): string => $e->getMessage())->all();
+            // トランザクションの中なので切らない
+            $this->assertNotNull(DB::connection()->getRawPdo());
+            DB::rollBack();
+        }
+
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('元に戻せませんでした', $messages[0]);
+    }
+
     public function test_mysql_the_restored_value_stays_after_a_rollback(): void
     {
         if (DB::getDriverName() === 'pgsql' || DB::getDriverName() === 'sqlite') {

@@ -24,6 +24,9 @@ use Throwable;
  * 名前は、接続の DB の名前と合わせた sha256 にする。MySQL の名前はサーバー全体で1つ（共用サーバーのほかの DB・
  * 並べて流す試しの DB とぶつかる）で、64字までのため。PostgreSQL の鍵は bigint なので、同じ値の先頭8バイトを使う。
  * 記録・例外の文に、名前・鍵を入れない
+ *
+ * 取る・放す文は、どれも書き込み用の接続で流す（selectOne() の既定は、トランザクションの外で読み取り用の接続に流れる。
+ * read/write を分けた接続で、取る・放すが別の接続になり、ロックが残る・並ばない）
  */
 final class NamedLock
 {
@@ -105,7 +108,7 @@ final class NamedLock
     private function acquire(Connection $db, LockDriver $driver, string|int $serverName, int $waitSeconds): void
     {
         if ($driver === LockDriver::MySql) {
-            $got = $db->selectOne('select GET_LOCK(?, ?) as got', [$serverName, $waitSeconds])->got;
+            $got = $db->selectOne('select GET_LOCK(?, ?) as got', [$serverName, $waitSeconds], false)->got;
             if ($got === null) {
                 throw new RuntimeException('GET_LOCK が NULL を返しました（DB の誤り。接続が切られたなど）');
             }
@@ -118,7 +121,7 @@ final class NamedLock
 
         // PostgreSQL：lock_timeout = 0 は「限りなく待つ」なので、待たないときは try にする
         if ($waitSeconds === 0) {
-            if (! self::truthy($db->selectOne('select pg_try_advisory_lock(?::bigint) as got', [$serverName])->got)) {
+            if (! self::truthy($db->selectOne('select pg_try_advisory_lock(?::bigint) as got', [$serverName], false)->got)) {
                 throw new LockNotAcquired(0);
             }
 
@@ -130,12 +133,12 @@ final class NamedLock
         $acquired = false;
         try {
             $db->transaction(function (Connection $db) use ($serverName, $waitSeconds, &$acquired): void {
-                $previous = (string) $db->selectOne("select current_setting('lock_timeout') as value")->value;
-                $db->selectOne("select set_config('lock_timeout', ?, true) as value", [($waitSeconds * 1000).'ms']);
-                $db->selectOne('select pg_advisory_lock(?::bigint) as got', [$serverName]);
+                $previous = (string) $db->selectOne("select current_setting('lock_timeout') as value", [], false)->value;
+                $db->selectOne("select set_config('lock_timeout', ?, true) as value", [($waitSeconds * 1000).'ms'], false);
+                $db->selectOne('select pg_advisory_lock(?::bigint) as got', [$serverName], false);
                 $acquired = true;
                 // 外のトランザクションの中（savepoint）では、確定まで残るので、ここで戻す
-                $db->selectOne("select set_config('lock_timeout', ?, true) as value", [$previous]);
+                $db->selectOne("select set_config('lock_timeout', ?, true) as value", [$previous], false);
             });
         } catch (Throwable $e) {
             if ($acquired) {
@@ -155,8 +158,8 @@ final class NamedLock
     {
         try {
             $released = match ($driver) {
-                LockDriver::MySql => $db->selectOne('select RELEASE_LOCK(?) as released', [$serverName])->released,
-                LockDriver::Postgres => $db->selectOne('select pg_advisory_unlock(?::bigint) as released', [$serverName])->released,
+                LockDriver::MySql => $db->selectOne('select RELEASE_LOCK(?) as released', [$serverName], false)->released,
+                LockDriver::Postgres => $db->selectOne('select pg_advisory_unlock(?::bigint) as released', [$serverName], false)->released,
                 LockDriver::Sqlite => true,
             };
         } catch (Throwable $e) {

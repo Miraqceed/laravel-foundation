@@ -32,6 +32,30 @@ trait LockConnections
         return DB::connection($name);
     }
 
+    /**
+     * 読み取り用と書き込み用を分けた接続（Laravel の read/write の書き方）。どちらも既定の接続と同じサーバー・同じ DB だが、
+     * 別々の PDO（別々のセッション）になる
+     */
+    private function splitConnection(string $name = 'lock-split'): Connection
+    {
+        $base = config('database.connections.'.config('database.default'));
+        config(["database.connections.{$name}" => array_merge($base, [
+            'read' => ['host' => [$base['host']]],
+            'write' => ['host' => [$base['host']]],
+            'sticky' => false,
+        ])]);
+        DB::purge($name);
+        $this->lockConnections[] = $name;
+
+        return DB::connection($name);
+    }
+
+    /** 読み取り用（$read が真）か書き込み用の接続の id */
+    private function sessionId(Connection $db, bool $read): int
+    {
+        return (int) $db->selectOne($db->getDriverName() === 'pgsql' ? 'select pg_backend_pid() as id' : 'select CONNECTION_ID() as id', [], $read)->id;
+    }
+
     private function closeLockConnections(): void
     {
         foreach ($this->lockConnections as $name) {

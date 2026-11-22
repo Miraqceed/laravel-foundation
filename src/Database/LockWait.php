@@ -22,6 +22,9 @@ use Throwable;
  * 戻せなければ、処理の結果・例外を置き換えずに記録し、トランザクションの外なら接続を切る
  * （次の接続はサーバーの既定で始まる。中で切ると、黙って巻き戻り、その後が自動のコミットになる）。
  * 記録の文には、例外のクラスと SQLSTATE だけを入れる（設定の値・SQL を入れない）
+ *
+ * 読む・設定する・戻す文は、どれも書き込み用の接続で流す（read/write を分けた接続で、行を握るのは書き込み用の接続。
+ * selectOne() の既定はトランザクションの外で読み取り用の接続に流れ、上限が効かないまま黙る）
  */
 final class LockWait
 {
@@ -54,6 +57,8 @@ final class LockWait
 
         try {
             $previous = self::read($db, $driver);
+            // 設定した時の段数：0 なら SET は確定済みで、後で巻き戻しても消えない
+            $levelAtSet = $db->transactionLevel();
             self::write($db, $driver, $driver === LockDriver::MySql ? (string) $seconds : ($seconds * 1000).'ms');
         } catch (Throwable $e) {
             $this->reporter->report(new RuntimeException(
@@ -66,18 +71,19 @@ final class LockWait
         try {
             return $work();
         } finally {
-            $this->restore($db, $driver, $previous);
+            $this->restore($db, $driver, $previous, $levelAtSet);
         }
     }
 
     /** 戻す。投げない */
-    private function restore(Connection $db, LockDriver $driver, string $previous): void
+    private function restore(Connection $db, LockDriver $driver, string $previous, int $levelAtSet): void
     {
         try {
             self::write($db, $driver, $previous);
         } catch (Throwable $e) {
-            // PostgreSQL の壊れたトランザクションの中（処理が誤った）：戻す SET は通らないが、巻き戻せば SET も消える
-            if ($driver === LockDriver::Postgres && $db->transactionLevel() > 0 && self::sqlState($e) === '25P02') {
+            // PostgreSQL の壊れたトランザクションの中（処理が誤った）：戻す SET は通らないが、巻き戻せば SET も消える。
+            // 消えるのは、呼び手のトランザクションの中で設定したときだけ（外で設定した値は確定済みで残るので、記録する）
+            if ($driver === LockDriver::Postgres && $levelAtSet > 0 && $db->transactionLevel() > 0 && self::sqlState($e) === '25P02') {
                 return;
             }
 
@@ -98,8 +104,8 @@ final class LockWait
     private static function read(Connection $db, LockDriver $driver): string
     {
         return match ($driver) {
-            LockDriver::MySql => (string) (int) $db->selectOne('select @@SESSION.innodb_lock_wait_timeout as value')->value,
-            LockDriver::Postgres => (string) $db->selectOne("select current_setting('lock_timeout') as value")->value,
+            LockDriver::MySql => (string) (int) $db->selectOne('select @@SESSION.innodb_lock_wait_timeout as value', [], false)->value,
+            LockDriver::Postgres => (string) $db->selectOne("select current_setting('lock_timeout') as value", [], false)->value,
             LockDriver::Sqlite => '',
         };
     }
@@ -110,7 +116,7 @@ final class LockWait
             // 数だけを入れる（読んだ値も (int) にしてある）
             LockDriver::MySql => $db->statement('SET SESSION innodb_lock_wait_timeout = '.(int) $value),
             // is_local = false：SET SESSION と同じ（トランザクションの中なら、巻き戻すと消える）
-            LockDriver::Postgres => $db->selectOne("select set_config('lock_timeout', ?, false) as value", [$value]),
+            LockDriver::Postgres => $db->selectOne("select set_config('lock_timeout', ?, false) as value", [$value], false),
             LockDriver::Sqlite => null,
         };
     }
