@@ -202,6 +202,12 @@ return [
         'prune_days' => 7,
     ],
 
+    // 機械用のトークンと、その入れ替え（MachineTokens）。呼んだときだけ働く
+    'machine_tokens' => [
+        // 既定で無効。真のときだけ表のマイグレーションを読み込む（vendor:publish --tag=foundation-machine-token-migrations でも写せる）
+        'enabled' => false,
+    ],
+
     // 二段階の認証（認証アプリの確認コード。TwoFactor・FortifyTwoFactorProvider）。呼んだときだけ働く
     'two_factor' => [
         // 登録の URI の issuer。null なら app.name
