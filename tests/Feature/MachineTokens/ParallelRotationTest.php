@@ -107,14 +107,24 @@ class ParallelRotationTest extends TestCase
         }
     }
 
-    /** 入れ替えと、入れ替え待ちの初めての使用が同時に来ても、機械が持つ鍵のどれかは効く（締め出されない） */
+    /**
+     * 入れ替えと、入れ替え待ちの初めての使用が同時に来ても、機械が持つ鍵のどれかは効く（締め出されない）。
+     * 入れ替え待ちは rotate() でなく表に直に置く（rotate() の作りを替えて確かめるときに、用意まで替わらないように）。
+     * プロセスごとに始めをずらし、入れ替えが先の回と切り替えが先の回の両方が起きるようにする
+     */
     public function test_rotations_racing_a_switch_never_lock_the_machine_out(): void
     {
-        for ($round = 1; $round <= 10; $round++) {
+        for ($round = 1; $round <= 20; $round++) {
             $subject = "server:{$round}";
-            [$current, $pending] = $this->rotated($subject);
+            $current = $this->tokens()->issue(self::kind(), $subject)->token;
+            $pending = CodeFormat::generate(self::kind()->prefix);
+            DB::table(MachineTokens::TABLE)->where('subject', $subject)->update([
+                'pending_hash' => CodeFormat::hash($pending),
+                'pending_issued_at' => CarbonImmutable::now('UTC')->format('Y-m-d H:i:s'),
+            ]);
 
             $lines = $this->fork(6, function (int $process) use ($current, $pending): string {
+                usleep(random_int(0, 5_000));
                 if ($process % 2 === 0) {
                     $new = $this->tokens()->rotate(self::kind(), $current);
 
@@ -137,11 +147,21 @@ class ParallelRotationTest extends TestCase
             if ($row->pending_hash !== null) {
                 $this->assertContains($row->pending_hash, $returned, "round {$round}");
             }
-            // 元の今の鍵か元の入れ替え待ちの鍵のどちらかは、いま効く
-            $this->assertTrue(
-                $this->tokens()->authenticate(self::kind(), $current) !== null || $this->tokens()->authenticate(self::kind(), $pending) !== null,
-                "round {$round}: 締め出された ".json_encode($lines),
-            );
+            // 前の鍵の猶予と入れ替え待ちの期限（どちらも 600秒）の後まで進めてから、締め出されていないかを見る
+            // （猶予の間は、元の今の鍵が前の鍵として必ず効くので、締め出しが起きても見えない）
+            $this->travelTo(CarbonImmutable::now('UTC')->addSeconds(self::kind()->graceSeconds + self::kind()->pendingSeconds + 60));
+            try {
+                // 入れ替えの答えが届かなかったとしても、機械が既に持つ鍵（元の今・元の入れ替え待ち）のどちらかが効く
+                $this->assertTrue(
+                    $this->tokens()->authenticate(self::kind(), $current) !== null || $this->tokens()->authenticate(self::kind(), $pending) !== null,
+                    "round {$round}: 締め出された ".json_encode($lines),
+                );
+                // 返された新しい鍵も含めれば、なおのこと効く
+                $held = [$current, $pending, ...array_map(fn ($l) => substr($l, 8), array_values(array_filter($lines, fn ($l) => str_starts_with($l, 'rotated '))))];
+                $this->assertNotSame([], array_filter($held, fn ($token) => $this->tokens()->authenticate(self::kind(), $token) !== null), "round {$round}");
+            } finally {
+                $this->travelBack();
+            }
         }
     }
 
