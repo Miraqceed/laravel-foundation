@@ -20,6 +20,7 @@ trait RefreshesMachineTokenDatabase
     protected function refreshTestDatabase(): void
     {
         if (! Schema::hasTable('foundation_machine_tokens')
+            || (config('foundation.one_time_codes.enabled') && ! Schema::hasTable('foundation_one_time_codes'))
             || (config('foundation.monitoring.enabled') && ! Schema::hasTable('foundation_alerts'))) {
             RefreshDatabaseState::$migrated = false;
         }
