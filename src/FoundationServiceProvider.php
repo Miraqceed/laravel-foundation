@@ -265,6 +265,10 @@ class FoundationServiceProvider extends ServiceProvider
             ], 'foundation-one-time-code-migrations');
 
             $this->publishes([
+                __DIR__.'/../database/machine-token-migrations' => database_path('migrations'),
+            ], 'foundation-machine-token-migrations');
+
+            $this->publishes([
                 __DIR__.'/../database/email-change-migrations' => database_path('migrations'),
             ], 'foundation-email-change-migrations');
 
@@ -304,6 +308,11 @@ class FoundationServiceProvider extends ServiceProvider
         // 1回だけ使える合言葉の表も、有効なときだけ読み込む
         if (config('foundation.one_time_codes.enabled')) {
             $this->loadMigrationsFrom(__DIR__.'/../database/one-time-code-migrations');
+        }
+
+        // 機械用のトークンの表も、有効なときだけ読み込む
+        if (config('foundation.machine_tokens.enabled')) {
+            $this->loadMigrationsFrom(__DIR__.'/../database/machine-token-migrations');
         }
 
         // メールアドレスの変更の表も、有効なときだけ読み込む（入れただけでは作らない）

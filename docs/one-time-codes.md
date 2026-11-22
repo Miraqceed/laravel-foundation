@@ -12,7 +12,7 @@
 
 使わない：
 
-- **繰り返し使う API のトークン**：Sanctum を使う（受け取った後の処理の中で `createToken()` を呼ぶ。下の例）。Sanctum のトークンを使った後に消して1回だけにする形は、確かめが読むだけなので、同時の2つの要求がどちらも通る
+- **繰り返し使う API のトークン**：人が使う API キーは Sanctum、機械が使い止めずに入れ替えたい鍵は `MachineTokens`（`docs/machine-tokens.md`）を使う（受け取った後の処理の中で、機械の鍵なら `MachineTokens::issue()`（下の例）、人の API キーなら Sanctum の `createToken()` を呼ぶ）。Sanctum のトークンを使った後に消して1回だけにする形は、確かめが読むだけなので、同時の2つの要求がどちらも通る
 - **パスワードの再設定**：Laravel の仕組み（`password_reset_tokens`）を使う
 - **期限の間は何度開いてもよいリンク**：署名つきの URL（`URL::temporarySignedRoute`）で足りる
 - **人が決める合言葉（パスワード）**：この部品のハッシュ（SHA-256）は、乱数で作った約238ビットの秘密だから速いハッシュでよい。人が決める値には使わない
@@ -86,10 +86,9 @@ $codes->revoke($claimKind, "machine:{$machine->id}");
 3つ目の引数で渡す。使った印を書いたのと同じトランザクションの中で動き、戻り値は `$claimed->result` に入る。
 
 ```php
-$claimed = $codes->claim($claimKind, $code, function (ClaimedCode $claimed) {
-    $machine = Machine::findOrFail((int) substr((string) $claimed->subject, strlen('machine:')));
-
-    return $machine->createToken($machine->name)->plainTextToken;   // Sanctum
+// 機械に最初の鍵を受け取らせる（docs/machine-tokens.md の「最初の鍵の渡し方」）
+$claimed = $codes->claim($claimKind, $code, function (ClaimedCode $claimed) use ($tokens, $machineKind) {
+    return $tokens->issue($machineKind, (string) $claimed->subject)->token;   // MachineTokens
 });
 
 $token = $claimed?->result;

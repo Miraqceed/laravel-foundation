@@ -42,6 +42,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 共用サーバーのキュー：毎分の cron から `database` のキューを回す worker の登録（重なり止め・`retry_after` との整合）と、キューの溜まり・新しく失敗したジョブ・DB の大きさの見張り | 登録はアプリが呼んだときだけ。見張りは無効（`foundation.monitoring.enabled`） | [docs/queue.md](docs/queue.md) |
 | 子プロセスの環境変数：外のコマンドに `.env` の秘密を受け継がせない環境の配列 | 設定なしで呼んで使う | [docs/child-processes.md](docs/child-processes.md) |
 | 1回だけ使える合言葉：期限つき・ハッシュだけで持ち、同時の要求でも1回だけ通す（機械にトークンを受け取らせる合言葉・入場券など） | 無効（`foundation.one_time_codes.enabled`。表を作る） | [docs/one-time-codes.md](docs/one-time-codes.md) |
+| 機械用のトークンと、その入れ替え：機械が繰り返し使う鍵をハッシュだけで持ち、入れ替え待ち → 初めての使用で切り替え → 前の鍵を猶予の間だけ残す形で、止めずに入れ替える | 無効（`foundation.machine_tokens.enabled`。表を作る） | [docs/machine-tokens.md](docs/machine-tokens.md) |
 | 知らせを1回だけ送る：条件に達したときの知らせを鍵ごとに1回だけ送る。送れなければ印を戻して送り直す。止まった印の取り直し・トランザクションの中・キューのジョブでも1回 | 無効（`foundation.notices.enabled`。表を作る） | [docs/once-notices.md](docs/once-notices.md) |
 | 消す決まりの台帳：すべての表の消し方を1つのクラスに書き、表・列・schedule の書き忘れを試しで止める。退会・解約したアカウントを、握って確かめ直してから台帳のとおりに消す | 台帳（`foundation.retention.map`）を書いたときだけ | [docs/retention.md](docs/retention.md) |
 | 生の IP を残さない：`database` のセッションの表に IP を書かない差し替え・回数の制限の鍵をすべて `APP_KEY` の HMAC にする差し替え（Laravel の `throttle`・Fortify の鍵も）・DB に残す IP の値を別の鍵の HMAC にする助け・試しの DB に IP が残っていないかを確かめる試しの助け | 無効（`foundation.privacy.sessions_without_ip`・`keyed_rate_limiter`）。ハッシュは呼んだときだけ（鍵 `FOUNDATION_IP_HASH_KEY`） | [docs/privacy.md](docs/privacy.md) |

@@ -29,6 +29,8 @@ final class FoundationDataMap
 
         $map->table('foundation_one_time_codes')->prunedBy(OneTimeCode::class)->forComponent('foundation.one_time_codes.enabled');
         $map->table('foundation_notices')->prunedBy(Notice::class)->forComponent('foundation.notices.enabled');
+        // 対象（人の id を含むことがある）ごとの鍵のハッシュ。失効で行を消すので、消すのはアプリの revoke()
+        $map->table('foundation_machine_tokens')->handledByApp('対象を消すとき、アプリが MachineTokens::revoke() を呼ぶ')->forComponent('foundation.machine_tokens.enabled');
 
         // 古いアドレス・新しいアドレスを持つ。アカウントを消したら、戻すリンクの期限を待たずに消す（取り戻すアカウントがない）
         $emailChanges = $map->table('foundation_email_changes')->prunedBy(EmailChange::class)->forComponent('foundation.email_changes.enabled');
