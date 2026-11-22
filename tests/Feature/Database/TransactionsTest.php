@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Tests\Feature\Database;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 use Miraqceed\Foundation\Database\Transactions;
@@ -22,6 +23,14 @@ class TransactionsTest extends TestCase
         $this->closeLockConnections();
 
         parent::tearDown();
+    }
+
+    /** クラスが終わったら移行の状態を戻す（後のクラスが、自分の要る表のない DB をそのまま使わないように） */
+    public static function tearDownAfterClass(): void
+    {
+        RefreshDatabaseState::$migrated = false;
+
+        parent::tearDownAfterClass();
     }
 
     public function test_the_test_wrapper_alone_counts_as_outside(): void
