@@ -172,12 +172,15 @@ private static function text(string $body, int $status): Response
 
 - 入れ替えの口の答え（新しい鍵の平文）にも、断りにも `Cache-Control: no-store` を付ける
 - 鍵を URL に入れない（アクセスのログに残る）。`Authorization: Bearer` で送らせる
-- 平文の鍵を、ログ・例外の文・監査の記録・flash に入れない（記録するなら種類と対象だけ）。`IssuedToken` は `var_dump()`・`print_r()` に平文を出さない
+- 平文の鍵を、ログ・例外の文・監査の記録・flash に入れない（記録するなら種類と対象だけ）
+- `IssuedToken` は、`var_dump()`・`print_r()`・`json_encode()`・ログの context では平文を伏せ、`serialize()` は `LogicException` で断る（キューのジョブ・キャッシュに入れない）。ただし `(array) $issued` などで読むことは防げない。**オブジェクトごとログ・JSON・答えに渡さない。平文は `->token` を1度だけ、答えに使う**
 - 逆プロキシの後ろでは `trustProxies` にプロキシの番地を挙げる（`docs/login.md`）
 
 ## アプリのトランザクションの中で呼んだとき
 
 呼んでよい。中はセーブポイントになり、外を巻き戻すと切り替えも戻る（入れ替え待ちは入れ替え待ちのまま残るので、締め出されない）。行のロックは外の確定まで残るので、機械の口の仕事を長いトランザクションで包まない。
+
+行き詰まり・直列化の失敗の試し直しは、外側のトランザクションの中では行われない（例外が外へ出る。`null` にはならない）。`authenticate()`・`rotate()` の中のトランザクションはセーブポイントになり、Laravel は一番外でしか試し直さない。`issue()` も、中では行き詰まりを試し直さない（同じ対象への同時の INSERT の一意の索引の違反は、中でも試し直す）。PostgreSQL の REPEATABLE READ・SERIALIZABLE で同時に切り替えると起こりうる。試し直すなら、一番外の `DB::transaction($cb, $attempts)` で包む。
 
 ## 伏せる（`docs/redaction.md`）
 
