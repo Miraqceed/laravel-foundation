@@ -163,7 +163,7 @@ RateLimiter::for('contact', fn (Request $request) => Limit::perHour(5)->by(Attem
 - 確認コードを窓のある数えだけで守らない（続けた失敗で数える）
 - お金の掛かる試みを、失敗だけで数えない（`Every`）
 - 逆プロキシの後ろで `trustProxies` を設定せずに接続元の枠を使わない（全員が同じ接続元になる。`docs/login.md`）
-- **アプリの `DB::transaction` の中で呼ばない**（`database` のキャッシュがアプリと同じ接続のとき）。照合に失敗してトランザクションを巻き戻すと、足した数えも巻き戻り、上限より多く照合できる。トランザクションの外で呼ぶか、キャッシュに別の接続（`cache.stores.database.connection`）を使う。外で呼ぶことは `DatabaseTransactions::assertOutside()` で確かめられる（`docs/database-locks.md`）
+- **アプリの `DB::transaction` の中で呼ばない**（`database` のキャッシュがアプリと同じ接続のとき）。照合に失敗してトランザクションを巻き戻すと、足した数えも巻き戻り、上限より多く照合できる。トランザクションの外で呼ぶか、キャッシュに別の接続（`cache.stores.database.connection`）を使う。外で呼ぶことは `Database\Transactions::assertOutside()` で確かめられる（`docs/database-locks.md`）
 
 ## 限界
 

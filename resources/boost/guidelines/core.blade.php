@@ -168,8 +168,8 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 行のロックで並べられない数え（アカウントをまたぐ同じ回線の数など）は、`app(\Miraqceed\Foundation\Database\NamedLock::class)->run($name, waitSeconds: 10, work: fn () => DB::transaction(…))` で並べる。`GET_LOCK`・`pg_advisory_lock` を自前で書かない（放すのに失敗しても投げない・名前は DB ごと・サーバー全体の名前の64字の上限・確定の後に放す）。取れなければ `LockNotAcquired` を断りにする。
 - `NamedLock::run()` はトランザクションの外で呼ぶ（中では `LogicException`。中で取ると savepoint になり、外の確定より先に放す）。ロックの順は「名前つきのロック → 行（id の順）」に固定する。ロックの中に外への HTTP・長い処理を入れない（途中で接続が切れると、Laravel がつなぎ直してロックなしで続く）。
 - 行のロックを待つ時間は `app(\Miraqceed\Foundation\Database\LockWait::class)->atMost(10, fn () => …)` で限る。`SET SESSION innodb_lock_wait_timeout`・`SET lock_timeout` を自前で書かない（戻し忘れはキューのワーカーの後の仕事に効く。`SET SESSION` は巻き戻しで戻らない）。
-- 「トランザクションの外で呼ぶ」の確かめは `Transactions::assertOutside('理由')`（試しの `RefreshDatabase` の包みは外に数える）。`DB::transactionLevel()` と設定の段数で比べない。
-- MySQL の待ちの誤り（1205）を捕まえて同じトランザクションを続けない（文だけが巻き戻り、前半が確定する）。PostgreSQL の待ちの誤り（55P03）は Laravel の `DB::transaction($cb, attempts:)` がやり直さないので、要るなら `LockErrors::isLockWaitTimeout($e)` を見て一番外でやり直す。
+- 「トランザクションの外で呼ぶ」の確かめは `\Miraqceed\Foundation\Database\Transactions::assertOutside('理由')`（試しの `RefreshDatabase` の包みは外に数える）。`DB::transactionLevel()` と設定の段数で比べない。
+- MySQL の待ちの誤り（1205）を捕まえて同じトランザクションを続けない（文だけが巻き戻り、前半が確定する）。PostgreSQL の待ちの誤り（55P03）は Laravel の `DB::transaction($cb, attempts:)` がやり直さないので、要るなら `\Miraqceed\Foundation\Database\LockErrors::isLockWaitTimeout($e)` を見て一番外でやり直す。
 - `forceIndex()` は DELETE・UPDATE で黙って消える。主キーを `forceIndex()` つきの SELECT で選んでから、主キーで消す・更新する。
 - SQLite では `NamedLock` はロックを取らずに動き、`LockWait` は何もしない。複数のプロセスが同時に書く使い方では MySQL か PostgreSQL を使う。
 - 「ほかの要求が握っている間は待って止まる」の試しは `\Miraqceed\Foundation\Testing\HeldLocks::row($table, $id, fn () => …)`・`HeldLocks::name($name, fn () => …)`。握る行はコミットした行（`RefreshDatabase` でなく `DatabaseTruncation` の試し）。
