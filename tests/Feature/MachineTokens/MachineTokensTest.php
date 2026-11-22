@@ -4,9 +4,15 @@ namespace Miraqceed\Foundation\Tests\Feature\MachineTokens;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
+use LogicException;
+use Miraqceed\Foundation\MachineTokens\IssuedToken;
 use Miraqceed\Foundation\MachineTokens\MachineKind;
 use Miraqceed\Foundation\MachineTokens\MachineTokens;
+use Monolog\Formatter\JsonFormatter;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger;
 use Miraqceed\Foundation\OneTimeCodes\CodeFormat;
 use Miraqceed\Foundation\Tests\Support\RefreshesMachineTokenDatabase;
 use Miraqceed\Foundation\Tests\TestCase;
@@ -74,6 +80,53 @@ class MachineTokensTest extends TestCase
         ob_start();
         var_dump($issued);
         $this->assertStringNotContainsString($issued->token, (string) ob_get_clean());
+    }
+
+    public function test_the_plain_token_is_not_in_json(): void
+    {
+        $issued = $this->tokens()->issue(self::kind(), 'server:1');
+
+        $json = json_encode(['issued' => $issued], JSON_THROW_ON_ERROR);
+
+        $this->assertStringNotContainsString($issued->token, $json);
+        $this->assertSame(['token' => '[伏せた]', 'kind' => 'server-agent', 'subject' => 'server:1'], json_decode($json, true)['issued']);
+    }
+
+    public function test_the_issued_token_cannot_be_serialized(): void
+    {
+        $issued = $this->tokens()->issue(self::kind(), 'server:1');
+
+        try {
+            serialize($issued);
+            $this->fail('例外が出なかった');
+        } catch (LogicException $e) {
+            $this->assertStringNotContainsString($issued->token, $e->getMessage());
+        }
+
+        // 外から作った文字列で戻すこともできない
+        $this->expectException(LogicException::class);
+        unserialize('O:'.strlen(IssuedToken::class).':"'.IssuedToken::class.'":0:{}');
+    }
+
+    /** ログの context に渡しても、Monolog の正規化（JsonSerializable を使う）で平文が伏せられる。行の形と JSON の形の両方で */
+    public function test_the_plain_token_is_not_written_by_the_logger(): void
+    {
+        $issued = $this->tokens()->issue(self::kind(), 'server:1');
+        $path = sys_get_temp_dir().'/machine-tokens-log-'.bin2hex(random_bytes(6)).'.log';
+
+        try {
+            Log::build(['driver' => 'single', 'path' => $path])->info('出した', ['issued' => $issued]);
+            $jsonHandler = new StreamHandler($path);
+            $jsonHandler->setFormatter(new JsonFormatter);
+            (new Logger('test', [$jsonHandler]))->info('出した', ['issued' => $issued]);
+
+            $written = (string) file_get_contents($path);
+            $this->assertSame(2, substr_count($written, '[伏せた]'), $written);
+            $this->assertStringContainsString('server:1', $written);
+            $this->assertStringNotContainsString($issued->token, $written);
+        } finally {
+            @unlink($path);
+        }
     }
 
     /** @return iterable<string, array{mixed}> */
