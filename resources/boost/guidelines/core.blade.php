@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`once-notices.md`・`retention.md`・`database-timezone.md`・`database-locks.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`machine-tokens.md`・`once-notices.md`・`retention.md`・`database-timezone.md`・`database-locks.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -124,8 +124,17 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 一度だけ渡したい秘密（機械にトークンを受け取らせる合言葉・1回限りの入場券・確認のリンクの秘密）を自前で書かない。`Miraqceed\Foundation\OneTimeCodes\OneTimeCodes` の `issue()`・`claim()`・`revoke()` を使う。種類は `new CodeKind(名前, 頭の印, 効く秒数)`。`foundation.one_time_codes.enabled` を真にして `php artisan migrate`（表はアプリの既定の接続に置く）。
 - 受け取れなければ `claim()` は理由を問わず `null`。受け取った後の処理（トークンを出すなど）は `claim()` の3つ目の引数で渡し、同じトランザクションの中で動かす（投げたら巻き戻り、合言葉はまた受け取れる。巻き戻るのは同じ接続の DB の書き込みだけなので、キュー・メールなど外への作用は `DB::afterCommit()` で後に回す）。戻り値は `$claimed->result`。読んでから印を書く2段の形を自前で書かない（同じ合言葉が同時に2回通る）。
 - 受け取りの口は `Attempts::attempt()` で、接続元ごとの共有の枠（`Counting::FailuresShared`）で包む。合言葉は POST の本文で受け、URL に入れない・GET で消費しない。答えには `Cache-Control: no-store` を付け、断りの文は1つにする。
-- 平文の合言葉を、リダイレクトと flash・ログ・監査の記録に入れない。繰り返し使う API のトークンは Sanctum を使う（この部品で作らない）。
+- 平文の合言葉を、リダイレクトと flash・ログ・監査の記録に入れない。繰り返し使う鍵はこの部品で作らない（人が使う API キーは Sanctum、機械の鍵は `MachineTokens`）。
 - 古い行は `model:prune` を schedule に入れ、`--model` で `Miraqceed\Foundation\OneTimeCodes\OneTimeCode` を指す（`foundation.one_time_codes.prune_days`、既定 7）。
+
+### 機械用のトークンと、その入れ替え（`docs/machine-tokens.md`）
+
+- 機械が繰り返し使う鍵（サーバーの手先・ワーカー・サービスの間）を自前で書かない。`Miraqceed\Foundation\MachineTokens\MachineTokens` の `issue()`・`authenticate()`・`rotate()`・`revoke()` を使う。種類は `new MachineKind(名前, 頭の印, rotateAfterSeconds: 秒か null)`。`foundation.machine_tokens.enabled` を真にして `php artisan migrate`。人が使う API キーは Sanctum のまま。
+- 入れ替えは、新しい鍵を出したその場で切り替えない（答えが届かなかった機械が締め出される）。`rotate()` の鍵は入れ替え待ちになり、`authenticate()` で初めて使われたときに切り替わり、前の鍵は `graceSeconds` の間だけ効く。`rotate()` は今の鍵でだけ通る。
+- 読んでから全部の列を書き戻す形を自前で書かない（同時の入れ替えと切り替えの片方が消える）。
+- 機械の手順として、新しい鍵が通るまで今の鍵を捨てない・断られたら今の鍵に戻る・促されたときだけ入れ替える、を配る。
+- 機械の口は `routes/api.php` に置き、`Authorization: Bearer` で受ける。断りは理由を問わず1つの文にし、答えに `Cache-Control: no-store` を付ける。断った要求は `Attempts::attempt()` の `Counting::FailuresShared` で数える。平文の鍵をログ・flash・監査の記録に入れない。
+- 最初の鍵は `OneTimeCodes` の合言葉で渡し、`claim()` の後の処理の中で `MachineTokens::issue()` を呼ぶ。対象を消すときは `revoke()` を呼ぶ。
 
 ### 知らせを1回だけ送る（`docs/once-notices.md`）
 

@@ -89,7 +89,7 @@ Event::listen(\Laravel\Fortify\Events\PasswordUpdatedViaController::class, EndSe
 
 - セッションが `database` でなく、`auth.session` もないと、ほかの端末のセッションは残る（上）
 - `auth.session` は、そのミドルウェアを通る要求でだけ締め出す。web のグループに入れずに一部の経路にだけ付けると、付いていない経路では残る
-- API のトークン（Sanctum など）は消さない。アプリが同じ口で消す
+- API のトークン（Sanctum など。機械の鍵の `MachineTokens` も）は消さない。アプリが同じ口で消す
 
 ## メールアドレスの変更と戻すリンク
 
