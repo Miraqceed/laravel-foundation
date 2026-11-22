@@ -95,6 +95,11 @@ class LockReadWriteSplitTest extends TestCase
         });
         DB::table('lock_split_rows')->insert(['id' => 1]);
         $split = $this->splitConnection();
+        // 上限が書き込み用の接続に効かないとき、試しが限りなく待たないように（PostgreSQL の lock_timeout の既定は「限りなく」）。
+        // そのときは待ちの誤りでなく、文の時間切れ（57014）か5秒の待ちで落ちる
+        $split->getDriverName() === 'pgsql'
+            ? $split->getPdo()->exec("SET statement_timeout = '5s'")
+            : $this->setLockWait($split, false, 5);
         $holder = $this->otherConnection();
         $holder->beginTransaction();
         $holder->table('lock_split_rows')->where('id', 1)->lockForUpdate()->first();
