@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`once-notices.md`・`retention.md`・`database-timezone.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`once-notices.md`・`retention.md`・`database-timezone.md`・`database-locks.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -162,6 +162,17 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 
 - `config/database.php` の pgsql・mysql の接続に `timezone` を書き、`app.timezone` と同じ値にする。PostgreSQL は時間帯の名前（`Asia/Tokyo`）で書く（`+09:00` と書くと 9 時間西と読まれる）。MySQL を時差（`+09:00`）で書いてよいのは、夏時間の無い時間帯（`Asia/Tokyo`・`UTC` など）だけ。夏時間のある時間帯は名前で書き、MySQL に時間帯の表を読み込む（時差で書くと、一年の片方の季節だけずれる）。
 - 配置の台本や CI で `php artisan foundation:db-timezone` を流す（ずれていれば終わりの値 1、つながらないなど確かめられなければ 2）。
+
+### DB のロック（`docs/database-locks.md`）
+
+- 行のロックで並べられない数え（アカウントをまたぐ同じ回線の数など）は、`app(\Miraqceed\Foundation\Database\NamedLock::class)->run($name, waitSeconds: 10, work: fn () => DB::transaction(…))` で並べる。`GET_LOCK`・`pg_advisory_lock` を自前で書かない（放すのに失敗しても投げない・名前は DB ごと・サーバー全体の名前の64字の上限・確定の後に放す）。取れなければ `LockNotAcquired` を断りにする。
+- `NamedLock::run()` はトランザクションの外で呼ぶ（中では `LogicException`。中で取ると savepoint になり、外の確定より先に放す）。ロックの順は「名前つきのロック → 行（id の順）」に固定する。ロックの中に外への HTTP・長い処理を入れない（途中で接続が切れると、Laravel がつなぎ直してロックなしで続く）。
+- 行のロックを待つ時間は `app(\Miraqceed\Foundation\Database\LockWait::class)->atMost(10, fn () => …)` で限る。`SET SESSION innodb_lock_wait_timeout`・`SET lock_timeout` を自前で書かない（戻し忘れはキューのワーカーの後の仕事に効く。`SET SESSION` は巻き戻しで戻らない）。
+- 「トランザクションの外で呼ぶ」の確かめは `Transactions::assertOutside('理由')`（試しの `RefreshDatabase` の包みは外に数える）。`DB::transactionLevel()` と設定の段数で比べない。
+- MySQL の待ちの誤り（1205）を捕まえて同じトランザクションを続けない（文だけが巻き戻り、前半が確定する）。PostgreSQL の待ちの誤り（55P03）は Laravel の `DB::transaction($cb, attempts:)` がやり直さないので、要るなら `LockErrors::isLockWaitTimeout($e)` を見て一番外でやり直す。
+- `forceIndex()` は DELETE・UPDATE で黙って消える。主キーを `forceIndex()` つきの SELECT で選んでから、主キーで消す・更新する。
+- SQLite では `NamedLock` はロックを取らずに動き、`LockWait` は何もしない。複数のプロセスが同時に書く使い方では MySQL か PostgreSQL を使う。
+- 「ほかの要求が握っている間は待って止まる」の試しは `\Miraqceed\Foundation\Testing\HeldLocks::row($table, $id, fn () => …)`・`HeldLocks::name($name, fn () => …)`。握る行はコミットした行（`RefreshDatabase` でなく `DatabaseTruncation` の試し）。
 
 ### 本番の設定の点検（`docs/deploy-check.md`）
 

@@ -118,6 +118,9 @@ class InstallCommandTest extends TestCase
             'PHP 8.3 のアプリでは',
             // DB の接続の時間帯（PostgreSQL は名前。MySQL の時差は夏時間の無い時間帯だけ）
             'database-timezone.md', 'foundation:db-timezone', '9 時間西', '夏時間',
+            // DB のロック（自前の GET_LOCK・SET を書かない。トランザクションの外で取る。1205 の後に続けない。SQLite は守らない）
+            'database-locks.md', 'NamedLock::class', 'LockNotAcquired', 'LockWait::class', 'Transactions::assertOutside', 'LockErrors::isLockWaitTimeout',
+            'HeldLocks::row', '名前つきのロック → 行', '同じトランザクションを続けない', 'forceIndex()', 'SQLite では `NamedLock`',
             // 子プロセスの環境変数
             'child-processes.md', 'ChildEnvironment::only', 'ExecutableFinder',
             // 自分で書くときの注意

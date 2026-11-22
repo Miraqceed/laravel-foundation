@@ -36,6 +36,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | Turnstile：Cloudflare Turnstile のトークンをサーバーで確かめる（閉じる側に倒す・設定の誤りを記録して知らせる・規則とミドルウェア・本番のテスト用の鍵の点検） | 使ったときだけ働く。鍵は `config/services.php` | [docs/turnstile.md](docs/turnstile.md) |
 | アカウントの乗っ取りの守り：パスワードの変更・再設定の後に、ほかの端末のセッションと remember の Cookie を効かなくし、この端末は入り直させる（自前の口と Fortify の聞き手）。メールアドレスの変更を新しいアドレスの確認で切り替え、古いアドレスへの戻すリンクで乗っ取った人を締め出す | セッションは設定なしで呼んで使う（Fortify の聞き手はアプリが登録する）。アドレスの変更は無効（`foundation.email_changes.enabled`。表を作る） | [docs/accounts.md](docs/accounts.md) |
 | DB の接続の時間帯：接続の時間帯がアプリの時間帯とずれていないかを確かめる（`foundation:db-timezone`） | 設定なしで呼んで使う（自動では確かめない） | [docs/database-timezone.md](docs/database-timezone.md) |
+| DB のロック：名前つきのロック（MySQL・PostgreSQL。確定の後に放し、放すのに失敗しても投げない）・行のロックを待つ時間の上限（後で必ず戻す）・試しの包みを外に数える「トランザクションの中か」・待ちの誤りとデッドロックの見分け・握ったまま試す試しの助け | 設定なしで呼んで使う | [docs/database-locks.md](docs/database-locks.md) |
 | 本番の設定の点検：`APP_DEBUG`・`APP_KEY`・メール・Vite・マイグレーション・信頼するプロキシなどを1つのコマンドで調べる（`foundation:deploy-check`）。アプリの調べを足せる | 流したときだけ働く（自動では流れない） | [docs/deploy-check.md](docs/deploy-check.md) |
 | 失敗の記録：ログが書けなくても投げない `report()`・DB に頼らない間引き・文の中の IP を伏せる助け・サーバーで作る要求の id（ログの行とジョブに渡す）・記録が壊れる場面を作る試しの助け | 記録は設定なしで呼んで使う。要求の id はアプリが中間を足したときだけ | [docs/failures.md](docs/failures.md) |
 | 共用サーバーのキュー：毎分の cron から `database` のキューを回す worker の登録（重なり止め・`retry_after` との整合）と、キューの溜まり・新しく失敗したジョブ・DB の大きさの見張り | 登録はアプリが呼んだときだけ。見張りは無効（`foundation.monitoring.enabled`） | [docs/queue.md](docs/queue.md) |
