@@ -115,7 +115,22 @@ final class Fetcher
                 if (! $download->permits((string) $uri)) {
                     throw new DataFileException("{$name}：許さない先へのリダイレクトです（".Download::redact((string) $uri).'）');
                 }
+                // 足した見出し（鍵など）は、Guzzle がほかの元へのリダイレクトで外さない（外すのは Authorization と Cookie だけ）。
+                // 見出しを足した取り方では、ほかの元へ移る前に断る（次の要求はまだ送っていない）
+                if ($download->headers() !== [] && self::origin((string) $uri) !== self::origin($download->target())) {
+                    throw new DataFileException("{$name}：見出しを足した取り方は、ほかの元へのリダイレクトに従いません（".Download::redact((string) $uri).'）');
+                }
             },
         ];
+    }
+
+    /** スキーム・ホスト・番号（番号がなければスキームの既定） */
+    private static function origin(string $url): string
+    {
+        $parts = parse_url($url);
+        $scheme = strtolower(is_array($parts) ? ($parts['scheme'] ?? '') : '');
+        $port = is_array($parts) && isset($parts['port']) ? $parts['port'] : ($scheme === 'https' ? 443 : 80);
+
+        return $scheme.'://'.strtolower(is_array($parts) ? ($parts['host'] ?? '') : '').':'.$port;
     }
 }

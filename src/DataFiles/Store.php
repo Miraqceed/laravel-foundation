@@ -125,7 +125,9 @@ final class Store
     }
 
     /**
-     * 一時のファイルを置き場所に入れる：fsync → 権限をそろえる → rename（同じディレクトリなので、読む側は前か後のどちらかだけを読む）
+     * 一時のファイルを置き場所に入れる：fsync → 権限をそろえる → rename（同じディレクトリなので、Linux のふつうのファイルシステムでは、
+     * 読む側は前か後のどちらかだけを読む。Docker Desktop の bind mount・ネットワークのファイルシステムでは、入れ替えの最中に空のファイルを読むことがある。
+     * 共用サーバーの storage では確かめていない。docs/data-files.md の限界）
      *
      * @throws DataFileException
      */

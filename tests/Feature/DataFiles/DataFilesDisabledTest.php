@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Tests\Feature\DataFiles;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
 use Miraqceed\Foundation\DataFiles\DataFiles;
 use Miraqceed\Foundation\DeployCheck\Checks\DataFiles as DataFilesCheck;
@@ -53,7 +54,7 @@ class DataFilesDisabledTest extends TestCase
         $this->assertSame(Status::Skip, (new DataFilesCheck)->run()->status);
     }
 
-    /** @param  \Illuminate\Foundation\Application  $app */
+    /** @param  Application  $app */
     protected function usesThrowingSource($app): void
     {
         $app['config']->set('foundation.data_files.sources', [ThrowingSource::class]);

@@ -162,9 +162,9 @@ class ParallelRefreshTest extends TestCase
 
     /**
      * 設計書 10.1 の1つ目：同じディレクトリの rename の最中・後に、読む側は途中のファイルを読まない。
-     * 読む側から見て rename が原子的なのは、Linux のふつうのファイルシステム（ext4・xfs・overlayfs など）だけ。
-     * Docker Desktop の bind mount（Windows・macOS のドライブを写したもの）では、入れ替えの最中に空のファイルを読むことがある
-     * （確かめた：9p の bind mount で読みの約1%）。なので、この試しはコンテナの中のふつうのファイルシステム（sys_get_temp_dir()）に置き場所を置く。
+     * 読む側から見て rename が原子的なのは、Linux のふつうのファイルシステムだけ（確かめたのは ext4・overlayfs）。
+     * Docker Desktop の bind mount（Windows のドライブを写した 9p）では、入れ替えの最中に空のファイルを読んだ
+     * （この試しの置き場所を bind mount の上に置いた形で計6回、読みの約0.7〜2.2%）。なので、置き場所を sys_get_temp_dir() の下（ふつうのファイルシステム）に置く。
      * 判定は緩めない（悪い読みが1回でもあれば落ちる）
      */
     public function test_readers_never_see_a_partial_file(): void

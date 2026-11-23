@@ -36,12 +36,14 @@
 ```
 
 3. 流して確かめる：`php artisan foundation:data-files`
-4. schedule に入れる（配る側の頻度に合わせる。下）。止まったことに気付けるよう、見張り（`docs/monitoring.md`）を付ける：
+4. schedule に入れる（配る側の頻度に合わせる。流すたびに丸ごと取る。下）。止まったことに気付けるよう、見張り（`docs/monitoring.md`）を付ける：
 
 ```php
-// routes/console.php
-Schedule::command('foundation:data-files')->dailyAt('04:30')->watched('data-files', 26 * 60);
+// routes/console.php：月ごとに出るデータなら週に1回など
+Schedule::command('foundation:data-files')->weeklyOn(1, '04:30')->watched('data-files', 8 * 24 * 60);
 ```
+
+種類ごとに頻度を分けるなら、名前を渡して別々に入れる（例 `foundation:data-files public-suffix-list` を毎日、`foundation:data-files ip-city` を毎週）。
 
 5. 読む所で `DataFiles` を使う（下の「読む側の助け」）
 
@@ -110,8 +112,8 @@ final class SampleList implements DataSource
 | `Download::url($url)` | https だけ。http・相対・userinfo つき（`https://user:pass@…`）は `InvalidArgumentException` |
 | `->gzip()` | 本文を gzip として流しながら解く（解いた大きさの上限 `maxBytes`・終わりまで解けたかを見る。つないだ gzip も解く。後ろのごみ・gzip でない本文は失敗） |
 | `->notFoundMeansNotYet()` | 404 を「まだ出ていない」として次の取り方へ進む（月ごとに出るデータの今月の分）。すべてが「まだ」で入っているものがあれば成功、なければ失敗 |
-| `->followRedirects()` | https へのリダイレクトに3回まで従う（既定は従わない。3xx は失敗）。https から http へは従わない |
-| `->withHeaders([...])` | 見出しを足す（鍵の要る取り方）。値は失敗の文・記録に出さない |
+| `->followRedirects()` | https へのリダイレクトに3回まで従う（既定は従わない。3xx は失敗）。https から http へは従わない。`withHeaders()` で見出しを足した取り方では、ほかの元（スキーム・ホスト・番号）へのリダイレクトに従わない（失敗にする。同じ元の中では従う） |
+| `->withHeaders([...])` | 見出しを足す（鍵の要る取り方）。値は失敗の文・記録に出さない。足した見出しを、リダイレクトの先のほかのホストへ送らない（上） |
 
 ZIP・tar はこの部品では解かない（大きな DB をメモリーに読むと、共用サーバーの上限に当たる）。
 
@@ -171,7 +173,9 @@ storage/app/foundation/data-files/     ← foundation.data_files.path（null な
 ### schedule と配る側の頻度
 
 - schedule の `withoutOverlapping()` を付けてもよいが、手で流したものは守らない（この部品のロックが守る）
-- **取る頻度は、配る側の決まりより多くしない**（下の表）。月ごとに出るデータでも、毎日流して「新しくない」で終わる形でよい（取る大きさの分だけ配る側に負荷をかけるので、`notFoundMeansNotYet()` と月の URL で、出ていない月を先に試す形にする）
+- **取る頻度は、配る側の決まりより多くしない**（下の表）
+- **流すたびに、ファイルを丸ごと取る。** 取った後に版を比べ、新しくなければ入れない（「新しくない」で成功）が、取る分の負荷は配る側にかかる。入っているものが最新なので取らない、という口はない（条件つきの要求も送らない）。`notFoundMeansNotYet()` と月の URL で今月 → 先月と試す形でも、今月の分が出るまでは毎回先月の分を、出た後は毎回今月の分を丸ごと取る
+- なので、月ごとに出るデータ（IP の位置の DB）は週に1回などにし、`staleAfterDays` と見張りの許す古さをそれに合わせる（例：週に1回なら `staleAfterDays: 21`・`->watched('data-files', 8 * 24 * 60)`）。PSL は1日1回まで
 
 ## 読む側の助け `DataFiles`
 
@@ -359,7 +363,11 @@ public function verify(string $path): ?string
 
 ## 限界
 
-- **読む側から見て rename が原子的なのは、Linux のふつうのファイルシステム（ext4・xfs・overlayfs など）だけ。** Docker Desktop の bind mount（Windows・macOS のドライブを写したもの）や、ネットワークのファイルシステムでは、入れ替えの最中に空のファイルを読むことがある。**本番の置き場所はふつうのファイルシステムにする。** 確かめた結果（2026-11-23、PHP 8.4）：ext4（Docker のボリューム）で 165,191 回・overlayfs で 141,390 回の読みのうち、途中・空のファイルは 0 回。Windows のドライブを写した bind mount（9p）では、入れ替え50回の間の約700〜1,300回の読みのうち 9〜15回（約1〜2%）が空のファイルだった
+- **読む側から見て rename が原子的なのは、Linux のふつうのファイルシステム（ext4・xfs・overlayfs など）だけ。** Docker Desktop の bind mount（Windows・macOS のドライブを写したもの）や、ネットワークのファイルシステムでは、入れ替えの最中に空のファイルを読むことがある。**本番の置き場所はふつうのファイルシステムにする。** 確かめた結果（2026-11-23、PHP 8.4、Docker Desktop の上の Linux のコンテナ）：
+  - 書いて fsync して rename するだけの小さな確かめ（2ms おきに200回入れ替える間、別のプロセスが読み続ける）：ext4（Docker のボリューム）で 165,191 回・overlayfs（コンテナの中の `/tmp`）で 141,390 回の読みのうち、途中・空のファイルは 0 回。Windows のドライブを写した bind mount（9p）では、計8回・8,349 回の読みのうち 1 回が空のファイル
+  - この部品の読む側の並べる試し（入れ替え50回の間、別のプロセスが読み続ける）：overlayfs・ext4 では通る（途中・空のファイルは 0 回）。置き場所を bind mount（9p）の上に置くと、計6回とも空のファイルを読んで落ちた（1,309 回のうち 11 回・1,315 回のうち 10 回・1,314 回のうち 9 回・701 回のうち 13 回・697 回のうち 15 回・691 回のうち 14 回。約0.7〜2.2%）
+  - xfs・macOS のドライブを写したもの・ネットワークのファイルシステムは確かめていない（一般の性質からの見込み）
+- **共用サーバーの storage では、rename・`flock`・`fsync()` の振る舞いを確かめていない**（確かめたのは上のコンテナの中と、CI の ubuntu だけ）。本番のアプリに入れるときに、その共用サーバーで確かめる（同じ置き場所で `foundation:data-files` を2つ同時に流し、片方が「ほかの実行が動いている」になること・入れ替えの後に読む側が新しいファイルを読むこと、など）
 - 版を持たないデータ（`verify()` が `null`）は、古い版で戻すことを防げない
 - `flock` が効かないファイルシステム（NFS などの一部）では、重なりを止められない。置き場所はローカルのディスクにする
 - `rsync --inplace` で写すと inode が変わらず、大きさと時刻も同じなら `changeKey()` が変わらない（ふつうの `rsync` は一時のファイル + rename なので変わる。大きさと時刻が同じなら写さない）

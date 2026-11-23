@@ -4,12 +4,12 @@ namespace Miraqceed\Foundation\DeployCheck;
 
 use Illuminate\Contracts\Container\Container;
 use Miraqceed\Foundation\DeployCheck\Checks\AppDebug;
-use Miraqceed\Foundation\DeployCheck\Checks\DataFiles;
 use Miraqceed\Foundation\DeployCheck\Checks\AppEnv;
 use Miraqceed\Foundation\DeployCheck\Checks\AppKey;
 use Miraqceed\Foundation\DeployCheck\Checks\AppUrl;
 use Miraqceed\Foundation\DeployCheck\Checks\AttemptsBypass;
 use Miraqceed\Foundation\DeployCheck\Checks\Boost;
+use Miraqceed\Foundation\DeployCheck\Checks\DataFiles;
 use Miraqceed\Foundation\DeployCheck\Checks\DbMaskedBindings;
 use Miraqceed\Foundation\DeployCheck\Checks\Drivers;
 use Miraqceed\Foundation\DeployCheck\Checks\ExceptionArgs;

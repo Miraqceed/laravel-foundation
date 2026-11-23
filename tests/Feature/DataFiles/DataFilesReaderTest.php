@@ -6,9 +6,12 @@ use ArrayObject;
 use Illuminate\Support\Facades\File;
 use LogicException;
 use Miraqceed\Foundation\DataFiles\DataFiles;
+use Miraqceed\Foundation\DataFiles\Sources;
 use Miraqceed\Foundation\DataFiles\Store;
 use Miraqceed\Foundation\Testing\ReportFailure;
+use Miraqceed\Foundation\Tests\Support\DataFiles\SecondTestSource;
 use Miraqceed\Foundation\Tests\Support\DataFiles\TestSource;
+use Miraqceed\Foundation\Tests\Support\DataFiles\ThrowingSource;
 use Miraqceed\Foundation\Tests\Support\DataFiles\UsesDataFileDirectories;
 use Miraqceed\Foundation\Tests\TestCase;
 use stdClass;
@@ -37,16 +40,16 @@ class DataFilesReaderTest extends TestCase
     }
 
     /** 置き場所に、一時のファイル + rename で入れる（命令と同じ入れ方） */
-    private function place(string $contents, ?int $mtime = null): void
+    private function place(string $contents, ?int $mtime = null, string $name = 'sample'): void
     {
-        $store = $this->store();
+        $store = $this->store($name);
         $store->lock();
         $temporary = $store->temporaryPath();
         file_put_contents($temporary, $contents);
         if ($mtime !== null) {
             touch($temporary, $mtime);
         }
-        $store->install($temporary, 'sample');
+        $store->install($temporary, $name);
         $store->unlock();
     }
 
@@ -68,6 +71,21 @@ class DataFilesReaderTest extends TestCase
         $this->assertSame($this->store()->dataPath(), $this->files()->path('sample'));
     }
 
+    /** 頼まれた種類だけを引く：ほかの種類が壊れていても止まらず、作った種類は覚えて作り直さない */
+    public function test_path_finds_its_kind_even_when_another_kind_is_broken(): void
+    {
+        config(['foundation.data_files.sources' => ['Not\\A\\Class', ThrowingSource::class, TestSource::class]]);
+        $made = ThrowingSource::$made;
+        $this->place(TestSource::data(1));
+
+        $this->assertSame($this->store()->dataPath(), $this->files()->path('sample'));
+        $this->assertSame($this->store()->dataPath(), $this->files()->path('sample'));
+        $this->assertNotNull($this->files()->changeKey('sample'));
+
+        // 作ると投げる種類も、作ろうとしたのは1回だけ
+        $this->assertSame($made + 1, ThrowingSource::$made);
+    }
+
     public function test_an_unknown_name_is_a_mistake(): void
     {
         $this->expectException(LogicException::class);
@@ -82,7 +100,7 @@ class DataFilesReaderTest extends TestCase
         $this->assertNull($this->files()->path('sample'));
         $this->assertNull($this->files()->path('sample'));
         // 別の入れ物（別のプロセスと同じく、目印のファイルで間引く）
-        $this->assertNull((new DataFiles(app(\Miraqceed\Foundation\DataFiles\Sources::class)))->path('sample'));
+        $this->assertNull((new DataFiles(app(Sources::class)))->path('sample'));
         $this->assertCount(1, $reports);
         $this->assertStringContainsString('データのファイル sample がありません', $reports[0]);
 
@@ -132,7 +150,7 @@ class DataFilesReaderTest extends TestCase
         $this->assertCount(1, $parsed);
 
         // 別のプロセス（新しい入れ物）：置いた写しから読む
-        $fresh = new DataFiles(app(\Miraqceed\Foundation\DataFiles\Sources::class));
+        $fresh = new DataFiles(app(Sources::class));
         $this->assertSame(['version' => 1], $fresh->remember('sample', $parse, allowedClasses: []));
         $this->assertCount(1, $parsed);
 
@@ -155,7 +173,7 @@ class DataFilesReaderTest extends TestCase
             '許していない物' => serialize(new ArrayObject([new stdClass])),
         ] as $label => $text) {
             file_put_contents($kept, $text);
-            $fresh = new DataFiles(app(\Miraqceed\Foundation\DataFiles\Sources::class));
+            $fresh = new DataFiles(app(Sources::class));
             $calls = 0;
             $value = $fresh->remember('sample', function () use (&$calls) {
                 $calls++;
@@ -181,16 +199,51 @@ class DataFilesReaderTest extends TestCase
     {
         $this->place(TestSource::data(1));
         File::ensureDirectoryExists(DataFiles::cachePath());
-        $old = DataFiles::cachePath().'/sample-old.ser.abc.tmp';
-        $fresh = DataFiles::cachePath().'/sample-new.ser.def.tmp';
-        file_put_contents($old, 'x');
-        file_put_contents($fresh, 'x');
+        $old = DataFiles::cachePath().'/sample-'.str_repeat('a', 64).'.ser.'.str_repeat('1', 12).'.tmp';
+        $fresh = DataFiles::cachePath().'/sample-'.str_repeat('b', 64).'.ser.'.str_repeat('2', 12).'.tmp';
+        // 名前の頭が重なるほかの種類の、古い残り：消さない（その種類が自分で片付ける）
+        $otherKind = DataFiles::cachePath().'/sample-two-'.str_repeat('c', 64).'.ser.'.str_repeat('3', 12).'.tmp';
+        foreach ([$old, $fresh, $otherKind] as $file) {
+            file_put_contents($file, 'x');
+        }
         touch($old, time() - Store::LEFTOVER_SECONDS - 5);
+        touch($otherKind, time() - Store::LEFTOVER_SECONDS - 5);
 
         $this->files()->remember('sample', fn () => ['ok'], allowedClasses: []);
 
         $this->assertFileDoesNotExist($old);
         $this->assertFileExists($fresh);
+        $this->assertFileExists($otherKind);
+    }
+
+    /** 名前の頭が重なる種類（sample と sample-two）の写しを、互いに消さない（設計書 6.5：消すのは同じ名前の古い鍵の写しだけ） */
+    public function test_remember_never_removes_the_copy_of_a_kind_whose_name_starts_the_same(): void
+    {
+        $second = new SecondTestSource('sample-two');
+        $this->useSources($this->source, $second);
+        $this->place(TestSource::data(1));
+        $this->place(TestSource::data(2), name: 'sample-two');
+        $parsed = new ArrayObject;
+        $parse = function (string $path) use ($parsed): int {
+            $parsed[] = basename(dirname($path));
+
+            return TestSource::versionOf((string) file_get_contents($path));
+        };
+
+        // 別々の入れ物（別々のプロセスと同じ）で、sample-two → sample の順に解いて置く
+        $this->assertSame(2, $this->freshFiles()->remember('sample-two', $parse, allowedClasses: []));
+        $this->assertSame(1, $this->freshFiles()->remember('sample', $parse, allowedClasses: []));
+        $this->assertCount(2, glob(DataFiles::cachePath().'/*.ser'));
+
+        // 新しい入れ物は、どちらも写しから読む（解き直さない）
+        $this->assertSame(2, $this->freshFiles()->remember('sample-two', $parse, allowedClasses: []));
+        $this->assertSame(1, $this->freshFiles()->remember('sample', $parse, allowedClasses: []));
+        $this->assertSame(['sample-two', 'sample'], $parsed->getArrayCopy());
+    }
+
+    private function freshFiles(): DataFiles
+    {
+        return new DataFiles(app(Sources::class));
     }
 
     public function test_remember_needs_the_allowed_classes(): void

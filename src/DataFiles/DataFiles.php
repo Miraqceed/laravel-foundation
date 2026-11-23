@@ -32,7 +32,8 @@ final class DataFiles
     /** @throws \LogicException 登録していない名前のとき */
     public function path(string $name): ?string
     {
-        $source = $this->sources->get($name);
+        // 頼まれた種類だけを引く（作った種類はこの入れ物で覚える。ほかの種類の書き違いで止まらない）
+        $source = $this->sources->find($name);
         $store = Store::for($name, $this->reporter);
         if ($store->hasData()) {
             return $store->dataPath();
@@ -145,13 +146,18 @@ final class DataFiles
             if (@file_put_contents($temporary, serialize($value)) === false || ! @rename($temporary, $file)) {
                 return;
             }
+            // 消すのは、この名前の古い鍵の写しだけ。名前の頭が重なるほかの種類（ip と ip-city）の写しには当てない
+            $quoted = preg_quote($name, '/');
             foreach (glob($directory.'/'.$name.'-*.ser', GLOB_NOSORT) ?: [] as $older) {
-                if ($older !== $file) {
+                if ($older !== $file && preg_match('/\A'.$quoted.'-[0-9a-f]{64}\.ser\z/', basename($older)) === 1) {
                     @unlink($older);
                 }
             }
             // 書いてから rename の前に殺されたプロセスが残したもの。1時間より古いもの（書いている途中のものを消さない）
             foreach (glob($directory.'/'.$name.'-*.tmp', GLOB_NOSORT) ?: [] as $leftover) {
+                if (preg_match('/\A'.$quoted.'-[0-9a-f]{64}\.ser\.[0-9a-f]{12}\.tmp\z/', basename($leftover)) !== 1) {
+                    continue;
+                }
                 $time = @filemtime($leftover);
                 if ($time !== false && $time < time() - Store::LEFTOVER_SECONDS) {
                     @unlink($leftover);

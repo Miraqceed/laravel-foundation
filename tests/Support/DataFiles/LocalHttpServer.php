@@ -73,7 +73,8 @@ final class LocalHttpServer
      * 道の答え方を決める。
      *
      * @param  array{status?: int, headers?: array<string, string>, body?: string, file?: string, delay?: float,
-     *     declare?: int, undeclared?: bool, truncate?: int, trickle?: array{0: int, 1: int}}  $answer
+     *     declare?: int, undeclared?: bool, truncate?: int, trickle?: array{0: int, 1: int}, probe?: array{0: string, 1: int}}  $answer
+     *     probe：[ディレクトリ, バイト数]。本文の頭のバイト数を送った後に、そのディレクトリの名前の一覧を probes() に残す
      */
     public function route(string $path, array $answer): void
     {
@@ -94,6 +95,14 @@ final class LocalHttpServer
     public function requests(): array
     {
         $lines = array_filter(explode("\n", (string) file_get_contents($this->directory.'/requests.log')));
+
+        return array_values(array_map(fn (string $line) => json_decode($line, true, flags: JSON_THROW_ON_ERROR), $lines));
+    }
+
+    /** @return list<list<string>> route() の probe で残したディレクトリの名前の一覧（要求ごと） */
+    public function probes(): array
+    {
+        $lines = array_filter(explode("\n", (string) @file_get_contents($this->directory.'/probe.log')));
 
         return array_values(array_map(fn (string $line) => json_decode($line, true, flags: JSON_THROW_ON_ERROR), $lines));
     }
@@ -144,6 +153,16 @@ if (isset($answer['declare'])) {
     header('Content-Length: '.strlen($body));
 }
 $send = isset($answer['truncate']) ? substr($body, 0, $answer['truncate']) : $body;
+if (! empty($answer['probe'])) {
+    // 本文の頭を送った後、受け手が書いている最中のディレクトリの中身を残す（一時のファイルの置き場所を確かめるため）
+    [$probeDirectory, $head] = $answer['probe'];
+    echo substr($send, 0, $head);
+    @ob_flush();
+    flush();
+    usleep(500_000);
+    file_put_contents($dir.'/probe.log', json_encode(array_values(array_diff(scandir($probeDirectory) ?: [], ['.', '..'])))."\n", FILE_APPEND | LOCK_EX);
+    $send = substr($send, $head);
+}
 if (! empty($answer['trickle'])) {
     [$size, $micro] = $answer['trickle'];
     foreach (str_split($send, max(1, $size)) as $piece) {

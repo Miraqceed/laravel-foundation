@@ -170,10 +170,7 @@ class RefreshHttpTest extends TestCase
         $this->install(5);
         $this->source->limits = new Limits(maxDownloadBytes: 200 * 1024, maxBytes: 1024 * 1024, minBytes: 16, maxShrink: null, staleAfterDays: 7);
         // 偽って小さく名乗る本文：名乗った長さだけを受け、残りは読まない（確かめで断る）
-        $this->http->route('/sample.txt', ['body' => "VERSION: 6
-".str_repeat("y
-", 300 * 1024)."END
-", 'declare' => 100]);
+        $this->http->route('/sample.txt', ['body' => "VERSION: 6\n".str_repeat("y\n", 300 * 1024)."END\n", 'declare' => 100]);
 
         $this->assertSame(1, Artisan::call('foundation:data-files'));
         $this->assertStringContainsString('確かめで断りました', Artisan::output());
@@ -192,7 +189,10 @@ class RefreshHttpTest extends TestCase
         $this->assertSame(1, Artisan::call('foundation:data-files'));
         $elapsed = microtime(true) - $started;
 
-        $this->assertStringContainsString('sample：', Artisan::output());
+        // 時間の上限で止まった：進みの知らせで止めた形か、cURL の時間の上限で止まった形
+        $output = Artisan::output();
+        $this->assertMatchesRegularExpression('/sample：http:\/\/127\.0\.0\.1:\d+\/sample\.txt (を取り終えられません（全体 2 秒を超えた）|を取れません（.*Exception）)/u', $output);
+        $this->assertGreaterThan(1.5, $elapsed, "打ち切りが早すぎる（{$elapsed} 秒）");
         $this->assertLessThan(6.0, $elapsed, "打ち切りに {$elapsed} 秒かかった");
         $this->assertSame(TestSource::data(5), file_get_contents($this->store()->dataPath()));
     }

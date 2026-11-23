@@ -3,6 +3,7 @@
 namespace Miraqceed\Foundation\Tests\Feature\DataFiles;
 
 use Illuminate\Support\Facades\Artisan;
+use Miraqceed\Foundation\DataFiles\DataFileException;
 use Miraqceed\Foundation\DataFiles\Refresher;
 use Miraqceed\Foundation\DataFiles\Store;
 use Miraqceed\Foundation\Testing\ReportFailure;
@@ -38,20 +39,39 @@ class StoreTest extends TestCase
         return array_values(array_filter(scandir(sys_get_temp_dir()) ?: [], fn (string $name) => $name !== $throttle && ! str_starts_with($name, 'foundation-data-files-http-')));
     }
 
+    /**
+     * 一時のファイルは置き場所と同じディレクトリにだけ作る（別のファイルシステムでは rename が写しと消しになる）。
+     * 一時のファイルは rename で移るか消えるので、終わった後のディレクトリを比べても分からない。
+     * 受けている最中のディレクトリ（取ったままの本文）と、verify() に渡された道（解いたもの）を見る
+     */
     public function test_creates_temporary_files_only_beside_the_data(): void
     {
         $http = $this->server();
         $source = new TestSource;
         $source->downloads = [LoopbackDownload::url($http->url('/sample.gz'))->gzip()];
         $this->useSources($source);
-        $http->route('/sample.gz', ['body' => gzencode(TestSource::data(3))]);
+        $directory = $this->store()->directory();
+        $compressed = gzencode(TestSource::data(3, 400));
+        $http->route('/sample.gz', ['body' => $compressed, 'probe' => [$directory, intdiv(strlen($compressed), 2)]]);
         $before = $this->systemTemporaryNames();
 
         $this->assertSame(0, Artisan::call('foundation:data-files'), Artisan::output());
 
+        // 受けている最中：取ったままの本文は、置き場所のディレクトリの一時のファイル
+        $probes = $http->probes();
+        $this->assertCount(1, $probes);
+        $this->assertCount(1, array_filter($probes[0], fn (string $name) => str_starts_with($name, Store::TEMPORARY_PREFIX)), json_encode($probes[0]));
+        // 解いたもの：verify() に渡された道は、置き場所か、置き場所と同じディレクトリの一時のファイル
+        $this->assertNotSame([], $source->verified);
+        foreach ($source->verified as $path) {
+            $this->assertSame($directory, dirname($path), $path);
+            $this->assertTrue($path === $this->store()->dataPath() || str_starts_with(basename($path), Store::TEMPORARY_PREFIX), $path);
+        }
+        $this->assertContains(true, array_map(fn (string $path) => $path !== $this->store()->dataPath(), $source->verified));
+
         $this->assertSame($before, $this->systemTemporaryNames());
-        $this->assertSame(TestSource::data(3), file_get_contents($this->store()->dataPath()));
-        $this->assertSame([], glob($this->store()->directory().'/.tmp-*'));
+        $this->assertSame(TestSource::data(3, 400), file_get_contents($this->store()->dataPath()));
+        $this->assertSame([], glob($directory.'/.tmp-*'));
     }
 
     public function test_temporary_paths_are_in_the_data_directory(): void
@@ -128,12 +148,27 @@ class StoreTest extends TestCase
         try {
             $store->install($store->directory().'/.tmp-missing', 'sample');
             $this->fail('無いファイルを入れた');
-        } catch (\Miraqceed\Foundation\DataFiles\DataFileException $e) {
+        } catch (DataFileException $e) {
             $this->assertStringContainsString('置き場所を入れ替えられません', $e->getMessage());
         }
         $store->unlock();
         $this->assertCount(1, $reports);
         $this->assertStringContainsString('fsync できませんでした', $reports[0]);
+    }
+
+    /** 設定の書き違いも知らせる（schedule の出力は捨てられることが多い）。文に設定の値を入れない */
+    public function test_reports_a_broken_source_list(): void
+    {
+        $reports = ReportFailure::simulate();
+        foreach ([['Not\\A\\Class'], [TestSource::class, TestSource::class]] as $i => $sources) {
+            $this->useSources(new TestSource);
+            config(['foundation.data_files.sources' => $sources]);
+
+            $this->assertSame(1, Artisan::call('foundation:data-files'));
+            $this->assertCount($i + 1, $reports);
+            $this->assertStringContainsString('データのファイルの設定を読めません：foundation.data_files.sources', $reports[$i]);
+            $this->assertStringNotContainsString('Not\\A\\Class', $reports[$i]);
+        }
     }
 
     public function test_the_refresher_comes_from_the_container(): void

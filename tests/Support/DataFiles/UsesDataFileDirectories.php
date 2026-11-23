@@ -3,8 +3,8 @@
 namespace Miraqceed\Foundation\Tests\Support\DataFiles;
 
 use Illuminate\Support\Facades\File;
-use Miraqceed\Foundation\DataFiles\Refresher;
 use Miraqceed\Foundation\DataFiles\Fetcher;
+use Miraqceed\Foundation\DataFiles\Refresher;
 use Miraqceed\Foundation\DataFiles\Store;
 
 /**
