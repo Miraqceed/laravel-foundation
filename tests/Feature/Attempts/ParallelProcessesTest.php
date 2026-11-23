@@ -95,6 +95,9 @@ class ParallelProcessesTest extends TestCase
     private function race(\Closure $attempt): array
     {
         $log = tempnam(sys_get_temp_dir(), 'attempts-race');
+        // 前の試しのアプリが循環の参照で残り、ごみ集めまで DB の接続を持ったままになることがある。
+        // 60 のプロセスが同時につなぐので、先に集めて、接続の上限（PostgreSQL の既定は 100）に当たらないようにする
+        gc_collect_cycles();
         // 子は親の接続を受け継がず、それぞれつなぎ直す
         DB::disconnect();
         $start = microtime(true) + 1.0;
