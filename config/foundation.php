@@ -289,6 +289,17 @@ return [
         'map' => null,
     ],
 
+    // 外のデータのファイル（Miraqceed\Foundation\DataFiles）。種類を並べたときだけ、php artisan foundation:data-files が取って入れ替える
+    // （schedule には入れない。入れるのはアプリ）
+    'data_files' => [
+        // 種類のクラス（Miraqceed\Foundation\DataFiles\DataSource を実装する）。既定は空（何もしない）
+        'sources' => [],
+        // 置き場所（種類ごとに {path}/{名前}/data。一時のファイルとロックも同じディレクトリ）。null なら storage_path('app/foundation/data-files')
+        'path' => null,
+        // 読む側の助け remember() が解いた結果を置く所。null なら storage_path('framework/foundation/data-files-cache')
+        'cache_path' => null,
+    ],
+
     // 日本の住所まわり（Miraqceed\Foundation\Japan）。呼んだときだけ働く
     'japan' => [
         'postal_codes' => [

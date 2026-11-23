@@ -57,6 +57,7 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `queue_timeouts` | `CronWorker` の worker の timeout が `retry_after` より10秒以上短く、timeout が効く（下） | `CronWorker` の worker がない |
 | `retention_schedule` | 消す決まりの台帳の、期限で消すモデルとコマンドが schedule にある（下） | `foundation.retention.map` を書いていない |
 | `postal_codes` | 郵便番号の一覧が、日本郵便の更新日から3か月以内（下） | 一覧を置いていない（`source.json` がない） |
+| `data_files` | 外のデータのファイルが置かれ、最後に成功した更新から `staleAfterDays` 以内（下） | 種類（`foundation.data_files.sources`）がない |
 | `session_ip` | `database` のセッションの表に訪問者の IP を書かない（下。書いていても `info`） | セッションが `database` でない |
 | `limiter_keys` | 回数の制限の鍵を `APP_KEY` の HMAC にしてキャッシュに入れる（下。していなくても `info`） | |
 | `ip_hash_key` | DB に残す IP のハッシュの鍵（`foundation.privacy.ip_hash_key`）が32字以上（下） | 鍵が空（`IpHash` を使っていない） |
@@ -213,6 +214,20 @@ PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、�
 | `source.json` を読めない（JSON でない・更新日がない・日付でない） | `FAIL`（作り直す） |
 | 更新日から3か月の日（日本時間）の終わりまで | `ok`（更新日を出す） |
 | それより古い | `later`（古くても引けるので止めない。公開の直前の `--strict` で失敗。`php artisan foundation:postal-codes` で作り直して PR にする） |
+
+### `data_files`
+
+外のデータのファイル（`foundation.data_files.sources` の種類。`docs/data-files.md`）が置かれ、更新が止まっていないかを見る。読むだけで、取りに行かない。
+
+| 種類ごと | 状態 |
+|---|---|
+| 種類が1つもない | `skip` |
+| 置き場所にファイルがない | `FAIL`（`php artisan foundation:data-files` で入れる） |
+| 置き場所になく、写し（`fallbackPath()`）を読んでいる | `later` |
+| 最後に更新を流して成功してから `staleAfterDays` を過ぎた・まだ一度も成功していない | `later`（古くても読めるので止めない。`--strict` で失敗。schedule に入っているか・流れているかを確かめる） |
+| そのほか | `ok` |
+
+いちばん悪い種類の状態を、その行の状態にする。
 
 ### `session_ip`・`limiter_keys`・`ip_hash_key`
 
