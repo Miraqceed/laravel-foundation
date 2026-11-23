@@ -132,8 +132,10 @@ trait IntegrityTree
         $pid = pcntl_fork();
         if ($pid === 0) {
             ini_set('memory_limit', $memory);
-            // 落ちたときの文を出さない（別のプロセスで流す試しでは、標準エラーへの出力が試しの誤りになる）
+            // 落ちたときの文を出さない（別のプロセスで流す試しでは、標準エラーへの出力が試しの誤りになる。
+            // CLI の log_errors は標準エラーに書くので、それも止める）
             ini_set('display_errors', '0');
+            ini_set('log_errors', '0');
             // 子は親の DB の接続（MySQL・PostgreSQL の socket）を受け継ぐ。終わりの片付け（PDO の後始末）で接続を閉じると、
             // 親の接続まで切れる。落ちたときも含めて、片付けの前に自分を SIGKILL で終える
             register_shutdown_function(fn () => posix_kill(getmypid(), SIGKILL));
