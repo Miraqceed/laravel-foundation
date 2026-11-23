@@ -16,6 +16,9 @@
         </testsuite>
     </testsuites>
     <php>
+        <!-- 試しの全体は、PHP の既定の memory_limit（128M）に左右されない（試しの数が増えると、PostalCodesCommandTest の大きな
+             本文の試しが 128M の端に当たる）。メモリーの上限を見る試しは、別のプロセスで、決めた memory_limit を渡して流す -->
+        <ini name="memory_limit" value="-1"/>
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="CACHE_STORE" value="database"/>

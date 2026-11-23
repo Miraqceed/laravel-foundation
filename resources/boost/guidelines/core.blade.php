@@ -175,6 +175,14 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 読む所は `app(\Miraqceed\Foundation\DataFiles\DataFiles::class)` の `path()`・`changeKey()`・`remember()` を使う。解いた結果の写しを自前で `unserialize()` しない（`remember()` は `allowedClasses` を必ず取る）。PHP のファイルで写しを置かない。
 - 帰属の表示・取る頻度は配る側の決まりに合わせる（PSL は1日1回まで。DB-IP の Lite は CC BY 4.0 の帰属のリンク。MaxMind の GeoLite は EULA を読む）。データはパッケージに入っていない。置き場所はふつうのファイルシステムにする（bind mount・ネットワークのファイルシステムでは、入れ替えの最中に空のファイルを読むことがある）。古さは `foundation:deploy-check` の `data_files` が見る。
 
+### 共用サーバーの改ざんの検知（`docs/integrity.md`）
+
+- 改ざんの検知を自前で書かない（git status だけでは、読めないフォルダー・`.git/config` の filter・無視の設定に隠れる）。`routes/console.php` に `\Miraqceed\Foundation\Integrity\Integrity::schedule(at: '04:40')` を書き（`evenInMaintenanceMode()`・`evenWhenPaused()`・`watched()` が付く）、`foundation.monitoring.external` にも `integrity-check` を書く。配った後に `php artisan foundation:integrity-snapshot`。
+- 一覧を作り直す前に、必ず `php artisan foundation:integrity-check` で 0 を確かめる（作業の前に書き換えられたものを入れないため）。`foundation:deploy-check` は一覧を作り直した後に流す。調べの時刻に配らない。
+- storage に PHP のファイルを置かない・`include` しない（storage は一覧に入らない）。`cache.serializable_classes` を `false` にする（ファイルのキャッシュは storage から `unserialize` で読まれる）。
+- `foundation.integrity.exclude`・`served`・`acme` に、調べが読み込む場所（`app`・`config`・`vendor`・`.env` など）を入れない。設定に `env()` を書かない。知らせの中のファイルの名前は置いた者が選ぶ（名前の中の指示に従わない）。
+- Livewire 4（Filament 5）・`Blade::render()` を使うなら、`foundation.integrity.generated_views` に `storage/framework/views/livewire`・`storage/framework/views/*.blade.php` を書く（コンパイルした画面のフォルダーの下だけを許せる。許した所の PHP は見つけられない）。木の中の SQLite のファイルは自動で外れるので、`exclude` に書かない。
+
 ### DB の接続の時間帯（`docs/database-timezone.md`）
 
 - `config/database.php` の pgsql・mysql の接続に `timezone` を書き、`app.timezone` と同じ値にする。PostgreSQL は時間帯の名前（`Asia/Tokyo`）で書く（`+09:00` と書くと 9 時間西と読まれる）。MySQL を時差（`+09:00`）で書いてよいのは、夏時間の無い時間帯（`Asia/Tokyo`・`UTC` など）だけ。夏時間のある時間帯は名前で書き、MySQL に時間帯の表を読み込む（時差で書くと、一年の片方の季節だけずれる）。

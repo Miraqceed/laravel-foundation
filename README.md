@@ -50,6 +50,7 @@ php artisan foundation:install                       # AGENTS.md / CLAUDE.md に
 | 日本語の入力の誤りの文：Laravel の規則・認証・再設定・ページ送りの日本語の文をアプリの `lang/ja` に写す（上書きしない）。足りない鍵と英語の混ざった誤りの文を見つける試しの助け | 写したときだけ効く（`vendor:publish --tag=foundation-lang-ja`） | [docs/validation-ja.md](docs/validation-ja.md) |
 | 住所まわり（日本向け）：郵便番号から住所を引く（外のサービスに問い合わせない。一覧はアプリが `foundation:postal-codes` で日本郵便のデータから作る）・電話番号を市外局番の表で区切る・検証の規則 | 呼んだときだけ働く。郵便番号の一覧はアプリが作る（`foundation.japan.postal_codes.path`） | [docs/japan-address.md](docs/japan-address.md) |
 | 外のデータのファイルを安全に入れ替える：IP の位置の DB・Public Suffix List などを、本番の cron で、誤りのページ・切れたファイル・古い版・重なった実行で壊さずに入れ替える（取る → 同じディレクトリの一時のファイル → 使う側と同じ読み方の確かめ → 版の比べ → rename）。読む側の助け（変わったかの鍵・解いた結果の写し・データがないときの知らせ）と点検 | 種類（`foundation.data_files.sources`）を並べたときだけ。schedule はアプリが入れる。データは入っていない | [docs/data-files.md](docs/data-files.md) |
+| 共用サーバーの改ざんの検知：木の全体をハッシュの一覧と比べ（git を動かさない。`.git` の設定と hook も）、public の PHP・公開される変わる場所・storage の PHP・メンテナンスの入口・コンパイルした画面（子プロセスで）を見て、ファイルの名前だけを毎日知らせる。1つの失敗・一覧を消す・`down`・`schedule:pause` で黙らない | `Integrity::schedule()` を routes/console.php に書いたときだけ。表なし | [docs/integrity.md](docs/integrity.md) |
 | CSP・セキュリティヘッダー | 無効（`foundation.security.enabled`） | [docs/security.md](docs/security.md) |
 | 稼働の確かめ：外のスクリプトを読まず、原因を出さない `/up`（text/plain の `OK`／`NG`）。DB の確かめを足せる | アプリが `bootstrap/app.php` で `Health::route('/up')` に書き換えたときだけ。DB は見ない（`foundation.health.checks`） | [docs/health.md](docs/health.md) |
 | 定期の処理の見張りと知らせ | 無効（`foundation.monitoring.enabled`） | [docs/monitoring.md](docs/monitoring.md) |

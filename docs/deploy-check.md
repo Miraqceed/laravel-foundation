@@ -58,6 +58,7 @@ php artisan foundation:deploy-check --strict   # later（まだ要らない）�
 | `retention_schedule` | 消す決まりの台帳の、期限で消すモデルとコマンドが schedule にある（下） | `foundation.retention.map` を書いていない |
 | `postal_codes` | 郵便番号の一覧が、日本郵便の更新日から3か月以内（下） | 一覧を置いていない（`source.json` がない） |
 | `data_files` | 外のデータのファイルが置かれ、最後に成功した更新から `staleAfterDays` 以内（下） | 種類（`foundation.data_files.sources`）がない |
+| `integrity` | 改ざんの検知の一覧があり、毎日の調べが schedule にあり、知らせが届く（下）。**一覧を作り直した後に流す** | schedule にも一覧もない |
 | `session_ip` | `database` のセッションの表に訪問者の IP を書かない（下。書いていても `info`） | セッションが `database` でない |
 | `limiter_keys` | 回数の制限の鍵を `APP_KEY` の HMAC にしてキャッシュに入れる（下。していなくても `info`） | |
 | `ip_hash_key` | DB に残す IP のハッシュの鍵（`foundation.privacy.ip_hash_key`）が32字以上（下） | 鍵が空（`IpHash` を使っていない） |
@@ -225,6 +226,21 @@ PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、�
 | 置き場所にファイルがない | `FAIL`（`php artisan foundation:data-files` で入れる） |
 | 置き場所になく、写し（`fallbackPath()`）を読んでいる | `later` |
 | 最後に更新を流して成功してから `staleAfterDays` を過ぎた・まだ一度も成功していない | `later`（古くても読めるので止めない。`--strict` で失敗。schedule に入っているか・流れているかを確かめる） |
+
+### `integrity`
+
+改ざんの検知（`docs/integrity.md`）を使っているなら、配った後に一覧があり、毎日の調べが schedule にあり、知らせが人に届くかを見る。一覧の頭の行と最後の行だけを読む（ハッシュは取らない）。見る場所の設定を変えて配るときは、一覧を作り直した後に流す（前に流すと「設定が一覧と違う」で必ず失敗）。
+
+| 状態 | 結果 |
+|---|---|
+| schedule にも一覧もない | `skip` |
+| 一覧がない・読めない・壊れている・ほかの木のもの | `FAIL`（`php artisan foundation:integrity-snapshot`） |
+| 一覧があるのに、毎日の調べが schedule にない | `FAIL`（`Integrity::schedule()` を書く） |
+| 見る場所の設定が一覧と違う | `FAIL`（一覧を作り直してから流し直す） |
+| `exclude`・`served`・`acme` が、調べの読み込む場所（`app`・`config`・`vendor`・`.env` など）に掛かる | `FAIL` |
+| `generated_views` に、コンパイルした画面のフォルダーの下でない場所がある・木の中の SQLite のファイルを外せない（PHP として動く名前か、調べの読み込む場所か、公開される場所の中）・`exclude` が公開される場所の PHP の名前か `public_php` に掛かる | `FAIL` |
+| 公開ディレクトリが木の `public` でない・前の調べが画面の調べの途中で落ちた | `FAIL` |
+| メンテナンス中・`schedule:pause` の間に動かない・知らせが人に届かない・画面の調べの子プロセスを使えない | `later` |
 | そのほか | `ok` |
 
 いちばん悪い種類の状態を、その行の状態にする。

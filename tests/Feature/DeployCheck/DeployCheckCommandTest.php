@@ -22,7 +22,7 @@ class DeployCheckCommandTest extends TestCase
         'app_env', 'app_debug', 'app_url', 'app_key', 'boost', 'session_secure_cookie', 'drivers', 'mail', 'mail_domain',
         'mail_view_cache', 'vite_hot', 'vite_manifest', 'writable', 'migrations', 'attempts_bypass', 'trusted_proxies',
         'trusted_hosts', 'mail_links', 'password_sessions', 'turnstile', 'db_masked_bindings', 'exception_args', 'queue_worker',
-        'queue_timeouts', 'retention_schedule', 'postal_codes', 'data_files', 'session_ip', 'limiter_keys', 'ip_hash_key',
+        'queue_timeouts', 'retention_schedule', 'postal_codes', 'data_files', 'integrity', 'session_ip', 'limiter_keys', 'ip_hash_key',
     ];
 
     /**

@@ -300,6 +300,39 @@ return [
         'cache_path' => null,
     ],
 
+    // 共用サーバーの改ざんの検知（Miraqceed\Foundation\Integrity）。schedule に入れたとき（Integrity::schedule()）・命令を流したときだけ働く。
+    // 有効の印は持たない。ここには env() を書かない（.env を1行変えるだけで、一覧の置き場所や外すものを替えられないように）
+    'integrity' => [
+        // 木の根。null なら base_path()
+        'root' => null,
+        // ハッシュの一覧。null なら storage_path('app/foundation/integrity/snapshot.lines')
+        'snapshot' => null,
+        // 一覧から外す道（根からの道。道の頭で合わせる）。調べと画面の調べが読み込む場所
+        // （artisan・bootstrap・config・app・routes・vendor・.env）を入れると、調べと点検が知らせる。
+        // public の下は、中身の比べだけを外す（PHP・.htaccess・リンクは見る）。公開される場所の PHP の名前・public_php に掛かる値は使わない。
+        // アップロードの置き場所など、公開されて中身が変わる場所は served に書く
+        'exclude' => [],
+        // 公開されるが中身が変わる場所（根からの道。アップロードの置き場所など）。一覧に入れず、名前と種類だけを見る
+        'served' => [],
+        // SSL の確認用のフォルダー（根からの道）。トークンの形の名前のふつうのファイルだけを通す。null なら見ない
+        'acme' => 'public/.well-known/acme-challenge',
+        // public の中で許す PHP のファイル（根からの道）
+        'public_php' => ['public/index.php'],
+        // storage の中で許す、PHP として動く名前のファイル（storage からの道）
+        'storage_php_allow' => [],
+        // 部品が作る画面の場所（根からの道。コンパイルした画面のフォルダー（view.compiled）の下だけ）。許した所は見ないので、
+        // そこに置かれた PHP は見つけられない。例：Livewire 4 の 'storage/framework/views/livewire'、
+        // Blade::render()・インラインの部品が置く元の 'storage/framework/views/*.blade.php'（docs/integrity.md）
+        // 木の中の SQLite のファイル（database.connections の sqlite の接続が指すもの）は、自動で外す
+        'generated_views' => [],
+        // storage/framework/down で許す項目（template・redirect・secret・refresh）。既定はどれも知らせる
+        'maintenance' => ['allow' => []],
+        // 調べ全体の期限（秒）。540 より長くすると Integrity::schedule() が止める（本番の外）
+        'seconds' => 240,
+        // 毎回の記録の1行（数だけ）を書くログのチャネル。null ならアプリの既定のチャネル
+        'record_channel' => null,
+    ],
+
     // 日本の住所まわり（Miraqceed\Foundation\Japan）。呼んだときだけ働く
     'japan' => [
         'postal_codes' => [
