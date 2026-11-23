@@ -27,7 +27,17 @@
 | メンテナンス | `storage/framework/maintenance.php` が Laravel の雛形と同じか。`storage/framework/down` があれば「メンテナンス中」と、`template`・`redirect`・`secret`・`refresh`・アプリの除外の外の `except` があれば知らせる（値は出さない） |
 | コンパイルした画面 | `config('view.compiled')` の画面が、元の Blade を `compileString()` に通したものと同じか（`@once` などの UUID の形の字だけは違ってよい）。元の Blade は、登録された画面の場所のうち、一覧で見ている木の中にあること。画面の調べは、別の PHP のプロセス（子）で流す |
 
-外すもの：`storage/`（上の調べで見る）、`.git` の中の動かないもの、`foundation.integrity.exclude`、公開される変わる場所。
+外すもの：`storage/`（上の調べで見る）、`.git` の中の動かないもの、`foundation.integrity.exclude`、公開される変わる場所、木の中の SQLite のファイル（下の「木の中の SQLite のファイル」）。
+
+## 木の中の SQLite のファイル
+
+雛形の Laravel のアプリは、SQLite のファイル `database/database.sqlite` を木の中に持つ。知らせ・見張りの記録・キャッシュの表を書くたびに変わるので、調べは `database.connections` の `sqlite` の接続が指す木の中のファイルと、その横の `-wal`・`-shm`・`-journal` を、自動で外す。
+
+- 外すのは、そこがふつうのファイルのときだけ。リンク・フォルダーに替われば、ふつうに比べる
+- 名前が PHP として動くもの（`x.sqlite.php` など）と、調べが読み込む場所（`app/`・`config/`・`vendor/` など）の中のものは外さず、「確かめられなかった（木の中の SQLite のファイルを外せない）」を出す。点検は `FAIL`
+- 接続の道が根からの道（`database/x.sqlite` のような形）なら、そのファイルがあるときだけ見る（雛形の設定は `sqlite` の接続も `DB_DATABASE` を読むので、MySQL のデータベースの名前を道と取り違えないように）
+- 外したものは、一覧の設定にも入る（下の「設定」の最後）。接続を足す・替えると「設定が一覧と違う」が出る
+- 木の外の SQLite のファイル・`:memory:` は見ない
 
 ## 最短の手順
 
@@ -135,6 +145,7 @@ php artisan foundation:integrity-check          # 0 であること
     'acme' => 'public/.well-known/acme-challenge',
     'public_php' => ['public/index.php'],
     'storage_php_allow' => [],      // storage からの道
+    'generated_views' => [],        // 部品が作る画面の場所（根からの道。下の「部品が作る画面」）
     'maintenance' => ['allow' => []],
     'seconds' => 240,               // 調べ全体の期限（1つの期限を全部の調べで分け合う）
     'record_channel' => null,
@@ -144,6 +155,23 @@ php artisan foundation:integrity-check          # 0 であること
 - ここには `env()` を書かない（`.env` を1行変えるだけで、一覧の置き場所や外すものを替えられないように）
 - **`exclude`・`served`・`acme` に、調べと画面の調べの子が読み込む場所（`artisan`・`bootstrap/`・`config/`・`app/`・`routes/`・`vendor/`・`.env`）を入れない**（入れると、調べが「確かめられなかった」を出し、点検が `FAIL`）
 - 見る場所の設定は、一覧を作ったときの値を一覧に持つ。一覧が使えるときは、一覧の値と今の値の厳しい方（外す・許すものは両方にあるものだけ、見る場所は両方を合わせる）で見て、違えば「設定が一覧と違う」を出す。一覧が使えないときは、今の値で見る
+
+## 部品が作る画面
+
+Livewire 4（Filament 5 が使う）は、部品をコンパイルした PHP を `storage/framework/views/livewire/` の下に置く。`Blade::render()`（Filament が使う）とインラインの部品（`render()` が文字列を返す部品）は、元の Blade を `storage/framework/views/<16進32字>.blade.php` に置き、その画面を作る。どれも画面を開くと増えるので、そのままでは「storage の PHP」「画面のフォルダーに似合わない」「元のない画面」が出る。使っているなら、`generated_views` で許す。
+
+```php
+'generated_views' => [
+    'storage/framework/views/livewire',      // Livewire 4 の部品（このフォルダーの下を見ない）
+    'storage/framework/views/*.blade.php',   // Blade::render()・インラインの部品が置く元
+],
+```
+
+- 許せるのは、コンパイルした画面のフォルダー（`view.compiled`。木の中にあること）の下のフォルダーと、そのフォルダー + `/*.blade.php` だけ。画面のフォルダーそのもの・その外・`..` を含む道・ほかの `*` の形は断り、「確かめられなかった（部品が作る画面の場所の設定を使えない）」を出す（点検は `FAIL`）。断った値は使わない
+- `*.blade.php` で許すのは、画面のフォルダーの直下の `<16進32字>.blade.php` の元。その元から作った画面は、ほかの画面と同じく元とコンパイルし直して比べる
+- **許した所は見ないので、そこに置かれた PHP は見つけられない**（下の「限界」）
+- 許した値は、一覧の設定にも入る。書き換えると「設定が一覧と違う」が出て、一覧を作り直すまでは厳しい方（両方にあるものだけを許す）で見る
+- Livewire 3 は、画面のフォルダーの下に部品の PHP を置かない（Laravel 13.43.0 と Livewire 3 の使い捨てのアプリで、部品のページを開いても違いは出なかった）
 
 ## メモリーと時間の上限
 
@@ -157,7 +185,8 @@ php artisan foundation:integrity-check          # 0 であること
 - 公開ディレクトリより上（共用の `.htaccess` など）・木の外から読み込むもの（Composer の path の倉庫の先・`php.ini` の `auto_prepend_file`）は見ない
 - storage の中の、画面と `maintenance.php` のほかの中身は見ない。ファイルのキャッシュ・ファイルのセッションは `unserialize` で読まれる（`cache.serializable_classes` を `false` にする）
 - cache の形のメンテナンスの中身は見ない
-- `Blade::render()`・動的な部品で作る画面は「元が見つからない」と知らせる
+- `Blade::render()`・インラインの部品で作る画面は「元が見つからない」と知らせる（`generated_views` に `storage/framework/views/*.blade.php` を書けば許す。そのときは、そこに置かれた元の中身を確かめられない）
+- `generated_views` で許したフォルダー（Livewire 4 の部品など）は見ない。そこに置かれた PHP は見つけられない
 - `lstat` と開く間に名前つきのパイプへ差し替えられると、開く所で止まりうる（狙って競う者だけ。26時間後の「止まっています」で気付く）。ネットワークのファイルシステムの読み込みの待ちも期限の外
 - `.git` がファイル（`gitdir:`）のときの、木の外の本体は見ない
 - `down`・`schedule:pause` の間は、見張り（`foundation:watch`）と心拍も止まる（この調べは止まらない）

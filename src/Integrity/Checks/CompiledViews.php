@@ -24,6 +24,8 @@ use Throwable;
  * - 許す違いは、@once などが作る UUID の形の字だけ
  * - 大きさの上の上限と、大きさと広がる印の数の見積もりで止める（超えた画面は名前を出して「確かめられなかった」）
  * - フォルダーの、直下の *.php のふつうのファイルでないもの（下のフォルダー・リンク・ほかの名前）も名前で出す
+ * - アプリが generated_views で許した所（部品が作る画面のフォルダー・Blade::render() が置く元）は見ない。
+ *   許した元から作った画面は、その元とコンパイルし直して比べる
  *
  * @internal
  */
@@ -36,12 +38,17 @@ final class CompiledViews
 
     private const ONCE_ID = "/'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/";
 
+    /** Illuminate\View\Component::createBladeViewFromString() が画面のフォルダーに置く元の名前（xxh128 の16進） */
+    public const INLINE_SOURCE = '/\A[0-9a-f]{32}\.blade\.php\z/';
+
     /**
      * @param  list<string>  $sourceDirs  元の Blade があってよい場所（絶対の道。木の中のもの）
      * @param  list<string>  $excluded  木の中で外す道（根からの道）
      * @param  float  $ratio  見積もりと比べる、網の残りの割合（子は 0.5、親の中は 0.1）
      * @param  Closure(Finding|Gap, string): void  $emit
      * @param  int  $maxMarks  1つの元の、広がる印の数の上限（子は多め、親の中は少なめ）
+     * @param  list<string>  $generatedFolders  アプリが許した、部品が作る画面のフォルダー（表示の道。画面のフォルダーの下だけ）。見ない
+     * @param  list<string>  $inlineDirs  Blade::render()・インラインの部品が置く元（<hash>.blade.php）を許す画面のフォルダー（表示の道）
      */
     public function __construct(
         private readonly string $root,
@@ -52,7 +59,12 @@ final class CompiledViews
         private readonly float $ratio,
         private readonly Closure $emit,
         private readonly int $maxMarks = Limits::VIEW_MARKS_CHILD,
+        private readonly array $generatedFolders = [],
+        private readonly array $inlineDirs = [],
     ) {}
+
+    /** いま見ている画面のフォルダー（絶対の道）。インラインの元を許すときだけ */
+    private ?string $inlineDirectory = null;
 
     /**
      * @param  string  $directory  画面のフォルダー（絶対の道）
@@ -64,9 +76,17 @@ final class CompiledViews
             return null;
         }
         $compiler = app('blade.compiler');
-        $reader = new ReadThrough($this->deadline, $this->guard, fn (Gap $gap, string $path) => ($this->emit)($gap, $path));
+        $inline = in_array($shown, $this->inlineDirs, true);
+        $this->inlineDirectory = $inline ? rtrim(str_replace('\\', '/', (string) (realpath($directory) ?: $directory)), '/') : null;
+        // アプリが許した、部品が作る画面のフォルダーには下りない（そこに置かれた PHP は見つけられない。説明書の限界）
+        $reader = new ReadThrough($this->deadline, $this->guard, fn (Gap $gap, string $path) => ($this->emit)($gap, $path),
+            skipFolder: fn (string $folder): bool => Settings::within($folder, $this->generatedFolders));
         foreach ($reader->walk($directory, $shown) as $entry) {
             $direct = $entry->path === $shown.'/'.$entry->name();
+            // Blade::render()・インラインの部品が置く元。中身は確かめられない（その画面は、この元とコンパイルし直して比べる）
+            if ($inline && $direct && $entry->type === Entry::FILE && preg_match(self::INLINE_SOURCE, $entry->name()) === 1) {
+                continue;
+            }
             if (! $direct || $entry->type !== Entry::FILE || ! str_ends_with($entry->name(), '.php')) {
                 if (! ($direct && $entry->name() === '.gitignore' && $entry->type === Entry::FILE)) {
                     ($this->emit)(Finding::ViewStray, $entry->path);
@@ -129,7 +149,7 @@ final class CompiledViews
         // 広がる印の数は、メモリーのほかに時間も決める（@props を並べた元は、印の数の2乗ほどの時間が掛かる。compileString() の
         // 中は期限を見られない）。子は期限で止められるので多め、親の中は少なめ
         $marks = Limits::viewMarks($blade);
-        $estimate = Limits::viewEstimate(strlen($blade), $marks);
+        $estimate = Limits::viewEstimate(strlen($blade), $marks, Limits::viewComponents($blade));
         if ($marks > $this->maxMarks || ! $this->guard->fits($estimate, $this->ratio)) {
             ($this->emit)(Gap::ViewTooLarge, $entry->path);
 
@@ -182,6 +202,10 @@ final class CompiledViews
 
     private function allowedSource(string $real): bool
     {
+        $real = str_replace('\\', '/', $real);
+        if ($this->inlineDirectory !== null && dirname($real) === $this->inlineDirectory && preg_match(self::INLINE_SOURCE, basename($real)) === 1) {
+            return true;
+        }
         $relative = Settings::relative($this->root, $real);
         if (str_starts_with($relative, 'outside:') || Settings::within($relative, $this->excluded)) {
             return false;

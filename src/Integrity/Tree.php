@@ -29,7 +29,7 @@ final class Tree
     private int $pending = 0;
 
     /**
-     * @param  Closure(string): bool  $excluded  根からの道を外すか（フォルダーにも呼ぶ）
+     * @param  Closure(string, bool, string): bool  $excluded  根からの道を外すか（道・フォルダーか・lstat の種類。フォルダーにも呼ぶ）
      * @param  Closure(Gap, string): void  $onGap
      */
     public function __construct(
@@ -168,7 +168,7 @@ final class Tree
                     continue;
                 }
                 $isFolder = $stat !== null && Entry::typeOf($stat) === 'dir';
-                if (($this->excluded)($path, $isFolder)) {
+                if (($this->excluded)($path, $isFolder, Entry::typeOf($stat))) {
                     continue;
                 }
                 if ($isFolder) {

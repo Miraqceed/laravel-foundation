@@ -318,6 +318,11 @@ return [
         'public_php' => ['public/index.php'],
         // storage の中で許す、PHP として動く名前のファイル（storage からの道）
         'storage_php_allow' => [],
+        // 部品が作る画面の場所（根からの道。コンパイルした画面のフォルダー（view.compiled）の下だけ）。許した所は見ないので、
+        // そこに置かれた PHP は見つけられない。例：Livewire 4 の 'storage/framework/views/livewire'、
+        // Blade::render()・インラインの部品が置く元の 'storage/framework/views/*.blade.php'（docs/integrity.md）
+        // 木の中の SQLite のファイル（database.connections の sqlite の接続が指すもの）は、自動で外す
+        'generated_views' => [],
         // storage/framework/down で許す項目（template・redirect・secret・refresh）。既定はどれも知らせる
         'maintenance' => ['allow' => []],
         // 調べ全体の期限（秒）。540 より長くすると Integrity::schedule() が止める（本番の外）

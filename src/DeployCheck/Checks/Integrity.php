@@ -65,8 +65,15 @@ final class Integrity implements Check
             if ($event === null) {
                 $failed[] = '一覧があるのに、毎日の調べが schedule にない（Integrity::schedule() を routes/console.php に書く）';
             }
-            if (Settings::current($root)->coveringLoadPaths() !== []) {
+            $current = Settings::current($root);
+            if ($current->coveringLoadPaths() !== []) {
                 $failed[] = '外すもの・公開される場所の設定が、調べが読み込む場所（app・config・vendor など）に掛かっている';
+            }
+            if ($current->refused['generated_views'] !== []) {
+                $failed[] = Gap::GeneratedViewsRefused->label();
+            }
+            if ($current->refused['sqlite'] !== []) {
+                $failed[] = Gap::SqliteNotExcluded->label();
             }
             if (TreeCheck::publicOutside($root)) {
                 $failed[] = Gap::PublicOutside->label();

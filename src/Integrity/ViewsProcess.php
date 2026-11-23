@@ -40,7 +40,7 @@ final class ViewsProcess
     /**
      * 画面のフォルダーごとの、見る場所の組
      *
-     * @return array{dirs: list<array{path: string, shown: string}>, sources: list<string>, excluded: list<string>}
+     * @return array{dirs: list<array{path: string, shown: string}>, sources: list<string>, excluded: list<string>, generated: list<string>, inline: list<string>}
      */
     public static function targets(Context $context, array $excluded): array
     {
@@ -83,7 +83,10 @@ final class ViewsProcess
             }
         }
 
-        return ['dirs' => array_values($dirs), 'sources' => array_values(array_unique($sources)), 'excluded' => $excluded];
+        $effective = $context->effective();
+
+        return ['dirs' => array_values($dirs), 'sources' => array_values(array_unique($sources)), 'excluded' => $excluded,
+            'generated' => $effective->generatedFolders(), 'inline' => $effective->inlineViewDirs()];
     }
 
     public function available(): bool
@@ -99,7 +102,7 @@ final class ViewsProcess
     /**
      * 子で流す。子を使えなければ UNAVAILABLE（呼び手が親の中で控えめに流す）
      *
-     * @param  array{dirs: list<array{path: string, shown: string}>, sources: list<string>, excluded: list<string>}  $targets
+     * @param  array{dirs: list<array{path: string, shown: string}>, sources: list<string>, excluded: list<string>, generated: list<string>, inline: list<string>}  $targets
      */
     public function run(Context $context, array $targets): string
     {
@@ -112,6 +115,8 @@ final class ViewsProcess
             'dirs' => $targets['dirs'],
             'sources' => $targets['sources'],
             'excluded' => $targets['excluded'],
+            'generated' => $targets['generated'],
+            'inline' => $targets['inline'],
             'seconds' => max(1.0, $context->deadline->remaining()),
         ], JSON_UNESCAPED_SLASHES);
 
@@ -219,14 +224,14 @@ final class ViewsProcess
     /**
      * 親の中で流す（子を使えないとき）。控えめな見積もり（網の残りの 10%）
      *
-     * @param  array{dirs: list<array{path: string, shown: string}>, sources: list<string>, excluded: list<string>}  $targets
+     * @param  array{dirs: list<array{path: string, shown: string}>, sources: list<string>, excluded: list<string>, generated: list<string>, inline: list<string>}  $targets
      */
     public static function inProcess(Context $context, array $targets): void
     {
         $report = $context->report;
         $checker = new CompiledViews($context->root, $targets['sources'], $targets['excluded'], $context->deadline, $context->guard, 0.1,
             fn (Finding|Gap $kind, string $path) => $kind instanceof Finding ? $report->add($kind, $path) : $report->notChecked($kind, $path),
-            Limits::VIEW_MARKS_IN_PROCESS);
+            Limits::VIEW_MARKS_IN_PROCESS, $targets['generated'], $targets['inline']);
         foreach ($targets['dirs'] as $dir) {
             $stopped = $checker->check($dir['path'], $dir['shown']);
             if ($stopped !== null) {

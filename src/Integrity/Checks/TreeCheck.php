@@ -138,8 +138,12 @@ final class TreeCheck
             $excluded[] = $storage;
         }
         $excluded[] = 'storage';
+        // 木の中の SQLite のファイル（書くたびに変わる）。ふつうのファイルのときだけ外す（リンク・フォルダーなら比べる）
+        $sqlite = $context->current->sqliteExcluded($context->snapshotSettings);
 
-        return fn (string $path, bool $isFolder = false): bool => Settings::within($path, $excluded) || GitPaths::excluded($path, $isFolder);
+        return fn (string $path, bool $isFolder = false, ?string $type = null): bool => Settings::within($path, $excluded)
+            || ($type === Entry::FILE && in_array($path, $sqlite, true))
+            || GitPaths::excluded($path, $isFolder);
     }
 
     /** 調べ2：public の中の PHP として動く名前（一覧を作ったときからあったものも）。読み流した所では、リンクとふつうでないものも */
@@ -209,6 +213,12 @@ final class TreeCheck
         }
         if ($covering !== []) {
             $report->notChecked(Gap::ExcludesLoadPaths, implode(', ', array_unique($covering)));
+        }
+        if ($context->current->refused['generated_views'] !== []) {
+            $report->notChecked(Gap::GeneratedViewsRefused, implode(', ', $context->current->refused['generated_views']));
+        }
+        if ($context->current->refused['sqlite'] !== []) {
+            $report->notChecked(Gap::SqliteNotExcluded, implode(', ', $context->current->refused['sqlite']));
         }
         if (self::publicOutside($context->root)) {
             $report->notChecked(Gap::PublicOutside);

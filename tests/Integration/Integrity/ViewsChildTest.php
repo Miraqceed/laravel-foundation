@@ -43,6 +43,7 @@ class ViewsChildTest extends TestCase
         self::env('INTEGRITY_CHILD_MODE', null);
         self::env('INTEGRITY_CHILD_ENV_FILE', null);
         self::env('FOUNDATION_TEST_MARK', null);
+        self::env('INTEGRITY_CHILD_VIEW_PATHS', null);
         exec('rm -rf '.escapeshellarg($this->views).' '.escapeshellarg($this->compiled));
         parent::tearDown();
     }
@@ -115,6 +116,40 @@ class ViewsChildTest extends TestCase
         [$report] = $this->runChild('limit-128m');
 
         $this->assertSame([], $this->list($report));
+    }
+
+    /**
+     * 部品（<x-…>）の印は1つで約 11〜15KB を使うので、別の重さで見積もる。見積もりの内の画面は 64M の子で通り、
+     * 子に許す分（網の残りの 50%）を超える画面は、コンパイルせずに名前を出す
+     */
+    public function test_component_dense_views_are_estimated_by_the_component_weight(): void
+    {
+        mkdir($this->views.'/components');
+        file_put_contents($this->views.'/components/alert.blade.php', '@props(["type" => "a", "message" => ""])<div class="{{ $type }}">{{ $message }}</div>');
+        self::env('INTEGRITY_CHILD_VIEW_PATHS', $this->views);
+        $compiler = app('blade.compiler');
+        $write = function (string $name, int $tags) use ($compiler): string {
+            $path = $this->views.'/'.$name.'.blade.php';
+            file_put_contents($path, str_repeat("<x-alert type=\"a\" :message=\"\$m\" />\n", $tags));
+            $compiler->compile($path);
+
+            return basename($compiler->getCompiledPath($path));
+        };
+        $few = $write('few', 300);
+        // 3,000 個：前の重さ（2KB）の見積もりは約 13MB で通るが、compileString() は約 46MB を使い、128M の子に許す分を超える
+        $many = $write('many', 3_000);
+        $this->assertFileExists($this->compiled.'/'.$few);
+        $this->assertFileExists($this->compiled.'/'.$many);
+
+        [$report] = $this->runChild('limit-64m');
+        $this->assertNotContains('view-content:view.compiled/'.$few, $this->list($report));
+        $this->assertNotContains('views-failed', $this->list($report));
+
+        [$report] = $this->runChild('limit-128m');
+        $tooLarge = array_values(array_filter(array_map(fn ($g) => $g[0]->value.':'.$g[1], $report->gaps()), fn (string $g) => str_starts_with($g, 'view-too-large')));
+        $this->assertSame(['view-too-large:view.compiled/'.$many], $tooLarge);
+        $this->assertNotContains('views-failed', $this->list($report));
+        $this->assertSame([], $report->findings());
     }
 
     public function test_warnings_before_the_head_line_do_not_spoil_the_output(): void

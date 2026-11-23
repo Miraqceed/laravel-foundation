@@ -65,6 +65,8 @@ class IntegrityViewsCommand extends Command
             guard: new MemoryGuard,
             ratio: 0.5,
             emit: $emit,
+            generatedFolders: array_values(array_filter((array) ($data['generated'] ?? []), 'is_string')),
+            inlineDirs: array_values(array_filter((array) ($data['inline'] ?? []), 'is_string')),
         );
 
         foreach ($data['dirs'] as $dir) {

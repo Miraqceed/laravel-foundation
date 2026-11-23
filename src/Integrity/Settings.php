@@ -7,15 +7,22 @@ namespace Miraqceed\Foundation\Integrity;
  *
  * - 一覧が使えないとき：今の値で見る
  * - 一覧が使えるとき：一覧の値と今の値の厳しい方。外す・許すもの（exclude・acme・served を調べ1から外すこと、public_php・
- *   storage_php_allow・maintenance_allow）は両方にあるものだけ、見る場所（acme・served・links・view_compiled）は両方を合わせる
+ *   storage_php_allow・maintenance_allow・generated_views・自動で外す SQLite のファイル）は両方にあるものだけ、
+ *   見る場所（acme・served・links・view_compiled）は両方を合わせる
  * - 違えば「確かめられなかった（設定が一覧と違う）」
  *
  * @internal
  */
 final class Settings
 {
-    /** 調べと画面の調べの子が読み込む場所。exclude・served・acme がこれに掛かれば知らせる */
+    /** 調べと画面の調べの子が読み込む場所。exclude・served・acme がこれに掛かれば知らせる。SQLite のファイルも、この中なら外さない */
     public const LOAD_PATHS = ['artisan', 'bootstrap', 'config', 'app', 'routes', 'vendor', '.env'];
+
+    /** SQLite が本体のファイルの横に作るファイル */
+    public const SQLITE_SUFFIXES = ['', '-wal', '-shm', '-journal'];
+
+    /** generated_views で、Blade::render()・インラインの部品が置く元を許す書き方（画面のフォルダーの道の後ろに付ける） */
+    public const INLINE_VIEWS = '/*.blade.php';
 
     /**
      * @param  list<string>  $exclude  根からの道
@@ -26,6 +33,9 @@ final class Settings
      * @param  list<string>  $maintenanceAllow  down の項目の名前
      * @param  list<string>  $links  filesystems.links の先（根からの道。根の外は outside:sha256）
      * @param  list<string>  $viewCompiled  画面のフォルダー（根からの道。根の外は outside:sha256）
+     * @param  list<string>  $generatedViews  部品が作る画面の場所（根からの道。画面のフォルダーの下のフォルダーか、画面のフォルダー + /*.blade.php）
+     * @param  list<string>  $sqlite  自動で外す、木の中の SQLite のファイル（根からの道。ふつうのファイルのときだけ外す）
+     * @param  array{generated_views: list<string>, sqlite: list<string>}  $refused  今の設定のうち、使えないもの（一覧に入れない）
      */
     public function __construct(
         public readonly array $exclude,
@@ -36,6 +46,9 @@ final class Settings
         public readonly array $maintenanceAllow,
         public readonly array $links,
         public readonly array $viewCompiled,
+        public readonly array $generatedViews = [],
+        public readonly array $sqlite = [],
+        public readonly array $refused = ['generated_views' => [], 'sqlite' => []],
     ) {}
 
     public static function current(string $root): self
@@ -48,6 +61,9 @@ final class Settings
             $links[] = self::relative($root, (string) $target);
         }
         $compiled = (string) config('view.compiled', '');
+        $viewCompiled = $compiled === '' ? [] : [self::relative($root, $compiled)];
+        [$generated, $refusedGenerated] = self::generated(self::paths($config['generated_views'] ?? []), $viewCompiled);
+        [$sqlite, $refusedSqlite] = self::sqliteFiles($root);
 
         return new self(
             exclude: self::paths($config['exclude'] ?? []),
@@ -57,7 +73,10 @@ final class Settings
             storagePhpAllow: self::paths($config['storage_php_allow'] ?? []),
             maintenanceAllow: self::names($config['maintenance']['allow'] ?? []),
             links: self::sorted($links),
-            viewCompiled: $compiled === '' ? [] : [self::relative($root, $compiled)],
+            viewCompiled: $viewCompiled,
+            generatedViews: $generated,
+            sqlite: $sqlite,
+            refused: ['generated_views' => $refusedGenerated, 'sqlite' => $refusedSqlite],
         );
     }
 
@@ -65,14 +84,15 @@ final class Settings
     public static function fromArray(array $data): ?self
     {
         $lists = [];
-        foreach (['exclude', 'served', 'acme', 'public_php', 'storage_php_allow', 'maintenance_allow', 'links', 'view_compiled'] as $key) {
+        foreach (['exclude', 'served', 'acme', 'public_php', 'storage_php_allow', 'maintenance_allow', 'links', 'view_compiled', 'generated_views', 'sqlite'] as $key) {
             if (! isset($data[$key]) || ! is_array($data[$key]) || array_filter($data[$key], fn ($v) => ! is_string($v)) !== []) {
                 return null;
             }
             $lists[$key] = self::sorted(array_values($data[$key]));
         }
 
-        return new self($lists['exclude'], $lists['served'], $lists['acme'], $lists['public_php'], $lists['storage_php_allow'], $lists['maintenance_allow'], $lists['links'], $lists['view_compiled']);
+        return new self($lists['exclude'], $lists['served'], $lists['acme'], $lists['public_php'], $lists['storage_php_allow'],
+            $lists['maintenance_allow'], $lists['links'], $lists['view_compiled'], $lists['generated_views'], $lists['sqlite']);
     }
 
     /** @return array<string, list<string>> */
@@ -87,6 +107,8 @@ final class Settings
             'maintenance_allow' => $this->maintenanceAllow,
             'links' => $this->links,
             'view_compiled' => $this->viewCompiled,
+            'generated_views' => $this->generatedViews,
+            'sqlite' => $this->sqlite,
         ];
     }
 
@@ -110,6 +132,9 @@ final class Settings
             maintenanceAllow: $both($this->maintenanceAllow, $snapshot->maintenanceAllow),
             links: $either($this->links, $snapshot->links),
             viewCompiled: $either($this->viewCompiled, $snapshot->viewCompiled),
+            generatedViews: $both($this->generatedViews, $snapshot->generatedViews),
+            sqlite: $both($this->sqlite, $snapshot->sqlite),
+            refused: $this->refused,
         );
     }
 
@@ -130,6 +155,16 @@ final class Settings
     }
 
     /**
+     * 調べ1から外す SQLite のファイル（両方の値にあるときだけ。外すのは、ふつうのファイルのときだけ）
+     *
+     * @return list<string>
+     */
+    public function sqliteExcluded(?self $snapshot): array
+    {
+        return $snapshot === null ? $this->sqlite : self::sorted(array_values(array_intersect($this->sqlite, $snapshot->sqlite)));
+    }
+
+    /**
      * exclude・served・acme のうち、調べと子の読み込む場所に掛かるもの（その道か、その上か下）
      *
      * @return list<string>
@@ -138,15 +173,27 @@ final class Settings
     {
         $hits = [];
         foreach ([...$this->exclude, ...$this->served, ...$this->acme] as $path) {
-            foreach (self::LOAD_PATHS as $load) {
-                if ($path === $load || str_starts_with($path.'/', $load.'/') || str_starts_with($load.'/', $path.'/') || $path === '') {
-                    $hits[] = $path;
-                    break;
-                }
+            if (self::coversLoadPath($path)) {
+                $hits[] = $path;
             }
         }
 
         return self::sorted(array_values(array_unique($hits)));
+    }
+
+    /** 道が、調べと子の読み込む場所に掛かるか（その道か、その上か下） */
+    public static function coversLoadPath(string $path): bool
+    {
+        if ($path === '') {
+            return true;
+        }
+        foreach (self::LOAD_PATHS as $load) {
+            if ($path === $load || str_starts_with($path.'/', $load.'/') || str_starts_with($load.'/', $path.'/')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** 道が、外す道のどれかの中か（道の頭で、/ の区切りで合わせる） */
@@ -159,6 +206,33 @@ final class Settings
         }
 
         return false;
+    }
+
+    /**
+     * generated_views のうち、下のフォルダーの形（根からの道）
+     *
+     * @return list<string>
+     */
+    public function generatedFolders(): array
+    {
+        return array_values(array_filter($this->generatedViews, fn (string $path): bool => ! str_ends_with($path, self::INLINE_VIEWS)));
+    }
+
+    /**
+     * generated_views で、Blade::render() の元を許した画面のフォルダー（根からの道）
+     *
+     * @return list<string>
+     */
+    public function inlineViewDirs(): array
+    {
+        $dirs = [];
+        foreach ($this->generatedViews as $path) {
+            if (str_ends_with($path, self::INLINE_VIEWS)) {
+                $dirs[] = substr($path, 0, -strlen(self::INLINE_VIEWS));
+            }
+        }
+
+        return $dirs;
     }
 
     /** 根からの道。根の外なら outside:sha256（一覧に絶対の道を入れない） */
@@ -176,6 +250,76 @@ final class Settings
         }
 
         return 'outside:'.hash('sha256', $normalized);
+    }
+
+    /**
+     * generated_views を、許せるもの（木の中の画面のフォルダーの下のフォルダー・画面のフォルダー + /*.blade.php）と、
+     * 許せないもの（画面のフォルダーそのもの・その外・. や .. を含む道・ほかの * の形）に分ける
+     *
+     * @param  list<string>  $paths
+     * @param  list<string>  $viewCompiled
+     * @return array{0: list<string>, 1: list<string>}
+     */
+    private static function generated(array $paths, array $viewCompiled): array
+    {
+        $compiled = $viewCompiled[0] ?? '';
+        $usable = $compiled !== '' && ! str_starts_with($compiled, 'outside:');
+        $allowed = [];
+        $refused = [];
+        foreach ($paths as $path) {
+            $segments = explode('/', $path);
+            $plain = ! in_array('.', $segments, true) && ! in_array('..', $segments, true) && ! in_array('', $segments, true);
+            if ($usable && $plain && ($path === $compiled.self::INLINE_VIEWS
+                || (str_starts_with($path, $compiled.'/') && ! str_contains($path, '*')))) {
+                $allowed[] = $path;
+            } else {
+                $refused[] = $path;
+            }
+        }
+
+        return [self::sorted($allowed), self::sorted($refused)];
+    }
+
+    /**
+     * sqlite の接続が指す、木の中のファイル（本体と -wal・-shm・-journal）。PHP として動く名前・調べが読み込む場所の中のものは外さない
+     *
+     * @return array{0: list<string>, 1: list<string>}
+     */
+    private static function sqliteFiles(string $root): array
+    {
+        $files = [];
+        $refused = [];
+        foreach ((array) config('database.connections', []) as $connection) {
+            if (! is_array($connection) || ($connection['driver'] ?? null) !== 'sqlite') {
+                continue;
+            }
+            $database = (string) ($connection['database'] ?? '');
+            if ($database === '' || $database === ':memory:' || str_starts_with($database, 'file:') || str_contains($database, 'mode=memory')) {
+                continue;
+            }
+            // Laravel は、そのままの道か、アプリの根からの道で開く。雛形の設定は sqlite の接続も DB_DATABASE を読むので、
+            // MySQL のデータベースの名前（laravel・app など）が根からの道に見える。根からの道は、ファイルがあるときだけ見る
+            if (! str_starts_with(str_replace('\\', '/', $database), '/') && preg_match('/\A[A-Za-z]:/', $database) !== 1) {
+                $database = rtrim($root, '/').'/'.$database;
+                if (! is_file($database)) {
+                    continue;
+                }
+            }
+            $base = self::relative($root, $database);
+            if ($base === '' || str_starts_with($base, 'outside:')) {
+                continue;
+            }
+            foreach (self::SQLITE_SUFFIXES as $suffix) {
+                $path = $base.$suffix;
+                if (Context::isPhpName(basename($path)) || self::coversLoadPath($path)) {
+                    $refused[] = $path;
+                } else {
+                    $files[] = $path;
+                }
+            }
+        }
+
+        return [self::sorted(array_values(array_unique($files))), self::sorted(array_values(array_unique($refused)))];
     }
 
     /** @return list<string> */

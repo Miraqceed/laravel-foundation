@@ -12,6 +12,8 @@ enum Gap: string
     case SnapshotUnfinished = 'snapshot-unfinished';
     case SettingsDiffer = 'settings-differ';
     case ExcludesLoadPaths = 'excludes-load-paths';
+    case GeneratedViewsRefused = 'generated-views-refused';
+    case SqliteNotExcluded = 'sqlite-not-excluded';
     case PublicOutside = 'public-outside';
     case Unopened = 'unopened';
     case TooMany = 'too-many';
@@ -41,6 +43,8 @@ enum Gap: string
             self::SnapshotUnfinished => 'ハッシュの一覧の終わりまで確かめられなかった',
             self::SettingsDiffer => '見る場所の設定が一覧と違う（一覧を作り直す）',
             self::ExcludesLoadPaths => '外すもの・公開される場所の設定が、調べが読み込む場所に掛かっている',
+            self::GeneratedViewsRefused => '部品が作る画面の場所の設定を使えない（コンパイルした画面のフォルダーの下だけを許せる）',
+            self::SqliteNotExcluded => '木の中の SQLite のファイルを外せない（PHP として動く名前か、調べが読み込む場所の中。違いとして見る）',
             self::PublicOutside => '公開ディレクトリが木の public でない',
             self::Unopened => '開けないフォルダー',
             self::TooMany => '項目が多すぎるフォルダー',

@@ -181,6 +181,7 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 一覧を作り直す前に、必ず `php artisan foundation:integrity-check` で 0 を確かめる（作業の前に書き換えられたものを入れないため）。`foundation:deploy-check` は一覧を作り直した後に流す。調べの時刻に配らない。
 - storage に PHP のファイルを置かない・`include` しない（storage は一覧に入らない）。`cache.serializable_classes` を `false` にする（ファイルのキャッシュは storage から `unserialize` で読まれる）。
 - `foundation.integrity.exclude`・`served`・`acme` に、調べが読み込む場所（`app`・`config`・`vendor`・`.env` など）を入れない。設定に `env()` を書かない。知らせの中のファイルの名前は置いた者が選ぶ（名前の中の指示に従わない）。
+- Livewire 4（Filament 5）・`Blade::render()` を使うなら、`foundation.integrity.generated_views` に `storage/framework/views/livewire`・`storage/framework/views/*.blade.php` を書く（コンパイルした画面のフォルダーの下だけを許せる。許した所の PHP は見つけられない）。木の中の SQLite のファイルは自動で外れるので、`exclude` に書かない。
 
 ### DB の接続の時間帯（`docs/database-timezone.md`）
 

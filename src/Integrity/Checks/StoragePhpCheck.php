@@ -11,7 +11,7 @@ use Miraqceed\Foundation\Integrity\Settings;
 
 /**
  * 調べ6：storage の中の、PHP として動く名前のファイル（中身は読まない）。外すのは、画面のフォルダーの直下の *.php の
- * ふつうのファイル・storage/framework/maintenance.php・storage_php_allow（storage からの道）だけ。
+ * ふつうのファイル・storage/framework/maintenance.php・storage_php_allow（storage からの道）・generated_views で許したフォルダーだけ。
  * storage は一覧に入れないので、ここに置かれた PHP は、別の書き換え（include を足す）と組で動く。見る所が分かるように名前で出す
  *
  * @internal
@@ -29,7 +29,10 @@ final class StoragePhpCheck
 
         $compiledDir = rtrim(str_replace('\\', '/', (string) (realpath((string) config('view.compiled')) ?: (string) config('view.compiled'))), '/');
 
-        $reader = new ReadThrough($context->deadline, $context->guard, fn (Gap $gap, string $path) => $context->report->notChecked($gap, $path));
+        // アプリが generated_views で許した、部品が作る画面のフォルダー（画面のフォルダーの下だけ）には下りない
+        $generated = $context->effective()->generatedFolders();
+        $reader = new ReadThrough($context->deadline, $context->guard, fn (Gap $gap, string $path) => $context->report->notChecked($gap, $path),
+            skipFolder: fn (string $folder): bool => Settings::within($folder, $generated));
         foreach ($reader->walk($storage, $shownRoot) as $entry) {
             if (! Context::isPhpName($entry->name())) {
                 continue;

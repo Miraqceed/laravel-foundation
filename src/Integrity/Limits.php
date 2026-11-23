@@ -34,12 +34,19 @@ final class Limits
     public const VIEW_COMPILED_BYTES = 8 * 1024 * 1024;
 
     /**
-     * 画面の見積もり：元の大きさ × A ＋ 広がる印の数 × B（バイト）。compileString() だけを通したときの増え方から決めた
+     * 画面の見積もり：元の大きさ × A ＋ 部品の印でない広がる印の数 × B ＋ 部品の印の数 × C（バイト）。
+     * compileString() だけを通したときの増え方から決めた
      * （docs/integrity.md の表。appendFilePath() は呼ばない）
      */
     public const VIEW_BYTES_FACTOR = 64;
 
     public const VIEW_MARK_BYTES = 2048;
+
+    /**
+     * 部品の印（<x-）1つの重さ。部品の印は、1つで千数百バイトの出力に広がり、compileString() の中で印1つあたり
+     * 約 11〜15KB を使う（測った値。docs/integrity.md の表）。余裕を見て 16KB
+     */
+    public const VIEW_COMPONENT_BYTES = 16384;
 
     /**
      * 1つの元の、広がる印の数の上限。印の数はコンパイルの時間も決める（@props を並べた 256KB・約1万9千の印で約42秒。
@@ -115,18 +122,24 @@ final class Limits
     }
 
     /** 画面のコンパイルの見積もり（バイト） */
-    public static function viewEstimate(int $bytes, int $marks): int
+    public static function viewEstimate(int $bytes, int $marks, int $components = 0): int
     {
         if (isset(self::$overrides['view_estimate'])) {
             return self::$overrides['view_estimate'];
         }
 
-        return $bytes * self::VIEW_BYTES_FACTOR + $marks * self::VIEW_MARK_BYTES;
+        return $bytes * self::VIEW_BYTES_FACTOR + max(0, $marks - $components) * self::VIEW_MARK_BYTES + $components * self::VIEW_COMPONENT_BYTES;
     }
 
     /** 広がる印（@・{{・{!!・<x-）の数。中身を解かずに数える */
     public static function viewMarks(string $source): int
     {
         return substr_count($source, '@') + substr_count($source, '{{') + substr_count($source, '{!!') + substr_count($source, '<x-');
+    }
+
+    /** 部品の印（<x-）の数 */
+    public static function viewComponents(string $source): int
+    {
+        return substr_count($source, '<x-');
     }
 }
