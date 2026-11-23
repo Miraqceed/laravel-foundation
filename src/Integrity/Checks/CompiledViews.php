@@ -49,6 +49,8 @@ final class CompiledViews
      * @param  int  $maxMarks  1つの元の、広がる印の数の上限（子は多め、親の中は少なめ）
      * @param  list<string>  $generatedFolders  アプリが許した、部品が作る画面のフォルダー（表示の道。画面のフォルダーの下だけ）。見ない
      * @param  list<string>  $inlineDirs  Blade::render()・インラインの部品が置く元（<hash>.blade.php）を許す画面のフォルダー（表示の道）
+     * @param  (Closure(string): void)|null  $onStart  画面を1つ確かめ始める前に呼ぶ（子は「始める」の行を書く）
+     * @param  list<string>  $skip  確かめない画面（表示の道。始め直した子で、前の子が済ませた・落ちた画面）
      */
     public function __construct(
         private readonly string $root,
@@ -61,7 +63,14 @@ final class CompiledViews
         private readonly int $maxMarks = Limits::VIEW_MARKS_CHILD,
         private readonly array $generatedFolders = [],
         private readonly array $inlineDirs = [],
-    ) {}
+        private readonly ?Closure $onStart = null,
+        array $skip = [],
+    ) {
+        $this->skip = array_fill_keys($skip, true);
+    }
+
+    /** @var array<string, true> */
+    private readonly array $skip;
 
     /** いま見ている画面のフォルダー（絶対の道）。インラインの元を許すときだけ */
     private ?string $inlineDirectory = null;
@@ -93,6 +102,12 @@ final class CompiledViews
                 }
 
                 continue;
+            }
+            if (isset($this->skip[$entry->path])) {
+                continue;
+            }
+            if ($this->onStart !== null) {
+                ($this->onStart)($entry->path);
             }
             try {
                 $finding = $this->verify($compiler, $entry);

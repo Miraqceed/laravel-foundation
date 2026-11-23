@@ -59,8 +59,16 @@ final class Limits
     /** 網：memory_limit のこの割合を超えたら止める */
     public const BUDGET_RATIO = 0.6;
 
-    /** 子プロセスの出力の全体と行の長さ */
-    public const CHILD_OUTPUT_BYTES = 1024 * 1024;
+    /**
+     * 子プロセスの1回の出力の全体（画面1つにつき「始める」の行が1つ。約 120 バイトなので、3万ほどの画面まで）と、
+     * 子に渡す入力（始め直しでは、済んだ画面の道を渡す）
+     */
+    public const CHILD_OUTPUT_BYTES = 4 * 1024 * 1024;
+
+    public const CHILD_INPUT_BYTES = 4 * 1024 * 1024;
+
+    /** 子が途中で落ちたときに始め直す回数（親の期限の内で） */
+    public const VIEWS_RESTARTS = 3;
 
     /** -1（上限なし）のときにみなす大きさ */
     private const UNLIMITED_BYTES = 1024 * 1024 * 1024;

@@ -209,15 +209,81 @@ class ViewsChildTest extends TestCase
         $this->assertStringNotContainsString('.env', implode("\n", $this->list($report)));
     }
 
-    public function test_a_child_that_takes_too_long_is_stopped_at_the_deadline(): void
+    public function test_a_child_that_takes_too_long_is_stopped_at_the_deadline_and_not_started_again(): void
     {
         [$report, , $seconds] = $this->runChild('sleep', 2);
 
-        $this->assertTrue($report->hasGap(Gap::ViewsFailed));
+        // 時間切れは始め直さず、残りを「確かめられなかった（時間）」にする
+        $this->assertContains('timed-out:views', $this->gapLines($report));
+        $this->assertFalse($report->hasGap(Gap::ViewsFailed));
         $this->assertLessThan(15, $seconds);
     }
 
-    public function test_a_flooding_child_is_stopped_at_one_megabyte_and_the_parent_does_not_grow(): void
+    /** @return list<string> */
+    private function gapLines(Report $report): array
+    {
+        return array_map(fn ($g) => $g[0]->value.($g[1] === '' ? '' : ':'.$g[1]), $report->gaps());
+    }
+
+    /**
+     * 画面を置いて、親でコンパイルする（子の前処理だけが落ちる）。印の字を含む画面は、子の前処理がメモリーを使い切る
+     *
+     * @return string 画面のフォルダーでの表示の道
+     */
+    private function compiledView(string $name, string $blade): string
+    {
+        $path = $this->views.'/'.$name.'.blade.php';
+        file_put_contents($path, $blade);
+        $compiler = app('blade.compiler');
+        $compiler->compile($path);
+
+        return 'view.compiled/'.basename($compiler->getCompiledPath($path));
+    }
+
+    /** 書き換えた画面（中身が違う） */
+    private function tamperedView(string $name): string
+    {
+        $shown = $this->compiledView($name, '<p>{{ $'.$name.' }}</p>');
+        $file = $this->compiled.'/'.basename($shown);
+        file_put_contents($file, str_replace('<p>', '<p onclick=x>', (string) file_get_contents($file)));
+
+        return $shown;
+    }
+
+    public function test_a_child_that_dies_on_one_view_names_only_that_view_and_the_rest_are_checked(): void
+    {
+        $crash = $this->compiledView('crash', "<p>INTEGRITY-CRASH-HERE</p>\n");
+        $tampered = [];
+        foreach (['t1', 't2', 't3', 't4', 't5', 't6'] as $name) {
+            $tampered[] = 'view-content:'.$this->tamperedView($name);
+        }
+        $this->compiledView('clean', '<p>{{ $clean }}</p>');
+
+        [$report, $mode] = $this->runChild('precompiler-crash');
+
+        $this->assertSame(ViewsProcess::CHILD, $mode);
+        $this->assertSame(['views-failed:'.$crash], array_values(array_filter($this->gapLines($report), fn ($g) => str_starts_with($g, 'views-failed'))));
+        $this->assertSame([], array_values(array_diff($tampered, $this->list($report))));
+        $this->assertCount(6, $report->findings());
+    }
+
+    public function test_restarting_stops_at_the_limit_and_the_rest_is_told_as_not_checked(): void
+    {
+        $crashes = [];
+        for ($i = 1; $i <= 6; $i++) {
+            $crashes[] = 'views-failed:'.$this->compiledView('crash'.$i, "<p>INTEGRITY-CRASH-HERE {$i}</p>\n");
+        }
+
+        [$report] = $this->runChild('precompiler-crash');
+
+        $failed = array_values(array_filter($this->gapLines($report), fn ($g) => str_starts_with($g, 'views-failed')));
+        // 初めの子と、始め直した3つの子が、それぞれ1つの画面で落ちる。残りはまとめて「画面の調べが落ちた」
+        $this->assertCount(1 + \Miraqceed\Foundation\Integrity\Limits::VIEWS_RESTARTS + 1, $failed);
+        $this->assertContains('views-failed', $failed);
+        $this->assertCount(1 + \Miraqceed\Foundation\Integrity\Limits::VIEWS_RESTARTS, array_intersect($failed, $crashes));
+    }
+
+    public function test_a_flooding_child_is_stopped_at_the_output_limit_and_the_parent_does_not_grow(): void
     {
         $before = memory_get_usage();
         [$report, , $seconds] = $this->runChild('flood');

@@ -15,10 +15,10 @@ use Throwable;
  * 画面の調べの子プロセス（内向きの命令。foundation:integrity-check が流す。説明書に書かない）。
  * 子が落ちても（メモリー・時間・異常な終わり）、親は「画面の調べが落ちた」とそれまでの発見を出して正しく終わる。
  *
- * - 標準入力で、見る場所（画面のフォルダー・元の Blade の場所・外す道・期限）だけを受ける
+ * - 標準入力で、見る場所（画面のフォルダー・元の Blade の場所・外す道・期限）と、始め直しでは済んだ画面の道だけを受ける
  * - 結果を1つ見つけるたびに、決まった形の1行を標準出力に書く。中身・元の文・例外の文は書かない
  *     foundation-integrity-views 1
- *     R <違いの印> <道の16進>   ／   G <確かめられなかった印> <道の16進>   ／   S <止めた理由の印>
+ *     B <道の16進>（画面を1つ始める前）   ／   R <違いの印> <道の16進>   ／   G <確かめられなかった印> <道の16進>   ／   S <止めた理由の印>
  *     end <件数>
  * - SAPI が cli でなければ（php-cgi は CGI の頭を標準出力に書く）、頭の行を書かずに 3 で終える（親は子を使えないとみなす）
  */
@@ -43,8 +43,8 @@ class IntegrityViewsCommand extends Command
             return self::NOT_CLI;
         }
 
-        $input = (string) stream_get_contents(STDIN, Limits::HEAD_BYTES + 1);
-        $data = strlen($input) > Limits::HEAD_BYTES ? null : json_decode($input, true, 8);
+        $input = (string) stream_get_contents(STDIN, Limits::CHILD_INPUT_BYTES + 1);
+        $data = strlen($input) > Limits::CHILD_INPUT_BYTES ? null : json_decode($input, true, 8);
         if (! is_array($data) || ! is_string($data['root'] ?? null) || ! is_array($data['dirs'] ?? null)
             || ! is_array($data['sources'] ?? null) || ! is_array($data['excluded'] ?? null)) {
             return self::FAILURE;
@@ -67,6 +67,8 @@ class IntegrityViewsCommand extends Command
             emit: $emit,
             generatedFolders: array_values(array_filter((array) ($data['generated'] ?? []), 'is_string')),
             inlineDirs: array_values(array_filter((array) ($data['inline'] ?? []), 'is_string')),
+            onStart: fn (string $path) => $this->put('B '.bin2hex($path)),
+            skip: array_values(array_filter((array) ($data['skip'] ?? []), 'is_string')),
         );
 
         foreach ($data['dirs'] as $dir) {

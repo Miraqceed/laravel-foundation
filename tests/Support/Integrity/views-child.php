@@ -75,10 +75,26 @@ switch ($mode) {
     case 'exit1':
         echo IntegrityViewsCommand::HEAD."\n";
         exit(1);
+    case 'precompiler-crash':
+        ini_set('memory_limit', '128M');
+        break;
 }
 
 $app = Application::create();
 $app->register(FoundationServiceProvider::class);
+// 特定の画面で、Blade の前処理（Livewire のような precompiler）がメモリーを使い切る形
+if ($mode === 'precompiler-crash') {
+    $app['blade.compiler']->precompiler(function (string $value): string {
+        if (str_contains($value, 'INTEGRITY-CRASH-HERE')) {
+            $hog = [];
+            while (true) {
+                $hog[] = str_repeat('x', 1024 * 1024);
+            }
+        }
+
+        return $value;
+    });
+}
 // 部品（<x-…>）を解くための画面の場所（本物のアプリでは、子も同じ設定を読む）
 if ($paths = getenv('INTEGRITY_CHILD_VIEW_PATHS')) {
     $app['config']->set('view.paths', [$paths]);
