@@ -150,15 +150,16 @@ final class ViewsProcess
                 $except = null;
                 $ready = @stream_select($read, $write, $except, 0, 100_000);
                 $chunk = $ready ? (string) @fread($pipes[1], 65536) : '';
+                // 期限は、受け取りが続いているときも見る（書き続ける子で止まらないように）
+                if (microtime(true) > $deadline) {
+                    $state['bad'] = true;
+                    break;
+                }
                 if ($chunk === '') {
                     if (! $status['running'] && feof($pipes[1])) {
                         break;
                     }
                     if (! $status['running'] && ! $ready) {
-                        break;
-                    }
-                    if (microtime(true) > $deadline) {
-                        $state['bad'] = true;
                         break;
                     }
 

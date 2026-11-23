@@ -134,14 +134,16 @@ trait IntegrityTree
             ini_set('memory_limit', $memory);
             // 落ちたときの文を出さない（別のプロセスで流す試しでは、標準エラーへの出力が試しの誤りになる）
             ini_set('display_errors', '0');
+            // 子は親の DB の接続（MySQL・PostgreSQL の socket）を受け継ぐ。終わりの片付け（PDO の後始末）で接続を閉じると、
+            // 親の接続まで切れる。落ちたときも含めて、片付けの前に自分を SIGKILL で終える
+            register_shutdown_function(fn () => posix_kill(getmypid(), SIGKILL));
             try {
                 $result = $work();
                 file_put_contents($file, serialize(['ok' => true, 'result' => $result, 'peak' => memory_get_peak_usage()]));
-                exit(0);
             } catch (\Throwable $e) {
                 file_put_contents($file, serialize(['ok' => false, 'result' => $e::class.': '.$e->getMessage()]));
-                exit(2);
             }
+            posix_kill(getmypid(), SIGKILL);
         }
         $status = 0;
         $deadline = microtime(true) + $seconds;
@@ -158,8 +160,11 @@ trait IntegrityTree
         $data = @unserialize((string) @file_get_contents($file));
         @unlink($file);
 
+        // 子はいつも自分を SIGKILL で終える。結果を書けていれば 0、投げていれば 2、書けずに落ちていれば 255
+        $exit = ! is_array($data) ? 255 : ($data['ok'] ? 0 : 2);
+
         return [
-            'exit' => pcntl_wifexited($status) ? pcntl_wexitstatus($status) : -1,
+            'exit' => $exit,
             'signaled' => pcntl_wifsignaled($status),
             'result' => is_array($data) ? $data : null,
             'seconds' => microtime(true) - $started,

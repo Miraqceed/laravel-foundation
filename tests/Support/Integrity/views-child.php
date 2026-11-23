@@ -38,11 +38,11 @@ switch ($mode) {
         exit(0);
     case 'flood':
         echo IntegrityViewsCommand::HEAD."\n";
-        $block = 'R view-content '.bin2hex('view.compiled/x.php')."\n";
-        for ($i = 0; $i < 2_000_000; $i++) {
+        // 終わらずに書き続ける（親が 1MB の少し後で止めなければ、親の期限まで続く）
+        $block = str_repeat('R view-content '.bin2hex('view.compiled/x.php')."\n", 1000);
+        while (true) {
             echo $block;
         }
-        exit(0);
     case 'stderr-flood':
         $block = str_repeat('e', 1024 * 1024);
         for ($i = 0; $i < 100; $i++) {
@@ -65,6 +65,9 @@ switch ($mode) {
         break;
     case 'limit-128m':
         ini_set('memory_limit', '128M');
+        break;
+    case 'limit-64m':
+        ini_set('memory_limit', '64M');
         break;
     case 'sapi':
         IntegrityViewsCommand::$sapiForTests = 'cgi-fcgi';

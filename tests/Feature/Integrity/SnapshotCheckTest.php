@@ -308,6 +308,12 @@ class SnapshotCheckTest extends TestCase
         array_splice($doubled, 2, 0, [$lines[2]]);
         file_put_contents($path, implode('', $doubled));
         $this->assertGap($this->check(), Gap::BrokenSnapshot);
+
+        // 終わりの行の件数と指紋は合っていて、並びだけが崩れた一覧（終わりの行の確かめでは見つからない）
+        $items = array_slice($lines, 1, -1);
+        [$items[0], $items[1]] = [$items[1], $items[0]];
+        file_put_contents($path, $lines[0].implode('', $items).'end '.count($items).' '.hash('sha256', implode('', $items))."\n");
+        $this->assertGap($this->check(), Gap::BrokenSnapshot);
     }
 
     public function test_public_php_finds_middle_extensions_and_passes_index(): void
@@ -395,9 +401,12 @@ class SnapshotCheckTest extends TestCase
             $this->writeFile('app/n/'.$name, $name);
         }
         $this->writeFile('app/n/a.d/x', 'x');
-        $this->snapshot();
+        // 数として比べると '10'・'010'・'1e1' が等しくなり、書く側の並びの確かめで一覧を書けない
+        $this->assertSame(0, $this->snapshot());
 
-        $this->assertSame([], $this->findings($this->check()));
+        $report = $this->check();
+        $this->assertSame([], $this->findings($report));
+        $this->assertSame([], $this->gaps($report));
     }
 
     public function test_changing_the_kind_at_the_top_level_keeps_the_order(): void

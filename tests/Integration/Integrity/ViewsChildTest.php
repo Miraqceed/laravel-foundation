@@ -189,7 +189,27 @@ class ViewsChildTest extends TestCase
 
         $this->assertTrue($report->hasGap(Gap::ViewsFailed));
         $this->assertLessThan(20 * 1024 * 1024, memory_get_usage() - $before);
-        $this->assertLessThan(30, $seconds);
+        // 子は終わらずに書き続ける。1MB で止めなければ、期限（60秒）まで続く
+        $this->assertLessThan(15, $seconds);
+    }
+
+    /**
+     * 雛形の welcome.blade.php の形（約 72KB・印が少ない）は、子の memory_limit 64M でも止まらない
+     * （大きさだけで見積もると、ここで「大きすぎる」になる）
+     */
+    public function test_a_large_ordinary_page_like_the_welcome_page_is_not_stopped_in_a_64m_child(): void
+    {
+        $css = str_repeat(".c{color:#123456;margin:0 0 1rem 0;padding:2px}\n", 1500);
+        $page = "<!DOCTYPE html><html><head><style>{$css}</style></head><body>"
+            .str_repeat("@if (\$a) <a href=\"{{ \$b }}\">Log in</a> @endif\n", 40).'</body></html>';
+        $this->assertGreaterThan(70_000, strlen($page));
+        file_put_contents($this->views.'/welcome.blade.php', $page);
+        view('welcome', ['a' => true, 'b' => 'x'])->render();
+
+        [$report, $mode] = $this->runChild('limit-64m');
+
+        $this->assertSame(ViewsProcess::CHILD, $mode);
+        $this->assertSame([], $this->list($report));
     }
 
     public function test_a_child_writing_a_lot_to_stderr_does_not_grow_the_parent_and_stderr_never_shows(): void

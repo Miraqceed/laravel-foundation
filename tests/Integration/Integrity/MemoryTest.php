@@ -113,6 +113,30 @@ class MemoryTest extends TestCase
         $this->assertFalse($result['result']['result']['memory']);
     }
 
+    /**
+     * 1つのフォルダーの名前は、上限（N）で集めるのをやめる。集め続けると、64M の子では網（60%）に先に当たる
+     */
+    public function test_a_huge_folder_is_stopped_by_its_own_limit_before_the_safety_net(): void
+    {
+        $width = 100_000;
+        $base = $this->root.'/app/wide';
+        mkdir($base);
+        for ($i = 0; $i < $width; $i++) {
+            touch($base.'/'.sprintf('%06d', $i).str_repeat('w', 240));
+        }
+
+        $result = $this->inChild(function () {
+            $report = $this->check();
+
+            return ['gaps' => $this->gaps($report), 'memory' => $report->hasGap(Gap::Memory), 'peak' => memory_get_peak_usage()];
+        }, 240, '64M');
+
+        $this->measured(sprintf("\n[memory] one folder of %d names (246 chars), 64M: peak %.1f MB, %.1f s\n", $width, ($result['result']['result']['peak'] ?? 0) / 1048576, $result['seconds']));
+        $this->assertSame(0, $result['exit'], (string) json_encode($result));
+        $this->assertContains('too-many:app/wide', $result['result']['result']['gaps']);
+        $this->assertFalse($result['result']['result']['memory']);
+    }
+
     public function test_the_safety_net_stops_before_running_out_when_the_own_limits_are_removed(): void
     {
         Limits::overrideForTests(['n' => 100_000_000, 'depth' => 100_000]);
