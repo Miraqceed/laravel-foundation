@@ -30,6 +30,20 @@ class FetcherHttpTest extends TestCase
         parent::tearDown();
     }
 
+    /** 大きな本文のファイル（試しのプロセスのメモリーに全体を持たない） */
+    private function bigFile(int $megabytes): string
+    {
+        $path = $this->http->directory.'/big-'.$megabytes;
+        $handle = fopen($path, 'wb');
+        $block = str_repeat('z', 1024 * 1024);
+        for ($i = 0; $i < $megabytes; $i++) {
+            fwrite($handle, $block);
+        }
+        fclose($handle);
+
+        return $path;
+    }
+
     private function fetchFailure(\Closure $fetch): string
     {
         try {
@@ -93,7 +107,7 @@ class FetcherHttpTest extends TestCase
     public function test_stops_an_undeclared_large_body_while_receiving(): void
     {
         $limit = 256 * 1024;
-        $this->http->route('/big', ['body' => str_repeat('z', 20 * 1024 * 1024), 'undeclared' => true, 'trickle' => [256 * 1024, 20_000]]);
+        $this->http->route('/big', ['file' => $this->bigFile(20), 'undeclared' => true, 'trickle' => [256 * 1024, 20_000]]);
 
         $message = $this->fetchFailure(fn () => (new Fetcher)->fetch('sample', LoopbackDownload::url($this->http->url('/big')), $this->sink, $limit));
 
@@ -106,7 +120,7 @@ class FetcherHttpTest extends TestCase
 
     public function test_declared_size_beyond_the_limit_fails_before_reading_the_body(): void
     {
-        $this->http->route('/big', ['body' => str_repeat('z', 4 * 1024 * 1024), 'trickle' => [256 * 1024, 20_000]]);
+        $this->http->route('/big', ['file' => $this->bigFile(4), 'trickle' => [256 * 1024, 20_000]]);
 
         $message = $this->fetchFailure(fn () => (new Fetcher)->fetch('sample', LoopbackDownload::url($this->http->url('/big')), $this->sink, 1024));
 
