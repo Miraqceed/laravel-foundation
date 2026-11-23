@@ -39,6 +39,8 @@ class GeneratedViewsTest extends TestCase
         $this->writeFile(self::VIEWS.'/livewire/.gitignore', "*\n!.gitignore\n");
         $this->writeFile(self::VIEWS.'/livewire/views/375e6f5e.blade.php', "<div>{{ \$count }}</div>\n");
         $this->writeFile(self::VIEWS.'/livewire/classes/375e6f5e.php', "<?php\nreturn new class {};\n");
+        // Livewire 4 は、部品の画面をふつうの画面として画面のフォルダーの直下にコンパイルする（元は上のフォルダーの中）
+        app('blade.compiler')->compile($this->root.'/'.self::VIEWS.'/livewire/views/375e6f5e.blade.php');
     }
 
     /** 本物の Blade::render() で、元（<hash>.blade.php）とその画面を置く */
@@ -71,7 +73,8 @@ class GeneratedViewsTest extends TestCase
         $this->assertContains('storage-php:'.self::VIEWS.'/livewire/views/375e6f5e.blade.php', $list);
         $this->assertContains('view-stray:'.self::VIEWS.'/livewire/.gitignore', $list);
         $this->assertContains('view-without-source:'.$source, $list);
-        $this->assertCount(1, array_filter($list, fn (string $line) => str_starts_with($line, 'view-without-source:') && $line !== 'view-without-source:'.$source));
+        // Blade::render() の元から作った画面と、Livewire の部品の画面
+        $this->assertCount(2, array_filter($list, fn (string $line) => str_starts_with($line, 'view-without-source:') && $line !== 'view-without-source:'.$source));
     }
 
     public function test_allowed_places_are_not_named_and_the_rendered_view_is_still_compared(): void
@@ -84,13 +87,15 @@ class GeneratedViewsTest extends TestCase
         $this->assertSame([], $this->allFindings());
 
         // 許した元から作った画面も、元とコンパイルし直して比べる
+        $changed = [];
         foreach (glob($this->root.'/'.self::VIEWS.'/*.php') as $file) {
             if (! str_ends_with($file, '.blade.php')) {
-                file_put_contents($file, str_replace('<p>', '<p onclick=x>', (string) file_get_contents($file)));
-                $changed = self::VIEWS.'/'.basename($file);
+                file_put_contents($file, str_replace(['<p>', '<div>'], ['<p onclick=x>', '<div onclick=x>'], (string) file_get_contents($file)));
+                $changed[] = 'view-content:'.self::VIEWS.'/'.basename($file);
             }
         }
-        $this->assertContains('view-content:'.$changed, $this->allFindings());
+        $this->assertCount(2, $changed);
+        $this->assertSame([], array_values(array_diff($changed, $this->allFindings())));
     }
 
     public function test_a_php_file_outside_the_allowed_folder_is_still_named(): void

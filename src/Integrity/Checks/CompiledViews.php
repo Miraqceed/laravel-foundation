@@ -207,6 +207,10 @@ final class CompiledViews
             return true;
         }
         $relative = Settings::relative($this->root, $real);
+        // 許したフォルダーの中の元（Livewire 4 の部品の画面）。中身は確かめられないが、その画面は元とコンパイルし直して比べる
+        if (Settings::within($relative, $this->generatedFolders)) {
+            return true;
+        }
         if (str_starts_with($relative, 'outside:') || Settings::within($relative, $this->excluded)) {
             return false;
         }
