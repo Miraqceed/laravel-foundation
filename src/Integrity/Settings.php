@@ -35,7 +35,7 @@ final class Settings
      * @param  list<string>  $viewCompiled  画面のフォルダー（根からの道。根の外は outside:sha256）
      * @param  list<string>  $generatedViews  部品が作る画面の場所（根からの道。画面のフォルダーの下のフォルダーか、画面のフォルダー + /*.blade.php）
      * @param  list<string>  $sqlite  自動で外す、木の中の SQLite のファイル（根からの道。ふつうのファイルのときだけ外す）
-     * @param  array{generated_views: list<string>, sqlite: list<string>}  $refused  今の設定のうち、使えないもの（一覧に入れない）
+     * @param  array{generated_views: list<string>, sqlite: list<string>, exclude: list<string>}  $refused  今の設定のうち、使えないもの（一覧に入れない）
      */
     public function __construct(
         public readonly array $exclude,
@@ -48,13 +48,14 @@ final class Settings
         public readonly array $viewCompiled,
         public readonly array $generatedViews = [],
         public readonly array $sqlite = [],
-        public readonly array $refused = ['generated_views' => [], 'sqlite' => []],
+        public readonly array $refused = ['generated_views' => [], 'sqlite' => [], 'exclude' => []],
     ) {}
 
     public static function current(string $root): self
     {
         $config = (array) config('foundation.integrity', []);
-        $acme = $config['acme'] ?? 'public/.well-known/acme-challenge';
+        // null か '' なら見ない（?? は null を「ない」と同じに扱うので、キーがあるかで分ける）
+        $acme = array_key_exists('acme', $config) ? $config['acme'] : 'public/.well-known/acme-challenge';
 
         $links = [];
         foreach (array_values((array) config('filesystems.links', [])) as $target) {
@@ -63,20 +64,28 @@ final class Settings
         $compiled = (string) config('view.compiled', '');
         $viewCompiled = $compiled === '' ? [] : [self::relative($root, $compiled)];
         [$generated, $refusedGenerated] = self::generated(self::paths($config['generated_views'] ?? []), $viewCompiled);
-        [$sqlite, $refusedSqlite] = self::sqliteFiles($root);
+
+        $served = self::paths($config['served'] ?? []);
+        $acmePaths = $acme === null || $acme === '' ? [] : self::paths([$acme]);
+        $publicPhp = self::paths($config['public_php'] ?? ['public/index.php']);
+        // 公開される場所：public・served・acme・木の中の filesystems.links の先
+        $publicPlaces = ['public', ...$served, ...$acmePaths, ...array_filter($links, fn (string $path): bool => $path !== '' && ! str_starts_with($path, 'outside:'))];
+        [$sqlite, $refusedSqlite] = self::sqliteFiles($root, $publicPlaces);
+        $exclude = self::paths($config['exclude'] ?? []);
+        $refusedExclude = self::refusedExclude($exclude, $publicPhp, $publicPlaces);
 
         return new self(
-            exclude: self::paths($config['exclude'] ?? []),
-            served: self::paths($config['served'] ?? []),
-            acme: $acme === null || $acme === '' ? [] : self::paths([$acme]),
-            publicPhp: self::paths($config['public_php'] ?? ['public/index.php']),
+            exclude: array_values(array_diff($exclude, $refusedExclude)),
+            served: $served,
+            acme: $acmePaths,
+            publicPhp: $publicPhp,
             storagePhpAllow: self::paths($config['storage_php_allow'] ?? []),
             maintenanceAllow: self::names($config['maintenance']['allow'] ?? []),
             links: self::sorted($links),
             viewCompiled: $viewCompiled,
             generatedViews: $generated,
             sqlite: $sqlite,
-            refused: ['generated_views' => $refusedGenerated, 'sqlite' => $refusedSqlite],
+            refused: ['generated_views' => $refusedGenerated, 'sqlite' => $refusedSqlite, 'exclude' => self::sorted($refusedExclude)],
         );
     }
 
@@ -285,7 +294,7 @@ final class Settings
      *
      * @return array{0: list<string>, 1: list<string>}
      */
-    private static function sqliteFiles(string $root): array
+    private static function sqliteFiles(string $root, array $publicPlaces): array
     {
         $files = [];
         $refused = [];
@@ -311,7 +320,8 @@ final class Settings
             }
             foreach (self::SQLITE_SUFFIXES as $suffix) {
                 $path = $base.$suffix;
-                if (Context::isPhpName(basename($path)) || self::coversLoadPath($path)) {
+                // 公開される場所（public・served・acme・filesystems.links の先）の下は外さない（そこに置くこと自体が危ない）
+                if (Context::isPhpName(basename($path)) || self::coversLoadPath($path) || self::within($path, $publicPlaces)) {
                     $refused[] = $path;
                 } else {
                     $files[] = $path;
@@ -320,6 +330,61 @@ final class Settings
         }
 
         return [self::sorted(array_values(array_unique($files))), self::sorted(array_values(array_unique($refused)))];
+    }
+
+    /** SQLite の頭の印。本体のファイルの初めの 16 バイト */
+    public const SQLITE_HEADER = "SQLite format 3\0";
+
+    /**
+     * 外す SQLite のファイルが、本当に SQLite のものか。本体（横のファイルなら、その本体）が SQLite の頭の印を持つか
+     */
+    public static function isSqliteFile(string $root, string $path): bool
+    {
+        $base = $path;
+        foreach (['-wal', '-shm', '-journal'] as $suffix) {
+            if (str_ends_with($path, $suffix)) {
+                $base = substr($path, 0, -strlen($suffix));
+                break;
+            }
+        }
+        try {
+            $handle = @fopen(rtrim($root, '/').'/'.$base, 'rb');
+            if ($handle === false) {
+                return false;
+            }
+            $stat = @fstat($handle);
+            $head = $stat !== false && ($stat['mode'] & 0170000) === 0100000 ? (string) @fread($handle, 16) : '';
+            fclose($handle);
+
+            return $head === self::SQLITE_HEADER;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * exclude のうち、公開される場所（public・served・acme・filesystems.links の先）の下で、PHP として動く名前を持つもの・
+     * public_php に掛かるもの（使わない。public/index.php の書き換えを黙らせないように）
+     *
+     * @param  list<string>  $exclude
+     * @param  list<string>  $publicPhp
+     * @param  list<string>  $publicPlaces
+     * @return list<string>
+     */
+    private static function refusedExclude(array $exclude, array $publicPhp, array $publicPlaces): array
+    {
+        $refused = [];
+        foreach ($exclude as $path) {
+            if (! self::within($path, $publicPlaces) && ! array_filter($publicPlaces, fn (string $place): bool => self::within($place, [$path]))) {
+                continue;
+            }
+            $coversPublicPhp = array_filter($publicPhp, fn (string $php): bool => self::within($php, [$path])) !== [];
+            if (Context::isPhpName(basename($path)) || $coversPublicPhp) {
+                $refused[] = $path;
+            }
+        }
+
+        return $refused;
     }
 
     /** @return list<string> */

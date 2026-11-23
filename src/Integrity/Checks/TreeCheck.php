@@ -128,30 +128,56 @@ final class TreeCheck
     /**
      * 外すもの：storage（4・5・6 で見る）・.git の中の設定と hook のほか・exclude と acme・served（一覧と今の値の両方にあるものだけ）
      *
-     * @return \Closure(string, bool=): bool
+     * public の下の exclude は、中身の比べだけを外す（Tree::READ。読み流して、PHP として動く名前・.htaccess・.user.ini・リンク・
+     * ハードリンク・ふつうでないものは出す）。served・acme の下は 4 で見るので歩きから落とす
+     *
+     * @return \Closure(string, bool=, ?string=): int
      */
     public function excluder(Context $context): \Closure
     {
-        $excluded = $context->current->excludedFromTree($context->snapshotSettings);
+        $snapshot = $context->snapshotSettings;
+        $excluded = $context->current->excludedFromTree($snapshot);
         $storage = Settings::relative($context->root, storage_path());
         if (! str_starts_with($storage, 'outside:') && $storage !== '') {
             $excluded[] = $storage;
         }
         $excluded[] = 'storage';
-        // 木の中の SQLite のファイル（書くたびに変わる）。ふつうのファイルのときだけ外す（リンク・フォルダーなら比べる）
-        $sqlite = $context->current->sqliteExcluded($context->snapshotSettings);
+        $exclude = $snapshot === null ? $context->current->exclude : array_values(array_intersect($context->current->exclude, $snapshot->exclude));
+        $publicExclude = array_values(array_filter($exclude, fn (string $path): bool => Settings::within($path, ['public'])));
+        $servedPlaces = [...$context->effective()->served, ...$context->effective()->acme];
+        // 木の中の SQLite のファイル（書くたびに変わる）。ふつうのファイルで、SQLite の頭の印を持つときだけ外す
+        $sqlite = $context->current->sqliteExcluded($snapshot);
+        $report = $context->report;
 
-        return fn (string $path, bool $isFolder = false, ?string $type = null): bool => Settings::within($path, $excluded)
-            || ($type === Entry::FILE && in_array($path, $sqlite, true))
-            || GitPaths::excluded($path, $isFolder);
+        return function (string $path, bool $isFolder = false, ?string $type = null) use ($excluded, $publicExclude, $servedPlaces, $sqlite, $context, $report): int {
+            if (Settings::within($path, $publicExclude) && ! Settings::within($path, $servedPlaces)) {
+                return Tree::READ;
+            }
+            if (Settings::within($path, $excluded) || GitPaths::excluded($path, $isFolder)) {
+                return Tree::DROP;
+            }
+            if ($type === Entry::FILE && in_array($path, $sqlite, true)) {
+                if (Settings::isSqliteFile($context->root, $path)) {
+                    return Tree::DROP;
+                }
+                $report->notChecked(Gap::SqliteNotExcluded, $path);
+            }
+
+            return Tree::KEEP;
+        };
     }
 
-    /** 調べ2：public の中の PHP として動く名前（一覧を作ったときからあったものも）。読み流した所では、リンクとふつうでないものも */
+    /**
+     * 調べ2：public の中の PHP として動く名前（一覧を作ったときからあったものも）。読み流した所（項目が多すぎるフォルダー・
+     * public の下の exclude）では、リンク・ふつうでないもの、public の下ではハードリンク・.htaccess・.user.ini も
+     */
     private function publicChecks(Entry $entry, array $allowed, $report): void
     {
         if (! str_starts_with($entry->path, 'public/')) {
             if ($entry->readThrough && $entry->type === Entry::OTHER) {
                 $report->add(Finding::NotRegular, $entry->path);
+            } elseif ($entry->readThrough && $entry->type === Entry::LINK) {
+                $report->add(Finding::UnlistedLink, $entry->path);
             }
 
             return;
@@ -166,6 +192,8 @@ final class TreeCheck
                 $report->add(Finding::NotRegular, $entry->path);
             } elseif ($entry->isHardLinked()) {
                 $report->add(Finding::ServedHardLink, $entry->path);
+            } elseif (in_array($entry->name(), ['.htaccess', '.user.ini'], true)) {
+                $report->add(Finding::ServedConfig, $entry->path);
             }
         }
     }
@@ -219,6 +247,9 @@ final class TreeCheck
         }
         if ($context->current->refused['sqlite'] !== []) {
             $report->notChecked(Gap::SqliteNotExcluded, implode(', ', $context->current->refused['sqlite']));
+        }
+        if (($context->current->refused['exclude'] ?? []) !== []) {
+            $report->notChecked(Gap::ExcludesPublicPhp, implode(', ', $context->current->refused['exclude']));
         }
         if (self::publicOutside($context->root)) {
             $report->notChecked(Gap::PublicOutside);

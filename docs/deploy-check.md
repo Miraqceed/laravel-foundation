@@ -238,7 +238,7 @@ PHP の `zend.exception_ignore_args` が Off だと、ログの積み跡に、�
 | 一覧があるのに、毎日の調べが schedule にない | `FAIL`（`Integrity::schedule()` を書く） |
 | 見る場所の設定が一覧と違う | `FAIL`（一覧を作り直してから流し直す） |
 | `exclude`・`served`・`acme` が、調べの読み込む場所（`app`・`config`・`vendor`・`.env` など）に掛かる | `FAIL` |
-| `generated_views` に、コンパイルした画面のフォルダーの下でない場所がある・木の中の SQLite のファイルを外せない（PHP として動く名前か、調べの読み込む場所の中） | `FAIL` |
+| `generated_views` に、コンパイルした画面のフォルダーの下でない場所がある・木の中の SQLite のファイルを外せない（PHP として動く名前か、調べの読み込む場所か、公開される場所の中）・`exclude` が公開される場所の PHP の名前か `public_php` に掛かる | `FAIL` |
 | 公開ディレクトリが木の `public` でない・前の調べが画面の調べの途中で落ちた | `FAIL` |
 | メンテナンス中・`schedule:pause` の間に動かない・知らせが人に届かない・画面の調べの子プロセスを使えない | `later` |
 | そのほか | `ok` |

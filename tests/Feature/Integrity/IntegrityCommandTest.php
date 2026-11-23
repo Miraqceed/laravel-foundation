@@ -339,4 +339,63 @@ class IntegrityCommandTest extends TestCase
         $this->assertSame(1, DB::table('foundation_alerts')->count());
         Log::shouldNotHaveReceived('log', fn ($level, $message) => str_contains($message, 'phase'));
     }
+
+    /**
+     * 道ごとの「確かめられなかった」が多くても、違いの名前・「ほか N 件」・種類ごとの数は本文から押し出されない
+     */
+    public function test_many_not_checked_places_do_not_push_the_differences_out_of_the_body(): void
+    {
+        $this->requireNotRoot();
+        $this->snapshot();
+        $this->writeFile('public/index.php', "<?php // changed\n");
+        for ($i = 0; $i < 120; $i++) {
+            $dir = $this->root.'/vendor/'.sprintf('%03d', $i).str_repeat('u', 37);
+            mkdir($dir);
+            chmod($dir, 0000);
+        }
+
+        $this->check();
+
+        $body = (string) DB::table('foundation_alerts')->value('body');
+        $this->assertLessThanOrEqual(4000, mb_strlen($body));
+        $this->assertStringContainsString('public/index.php', $body);
+        $this->assertStringContainsString('違いの内わけ：', $body);
+        $this->assertStringContainsString('確かめられなかったところの内わけ：', $body);
+        $this->assertMatchesRegularExpression('/確かめられなかったところ ほか \d+ 件\z/u', $body);
+    }
+
+    /**
+     * FailureReporter に渡す例外は、文にも、作った所と積み跡にも、木の根とパッケージの絶対の道を持たない
+     * （本番ではパッケージは根の下の vendor にある。この試しでは根とパッケージの道が別なので、両方を見る）
+     */
+    public function test_the_reported_exceptions_carry_no_absolute_path_in_the_message_or_the_trace(): void
+    {
+        $seen = [];
+        $this->app->make(\Illuminate\Contracts\Debug\ExceptionHandler::class)->reportable(function (\Throwable $e) use (&$seen) {
+            $seen[] = $e;
+
+            return false;
+        });
+        $this->snapshot();
+        $this->writeFile('public/index.php', '<?php // changed');
+        $this->app->instance(MaintenanceCheck::class, new class extends MaintenanceCheck
+        {
+            public function run(Context $context): void
+            {
+                throw new RuntimeException('failed');
+            }
+        });
+
+        $this->check();
+
+        $package = (string) realpath(__DIR__.'/../../..');
+        $this->assertCount(2, $seen);
+        foreach ($seen as $e) {
+            $this->assertInstanceOf(\Miraqceed\Foundation\Integrity\IntegrityFailure::class, $e);
+            $everything = (string) $e.$e->getFile().$e->getTraceAsString().json_encode($e->getTrace());
+            $this->assertStringNotContainsString($this->root, $everything);
+            $this->assertStringNotContainsString($package, $everything);
+            $this->assertSame([], $e->getTrace());
+        }
+    }
 }

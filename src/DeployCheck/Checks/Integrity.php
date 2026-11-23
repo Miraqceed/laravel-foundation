@@ -75,6 +75,9 @@ final class Integrity implements Check
             if ($current->refused['sqlite'] !== []) {
                 $failed[] = Gap::SqliteNotExcluded->label();
             }
+            if ($current->refused['exclude'] !== []) {
+                $failed[] = Gap::ExcludesPublicPhp->label();
+            }
             if (TreeCheck::publicOutside($root)) {
                 $failed[] = Gap::PublicOutside->label();
             }

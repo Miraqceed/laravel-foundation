@@ -32,6 +32,9 @@ final class ViewsProcess
 
     private const STOPS = ['timed-out', 'memory'];
 
+    /** 画面を1つ確かめて出る印（名前のない分の数を、始め直しをまたいで足す） */
+    private const PER_VIEW = ['R view-without-source', 'R view-name', 'R view-content', 'R unreadable', 'G view-too-large'];
+
     /**
      * @param  list<string>|null  $command  子の命令の前の部分（試しで替える）。null なら [PHP, -d…, artisan, foundation:integrity-views]
      * @param  bool|null  $available  子を使えるか（試しで替える）。null なら proc_open が使えるか
@@ -122,6 +125,8 @@ final class ViewsProcess
         $stopped = null;
         $failed = [];
         $restarts = 0;
+        /** @var array<string, int> $counted 名前のない分の数（鍵は「R 印」「G 印」） */
+        $counted = [];
 
         while (true) {
             $attempt = $this->attempt($context, $targets, array_map('strval', array_keys($done)), $results);
@@ -132,11 +137,19 @@ final class ViewsProcess
                 $done[$path] = true;
             }
             $stopped = $attempt['stopped'] ?? $stopped;
+            foreach ($attempt['overflow'] as $key => $number) {
+                // 画面ごとの印（始め直しでは済んだ画面を渡すので、重ならない）は足し、歩きの印（始め直すと同じものをまた返す）は大きい方
+                $counted[$key] = in_array($key, self::PER_VIEW, true) ? ($counted[$key] ?? 0) + $number : max($counted[$key] ?? 0, $number);
+            }
 
             if ($attempt['outcome'] === 'ok') {
                 break;
             }
             if ($attempt['outcome'] === 'timeout') {
+                // 始め直さない。時間を使い切った画面が分かれば、その名前も出す
+                if ($attempt['last'] !== null) {
+                    $failed[] = [Gap::TimedOut, $attempt['last']];
+                }
                 $failed[] = [Gap::TimedOut, 'views'];
                 break;
             }
@@ -157,6 +170,10 @@ final class ViewsProcess
         foreach ($results as [$kind, $path]) {
             $kind instanceof Finding ? $report->add($kind, $path) : $report->notChecked($kind, $path);
         }
+        foreach ($counted as $key => $number) {
+            [$mark, $value] = explode(' ', $key, 2);
+            $report->addCount($mark === 'R' ? Finding::from($value) : Gap::from($value), $number);
+        }
         if ($stopped !== null) {
             $report->notChecked($stopped, 'views');
         }
@@ -173,7 +190,7 @@ final class ViewsProcess
      * @param  array{dirs: list<array{path: string, shown: string}>, sources: list<string>, excluded: list<string>, generated: list<string>, inline: list<string>}  $targets
      * @param  list<string>  $skip  済んだ画面（表示の道）
      * @param  array<string, array{0: Finding|Gap, 1: string}>  $results  受け取った結果（同じものは1つ）
-     * @return array{outcome: string, started: list<string>, last: ?string, stopped: ?Gap}
+     * @return array{outcome: string, started: list<string>, last: ?string, stopped: ?Gap, overflow: array<string, int>}
      */
     private function attempt(Context $context, array $targets, array $skip, array &$results): array
     {
@@ -187,7 +204,7 @@ final class ViewsProcess
             'skip' => $skip,
             'seconds' => max(1.0, $context->deadline->remaining()),
         ], JSON_UNESCAPED_SLASHES);
-        $none = ['started' => [], 'last' => null, 'stopped' => null];
+        $none = ['started' => [], 'last' => null, 'stopped' => null, 'overflow' => []];
         if (! is_string($input) || strlen($input) > Limits::CHILD_INPUT_BYTES) {
             return ['outcome' => 'bad'] + $none;
         }
@@ -209,7 +226,7 @@ final class ViewsProcess
         $shownDirs = array_map(fn ($dir) => $dir['shown'], $targets['dirs']);
         $buffer = '';
         $bytes = 0;
-        $state = ['head' => false, 'end' => false, 'bad' => false, 'count' => 0, 'stopped' => null, 'started' => [], 'timeout' => false, 'garbled' => false];
+        $state = ['head' => false, 'end' => false, 'bad' => false, 'count' => 0, 'stopped' => null, 'started' => [], 'timeout' => false, 'garbled' => false, 'overflow' => []];
         $exit = null;
         $signaled = false;
         $deadline = microtime(true) + max(1.0, $context->deadline->remaining());
@@ -284,7 +301,7 @@ final class ViewsProcess
         }
 
         $started = $state['started'];
-        $result = ['started' => $started, 'last' => $started === [] ? null : $started[count($started) - 1], 'stopped' => $state['stopped']];
+        $result = ['started' => $started, 'last' => $started === [] ? null : $started[count($started) - 1], 'stopped' => $state['stopped'], 'overflow' => $state['overflow']];
         if ($exit === IntegrityViewsCommand::NOT_CLI && ! $state['head']) {
             return ['outcome' => 'unavailable'] + $result;
         }
@@ -349,7 +366,7 @@ final class ViewsProcess
     }
 
     /**
-     * @param  array{head: bool, end: bool, bad: bool, count: int, stopped: ?Gap, started: list<string>, timeout: bool, garbled: bool}  $state
+     * @param  array{head: bool, end: bool, bad: bool, count: int, stopped: ?Gap, started: list<string>, timeout: bool, garbled: bool, overflow: array<string, int>}  $state
      * @param  array<string, array{0: Finding|Gap, 1: string}>  $results
      * @param  list<string>  $shownDirs
      */
@@ -386,6 +403,18 @@ final class ViewsProcess
         }
         if (preg_match('/\AS ([a-z-]{1,40})\z/', $line, $match) === 1 && in_array($match[1], self::STOPS, true)) {
             $state['stopped'] = Gap::from($match[1]);
+
+            return;
+        }
+        // 名前の件数の上限を超えた分の、それまでの合計（後の行ほど大きい）
+        if (preg_match('/\AC ([RG]) ([a-z-]{1,40}) (\d{1,10})\z/', $line, $match) === 1) {
+            if (! in_array($match[2], $match[1] === 'R' ? self::FINDINGS : self::GAPS, true)) {
+                $state['bad'] = true;
+
+                return;
+            }
+            $key = $match[1].' '.$match[2];
+            $state['overflow'][$key] = max($state['overflow'][$key] ?? 0, (int) $match[3]);
 
             return;
         }

@@ -308,7 +308,9 @@ return [
         // ハッシュの一覧。null なら storage_path('app/foundation/integrity/snapshot.lines')
         'snapshot' => null,
         // 一覧から外す道（根からの道。道の頭で合わせる）。調べと画面の調べが読み込む場所
-        // （artisan・bootstrap・config・app・routes・vendor・.env）を入れると、調べと点検が知らせる
+        // （artisan・bootstrap・config・app・routes・vendor・.env）を入れると、調べと点検が知らせる。
+        // public の下は、中身の比べだけを外す（PHP・.htaccess・リンクは見る）。公開される場所の PHP の名前・public_php に掛かる値は使わない。
+        // アップロードの置き場所など、公開されて中身が変わる場所は served に書く
         'exclude' => [],
         // 公開されるが中身が変わる場所（根からの道。アップロードの置き場所など）。一覧に入れず、名前と種類だけを見る
         'served' => [],

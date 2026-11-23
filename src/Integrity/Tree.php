@@ -28,8 +28,19 @@ final class Tree
 
     private int $pending = 0;
 
+    /** 外すものの返し方：比べる・歩きから落とす・読み流す（比べないが、名前と種類は見る） */
+    public const KEEP = 0;
+
+    public const DROP = 1;
+
+    public const READ = 2;
+
+    /** @var array<string, true> 読み流す道（public の下の exclude） */
+    private array $readOnly = [];
+
     /**
-     * @param  Closure(string, bool, string): bool  $excluded  根からの道を外すか（道・フォルダーか・lstat の種類。フォルダーにも呼ぶ）
+     * @param  Closure(string, bool, string): (int|bool)  $excluded  根からの道をどう扱うか（KEEP・DROP・READ。true は DROP）。
+     *                                                    道・フォルダーか・lstat の種類を受ける。フォルダーにも呼ぶ
      * @param  Closure(Gap, string): void  $onGap
      */
     public function __construct(
@@ -95,6 +106,17 @@ final class Tree
 
         while (true) {
             if ($next !== null) {
+                // public の下の exclude：中身の比べからは外し、読み流して名前と種類（PHP・.htaccess・リンクなど）は見る
+                if (isset($this->readOnly[$next])) {
+                    $this->skipped[] = $next;
+                    yield from $this->readThrough($next);
+                    if ($this->stopped !== null) {
+                        return;
+                    }
+                    $next = null;
+
+                    continue;
+                }
                 $depth = substr_count($next, '/') + 1;
                 if ($depth > Limits::depth()) {
                     $this->skip(Gap::TooDeep, $next);
@@ -168,8 +190,12 @@ final class Tree
                     continue;
                 }
                 $isFolder = $stat !== null && Entry::typeOf($stat) === 'dir';
-                if (($this->excluded)($path, $isFolder, Entry::typeOf($stat))) {
+                $mode = ($this->excluded)($path, $isFolder, Entry::typeOf($stat));
+                if ($mode === self::DROP || $mode === true) {
                     continue;
+                }
+                if ($mode === self::READ) {
+                    $this->readOnly[$path] = true;
                 }
                 if ($isFolder) {
                     $folderNames[] = $name;
@@ -195,7 +221,7 @@ final class Tree
     /** @param  array<int|string, int>|null  $stat */
     private function entry(string $path, ?array $stat): Entry
     {
-        return new Entry($path, $this->root.'/'.$path, Entry::typeOf($stat), $stat);
+        return new Entry($path, $this->root.'/'.$path, Entry::typeOf($stat), $stat, readThrough: isset($this->readOnly[$path]));
     }
 
     /** @return Generator<int, Entry> */

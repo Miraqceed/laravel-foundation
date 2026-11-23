@@ -94,6 +94,24 @@ class ViewsChildTest extends TestCase
         return [...array_map(fn ($f) => $f[0]->value.':'.$f[1], $report->findings()), ...array_map(fn ($g) => $g[0]->value, $report->gaps())];
     }
 
+    /**
+     * Laravel が書く形（compileString() の出力と PATH の行）で、コンパイルした画面を書く。試しのプロセスで描く・compile() すると、
+     * appendFilePath() が出力の全体を token_get_all して数百 MB を使い、試しの memory_limit に左右される。
+     * $compile が偽なら、中身は書かない（見積もりで止まる画面）
+     *
+     * @return string 書いたファイルの道
+     */
+    private function writeCompiled(string $source, bool $compile): string
+    {
+        $compiler = app('blade.compiler');
+        $compiler->setPath($source);
+        $file = $this->compiled.'/'.basename($compiler->getCompiledPath($source));
+        $body = $compile ? $compiler->compileString((string) file_get_contents($source)) : 'x';
+        file_put_contents($file, $body."<?php /**PATH {$source} ENDPATH**/ ?>");
+
+        return $file;
+    }
+
     public function test_the_child_returns_the_results(): void
     {
         $expected = $this->tamper();
@@ -110,8 +128,9 @@ class ViewsChildTest extends TestCase
      */
     public function test_a_props_dense_view_within_the_mark_limit_passes_in_a_128m_child(): void
     {
-        file_put_contents($this->views.'/props.blade.php', str_repeat("@props(['a'])\n", 6_000));
-        view('props')->render();
+        $source = $this->views.'/props.blade.php';
+        file_put_contents($source, str_repeat("@props(['a'])\n", 6_000));
+        $this->writeCompiled($source, true);
 
         [$report] = $this->runChild('limit-128m');
 
@@ -127,17 +146,16 @@ class ViewsChildTest extends TestCase
         mkdir($this->views.'/components');
         file_put_contents($this->views.'/components/alert.blade.php', '@props(["type" => "a", "message" => ""])<div class="{{ $type }}">{{ $message }}</div>');
         self::env('INTEGRITY_CHILD_VIEW_PATHS', $this->views);
-        $compiler = app('blade.compiler');
-        $write = function (string $name, int $tags) use ($compiler): string {
+        $write = function (string $name, int $tags, bool $compile): string {
             $path = $this->views.'/'.$name.'.blade.php';
             file_put_contents($path, str_repeat("<x-alert type=\"a\" :message=\"\$m\" />\n", $tags));
-            $compiler->compile($path);
 
-            return basename($compiler->getCompiledPath($path));
+            return basename($this->writeCompiled($path, $compile));
         };
-        $few = $write('few', 300);
-        // 3,000 個：前の重さ（2KB）の見積もりは約 13MB で通るが、compileString() は約 46MB を使い、128M の子に許す分を超える
-        $many = $write('many', 3_000);
+        $few = $write('few', 300, true);
+        // 3,000 個：前の重さ（2KB）の見積もりは約 13MB で通るが、compileString() は約 46MB を使い、128M の子に許す分を超える。
+        // 見積もりで止まるので、書いたものの中身は比べない（試しのプロセスでもコンパイルしない）
+        $many = $write('many', 3_000, false);
         $this->assertFileExists($this->compiled.'/'.$few);
         $this->assertFileExists($this->compiled.'/'.$many);
 
@@ -283,6 +301,42 @@ class ViewsChildTest extends TestCase
         $this->assertCount(1 + \Miraqceed\Foundation\Integrity\Limits::VIEWS_RESTARTS, array_intersect($failed, $crashes));
     }
 
+    /** 時間切れのとき、時間を使い切った画面（最後に始めた画面）の名前も出す。始め直さない */
+    public function test_a_child_that_runs_out_of_time_on_one_view_names_it(): void
+    {
+        $slow = $this->compiledView('slow', "<p>INTEGRITY-SLOW-HERE</p>\n");
+
+        [$report, , $seconds] = $this->runChild('precompiler-slow', 3);
+
+        $lines = $this->gapLines($report);
+        $this->assertContains('timed-out:'.$slow, $lines);
+        $this->assertContains('timed-out:views', $lines);
+        $this->assertFalse($report->hasGap(Gap::ViewsFailed));
+        $this->assertLessThan(15, $seconds);
+    }
+
+    /**
+     * 子も名前の件数の上限（違い 1,000）を持ち、超えた分は数だけを返す。画面のフォルダーに名前を撒かれても、出力の上限で
+     * 画面の調べが丸ごと落ちず、種類ごとの数は合う
+     */
+    public function test_a_child_returns_names_up_to_the_limit_and_counts_the_rest(): void
+    {
+        $this->tamperedView('t1');
+        // 名前をすべて返すと、子の出力が上限（4MB）を超える数（1行約 100 バイト）
+        $strays = 60_000;
+        for ($i = 0; $i < $strays; $i++) {
+            touch($this->compiled.'/stray-'.str_pad((string) $i, 20, '0', STR_PAD_LEFT).'.txt');
+        }
+
+        [$report] = $this->runChild();
+
+        $this->assertFalse($report->hasGap(Gap::ViewsFailed), implode(', ', $this->gapLines($report)));
+        $counts = $report->findingCounts();
+        $this->assertSame($strays, $counts['view-stray'] ?? 0);
+        $this->assertSame(1, $counts['view-content'] ?? 0);
+        $this->assertLessThanOrEqual(\Miraqceed\Foundation\Integrity\Limits::FINDINGS_KEPT, count($report->findings()));
+    }
+
     public function test_a_flooding_child_is_stopped_at_the_output_limit_and_the_parent_does_not_grow(): void
     {
         $before = memory_get_usage();
@@ -290,7 +344,7 @@ class ViewsChildTest extends TestCase
 
         $this->assertTrue($report->hasGap(Gap::ViewsFailed));
         $this->assertLessThan(20 * 1024 * 1024, memory_get_usage() - $before);
-        // 子は終わらずに書き続ける。1MB で止めなければ、期限（60秒）まで続く
+        // 子は終わらずに書き続ける。出力の上限（Limits::CHILD_OUTPUT_BYTES、4MB）で止めなければ、期限（60秒）まで続く
         $this->assertLessThan(15, $seconds);
     }
 

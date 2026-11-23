@@ -19,7 +19,8 @@ use Throwable;
  * - 結果を1つ見つけるたびに、決まった形の1行を標準出力に書く。中身・元の文・例外の文は書かない
  *     foundation-integrity-views 1
  *     B <道の16進>（画面を1つ始める前）   ／   R <違いの印> <道の16進>   ／   G <確かめられなかった印> <道の16進>   ／   S <止めた理由の印>
- *     end <件数>
+ *     C <R か G> <印> <数>（名前の件数の上限を超えて、名前を返さなかった分の、それまでの合計）
+ *     end <名前つきの行の件数>
  * - SAPI が cli でなければ（php-cgi は CGI の頭を標準出力に書く）、頭の行を書かずに 3 で終える（親は子を使えないとみなす）
  */
 class IntegrityViewsCommand extends Command
@@ -52,9 +53,27 @@ class IntegrityViewsCommand extends Command
 
         $this->put(self::HEAD);
         $count = 0;
-        $emit = function (Finding|Gap $kind, string $path) use (&$count): void {
-            $count++;
-            $this->put(($kind instanceof Finding ? 'R ' : 'G ').$kind->value.' '.bin2hex($path));
+        $named = ['R' => 0, 'G' => 0];
+        /** @var array<string, int> $overflow 名前を返さなかった分の、種類ごとの数（鍵は「R 印」「G 印」） */
+        $overflow = [];
+        // 名前の件数の上限（違い 1,000・確かめられなかった 100。設計 6.4）は子にも効く。超えた分は数だけを返す
+        // （画面のフォルダーに名前を撒かれて、出力の上限で画面の調べが丸ごと落ちないように）。数は 1,000 件ごとと終わりに書く
+        // （途中で落ちても、それまでの数は親に届く）
+        $emit = function (Finding|Gap $kind, string $path) use (&$count, &$named, &$overflow): void {
+            $mark = $kind instanceof Finding ? 'R' : 'G';
+            $limit = $mark === 'R' ? Limits::FINDINGS_KEPT : Limits::GAPS_KEPT;
+            if ($named[$mark] < $limit) {
+                $named[$mark]++;
+                $count++;
+                $this->put($mark.' '.$kind->value.' '.bin2hex($path));
+
+                return;
+            }
+            $key = $mark.' '.$kind->value;
+            $overflow[$key] = ($overflow[$key] ?? 0) + 1;
+            if ($overflow[$key] % 1000 === 0) {
+                $this->put('C '.$key.' '.$overflow[$key]);
+            }
         };
 
         $checker = new CompiledViews(
@@ -84,6 +103,9 @@ class IntegrityViewsCommand extends Command
                 $this->put('S '.$stopped->value);
                 break;
             }
+        }
+        foreach ($overflow as $key => $number) {
+            $this->put('C '.$key.' '.$number);
         }
         $this->put('end '.$count);
 

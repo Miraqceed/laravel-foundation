@@ -15,6 +15,7 @@ enum Finding: string
     case ServedConfig = 'served-config';
     case ServedLink = 'served-link';
     case ServedHardLink = 'served-hardlink';
+    case UnlistedLink = 'unlisted-link';
     case AcmeFile = 'acme-file';
     case StoragePhp = 'storage-php';
     case ViewWithoutSource = 'view-without-source';
@@ -38,6 +39,7 @@ enum Finding: string
             self::ServedConfig => '公開される変わる場所の、.htaccess・.user.ini',
             self::ServedLink => '公開される変わる場所の、リンク',
             self::ServedHardLink => '公開される変わる場所の、ハードリンク',
+            self::UnlistedLink => 'ハッシュの一覧で比べていない所（項目が多すぎるフォルダーなど）の、リンク',
             self::AcmeFile => 'SSL の確認用のフォルダーの、確認用でないもの',
             self::StoragePhp => 'storage の中の、PHP として動く名前',
             self::ViewWithoutSource => '元の Blade が見つからない、コンパイルした画面',

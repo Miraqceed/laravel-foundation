@@ -25,19 +25,28 @@ final class ServedPlacesCheck
         $settings = $context->effective();
 
         $places = [];
+        // 同じ場所を2回見ないように、解いた道で数える
+        $key = fn (string $absolute): string => str_replace('\\', '/', (string) (realpath($absolute) ?: $absolute));
         foreach ($settings->acme as $path) {
-            $places[$context->root.'/'.$path] = [$path, true];
+            $places[$key($context->root.'/'.$path)] = [$context->root.'/'.$path, $path, true];
         }
         foreach ($settings->served as $path) {
-            $places[$context->root.'/'.$path] ??= [$path, false];
+            $places[$key($context->root.'/'.$path)] ??= [$context->root.'/'.$path, $path, false];
         }
         foreach ((array) config('filesystems.links', []) as $link => $target) {
             $target = (string) $target;
             $shown = $context->shown($target, 'filesystems.links の先');
-            $places[$target] ??= [$shown, false];
+            $places[$key($target)] ??= [$target, $shown, false];
+        }
+        // 一覧の値と今の値を合わせて見る（Q20）。木の中の先は根から解く。木の外の先は、一覧に指紋（outside:…）しか持たないので、
+        // 今の値だけで見る
+        foreach ($settings->links as $path) {
+            if ($path !== '' && ! str_starts_with($path, 'outside:')) {
+                $places[$key($context->root.'/'.$path)] ??= [$context->root.'/'.$path, $path, false];
+            }
         }
 
-        foreach ($places as $absolute => [$shown, $acme]) {
+        foreach ($places as [$absolute, $shown, $acme]) {
             if (! is_dir($absolute) || is_link($absolute)) {
                 continue;
             }

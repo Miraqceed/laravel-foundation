@@ -19,6 +19,9 @@ class SqliteFilesTest extends TestCase
 {
     use IntegrityTree;
 
+    /** SQLite の頭の印（作り物の中身の前に付ける） */
+    private const DB = "SQLite format 3\0";
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -39,12 +42,12 @@ class SqliteFilesTest extends TestCase
     public function test_the_database_file_and_its_companions_are_excluded_while_they_change(): void
     {
         $this->useSqlite($this->root.'/database/database.sqlite');
-        $this->writeFile('database/database.sqlite', 'made-up database 1');
+        $this->writeFile('database/database.sqlite', self::DB.'made-up database 1');
         $this->writeFile('database/database.sqlite-wal', 'made-up wal 1');
         $this->writeFile('database/other.sqlite', 'not the database');
         $this->assertSame(0, $this->snapshot());
 
-        $this->writeFile('database/database.sqlite', 'made-up database 2');
+        $this->writeFile('database/database.sqlite', self::DB.'made-up database 2');
         $this->writeFile('database/database.sqlite-wal', 'made-up wal 2');
         $this->writeFile('database/database.sqlite-shm', 'made-up shm');
         $this->writeFile('database/database.sqlite-journal', 'made-up journal');
@@ -57,12 +60,12 @@ class SqliteFilesTest extends TestCase
 
     public function test_a_relative_path_is_taken_from_the_root_only_when_the_file_exists(): void
     {
-        $this->writeFile('database/rel.sqlite', 'made-up database 1');
+        $this->writeFile('database/rel.sqlite', self::DB.'made-up database 1');
         // 雛形の設定は sqlite の接続も DB_DATABASE を読む。MySQL のデータベースの名前は、根からの道に見えても外さない
         config(['database.connections.integrity_sqlite' => ['driver' => 'sqlite', 'database' => 'database/rel.sqlite', 'prefix' => ''],
             'database.connections.integrity_named' => ['driver' => 'sqlite', 'database' => 'app', 'prefix' => '']]);
         $this->snapshot();
-        $this->writeFile('database/rel.sqlite', 'made-up database 2');
+        $this->writeFile('database/rel.sqlite', self::DB.'made-up database 2');
 
         $report = $this->check();
 
@@ -73,7 +76,7 @@ class SqliteFilesTest extends TestCase
     public function test_a_link_or_a_folder_in_its_place_is_compared(): void
     {
         $this->useSqlite($this->root.'/database/database.sqlite');
-        $this->writeFile('database/database.sqlite', 'made-up database');
+        $this->writeFile('database/database.sqlite', self::DB.'made-up database');
         $this->snapshot();
 
         unlink($this->root.'/database/database.sqlite');
@@ -91,15 +94,17 @@ class SqliteFilesTest extends TestCase
     {
         yield 'a PHP name' => ['database/x.sqlite.php', 'database/x.sqlite.php'];
         yield 'inside a load path' => ['config/db.sqlite', 'config/db.sqlite'];
+        yield 'under public' => ['public/db.sqlite', 'public/db.sqlite'];
+        yield 'public/.htaccess' => ['public/.htaccess', 'public/.htaccess'];
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('notExcluded')]
     public function test_a_php_name_or_a_load_path_is_not_excluded_and_is_told(string $database, string $told): void
     {
         $this->useSqlite($this->root.'/'.$database);
-        $this->writeFile($database, 'made-up database 1');
+        $this->writeFile($database, self::DB.'made-up database 1');
         $this->snapshot();
-        $this->writeFile($database, 'made-up database 2');
+        $this->writeFile($database, self::DB.'made-up database 2');
 
         $report = $this->check();
 
@@ -110,10 +115,10 @@ class SqliteFilesTest extends TestCase
 
     public function test_the_excluded_files_are_in_the_snapshot_settings_and_the_strictest_wins(): void
     {
-        $this->writeFile('database/database.sqlite', 'made-up database 1');
+        $this->writeFile('database/database.sqlite', self::DB.'made-up database 1');
         $this->snapshot();
         $this->useSqlite($this->root.'/database/database.sqlite');
-        $this->writeFile('database/database.sqlite', 'made-up database 2');
+        $this->writeFile('database/database.sqlite', self::DB.'made-up database 2');
 
         $report = $this->check();
 
@@ -136,5 +141,19 @@ class SqliteFilesTest extends TestCase
 
         $this->assertSame(Status::Fail, $result->status);
         $this->assertStringContainsString(Gap::SqliteNotExcluded->label(), (string) $result->detail);
+    }
+
+    /** SQLite の頭の印を持たないファイルは、接続が指していても外さない（中身を書き換えられた設定のファイルを黙らせない） */
+    public function test_a_file_without_the_sqlite_header_is_compared_and_told(): void
+    {
+        $this->useSqlite($this->root.'/database/database.sqlite');
+        $this->writeFile('database/database.sqlite', 'not a database 1');
+        $this->assertSame(0, $this->snapshot());
+        $this->writeFile('database/database.sqlite', 'not a database 2');
+
+        $report = $this->check();
+
+        $this->assertFinding($report, Finding::Changed, 'database/database.sqlite');
+        $this->assertContains('sqlite-not-excluded:database/database.sqlite', $this->gaps($report));
     }
 }

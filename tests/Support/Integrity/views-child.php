@@ -95,6 +95,16 @@ if ($mode === 'precompiler-crash') {
         return $value;
     });
 }
+// 特定の画面で、前処理が時間を使い切る形（印の数の2乗の時間が掛かる元の代わり）
+if ($mode === 'precompiler-slow') {
+    $app['blade.compiler']->precompiler(function (string $value): string {
+        if (str_contains($value, 'INTEGRITY-SLOW-HERE')) {
+            sleep(60);
+        }
+
+        return $value;
+    });
+}
 // 部品（<x-…>）を解くための画面の場所（本物のアプリでは、子も同じ設定を読む）
 if ($paths = getenv('INTEGRITY_CHILD_VIEW_PATHS')) {
     $app['config']->set('view.paths', [$paths]);

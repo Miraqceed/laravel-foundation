@@ -486,4 +486,94 @@ class SnapshotCheckTest extends TestCase
         $this->assertGap($report, Gap::TimedOut);
         $this->assertSame([], array_filter($this->findings($report), fn ($f) => str_starts_with($f, 'removed:')));
     }
+
+    /**
+     * public の下の exclude は、中身の比べだけを外す。読み流して、PHP として動く名前・.htaccess・.user.ini・リンク・
+     * ハードリンク・ふつうでないものは出す（運営がアップロードの置き場所を served でなく exclude に書いても、黙らない）
+     */
+    public function test_exclude_under_public_skips_only_the_comparison(): void
+    {
+        config(['foundation.integrity.exclude' => ['public/uploads', 'public/one.txt']]);
+        $this->writeFile('public/uploads/photo.png', 'x');
+        $this->writeFile('public/one.txt', 'x');
+        $this->assertSame(0, $this->snapshot());
+        $this->writeFile('public/uploads/photo.png', 'changed');
+        $this->writeFile('public/uploads/new.png', 'x');
+        $this->writeFile('public/one.txt', 'changed');
+        $this->writeFile('public/uploads/shell.php', '<?php');
+        $this->writeFile('public/uploads/deep/x.phtml', 'x');
+        $this->writeFile('public/uploads/.htaccess', 'AddHandler application/x-httpd-php .jpg');
+        $this->writeFile('public/uploads/.user.ini', 'auto_prepend_file=x');
+        symlink($this->root.'/.env', $this->root.'/public/uploads/env');
+        link($this->root.'/.env', $this->root.'/public/uploads/env-hard');
+
+        $report = $this->check();
+
+        $uploads = array_values(array_filter($this->findings($report), fn (string $f): bool => str_contains($f, ':public/uploads/')));
+        sort($uploads);
+        $this->assertSame([
+            'public-php:public/uploads/deep/x.phtml',
+            'public-php:public/uploads/shell.php',
+            'served-config:public/uploads/.htaccess',
+            'served-config:public/uploads/.user.ini',
+            'served-hardlink:public/uploads/env-hard',
+            'served-link:public/uploads/env',
+        ], $uploads);
+        $this->assertNoFinding($report, Finding::Changed, 'public/uploads/photo.png');
+        $this->assertNoFinding($report, Finding::Added, 'public/uploads/new.png');
+        $this->assertNoFinding($report, Finding::Changed, 'public/one.txt');
+        $this->assertSame([], $this->gaps($report));
+    }
+
+    /** @return iterable<string, array{0: string}> */
+    public static function refusedExcludes(): iterable
+    {
+        yield 'public/index.php' => ['public/index.php'];
+        yield 'all of public' => ['public'];
+        yield 'a PHP name under public' => ['public/uploads/shell.php'];
+    }
+
+    /** public_php に掛かる exclude・公開される場所の PHP の名前の exclude は使わず、知らせる */
+    #[\PHPUnit\Framework\Attributes\DataProvider('refusedExcludes')]
+    public function test_exclude_covering_public_php_or_a_php_name_is_refused(string $exclude): void
+    {
+        config(['foundation.integrity.exclude' => [$exclude]]);
+        $this->writeFile('public/uploads/shell.php', '<?php');
+        $this->assertSame(0, $this->snapshot());
+        $this->writeFile('public/index.php', "<?php // changed\n");
+        $this->writeFile('public/uploads/shell.php', '<?php // changed');
+
+        $report = $this->check();
+
+        $this->assertContains('excludes-public-php:'.$exclude, $this->gaps($report));
+        $this->assertFinding($report, Finding::Changed, 'public/index.php');
+        $this->assertFinding($report, Finding::PublicPhp, 'public/uploads/shell.php');
+    }
+
+    /** acme を null にすると、そのフォルダーは見ない（ふつうに一覧の比べに入る） */
+    public function test_acme_null_turns_the_acme_folder_into_an_ordinary_folder(): void
+    {
+        $this->writeFile('public/.well-known/acme-challenge/token-1', 'x');
+        config(['foundation.integrity.acme' => null]);
+        $this->assertSame(0, $this->snapshot());
+        $this->writeFile('public/.well-known/acme-challenge/token-1', 'changed');
+
+        $this->assertFinding($this->check(), Finding::Changed, 'public/.well-known/acme-challenge/token-1');
+    }
+
+    /** 項目が多すぎて読み流したフォルダーでは、public の外でもリンクを出す */
+    public function test_a_link_in_a_read_through_folder_outside_public_is_named(): void
+    {
+        for ($i = 0; $i < 60; $i++) {
+            $this->writeFile('app/many/f'.$i.'.txt', 'x');
+        }
+        $this->assertSame(0, $this->snapshot());
+        Limits::overrideForTests(['n' => 50]);
+        symlink($this->root.'/.env', $this->root.'/app/many/env');
+
+        $report = $this->check();
+
+        $this->assertContains('too-many:app/many', $this->gaps($report));
+        $this->assertFinding($report, Finding::UnlistedLink, 'app/many/env');
+    }
 }

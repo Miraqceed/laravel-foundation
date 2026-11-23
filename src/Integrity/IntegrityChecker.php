@@ -10,7 +10,6 @@ use Miraqceed\Foundation\Integrity\Checks\ServedPlacesCheck;
 use Miraqceed\Foundation\Integrity\Checks\StoragePhpCheck;
 use Miraqceed\Foundation\Integrity\Checks\TreeCheck;
 use Miraqceed\Foundation\Monitoring\Alerts\AlertSender;
-use RuntimeException;
 use Throwable;
 
 /**
@@ -143,7 +142,7 @@ final class IntegrityChecker
         }
 
         try {
-            $this->reporter->report(new RuntimeException('改ざんの検知：'.$this->summary($report)));
+            $this->reporter->report(IntegrityFailure::summary('改ざんの検知：'.$this->summary($report)));
         } catch (Throwable) {
             // FailureReporter は投げないが、念のため
         }
@@ -186,32 +185,76 @@ final class IntegrityChecker
             .($gaps === [] ? '' : '; not checked: '.implode(', ', $gaps));
     }
 
+    /**
+     * 知らせの本文：件数・種類ごとの数を先に、次に違いの名前と「ほか N 件」、最後に確かめられなかったところの名前と「ほか N 件」。
+     * 名前は本文の上限の内に収め、件数・数・「ほか」の行は切らない（確かめられなかったところの名前を撒いて、違いの名前を
+     * 押し出せないように、違いの名前に残りの 2/3 を先に取る）
+     */
     private function body(Report $report): string
     {
-        $lines = [sprintf('違い %d 件、確かめられなかったところ %d 件。名前だけを出します（中身はサーバーで見てください）。', $report->findingCount(), $report->gapCount())];
+        $head = [sprintf('違い %d 件、確かめられなかったところ %d 件。名前だけを出します（中身はサーバーで見てください）。', $report->findingCount(), $report->gapCount())];
         if ($report->viewsMode === 'in-process') {
-            $lines[] = '画面の調べは、子プロセスなしで流しました。';
+            $head[] = '画面の調べは、子プロセスなしで流しました。';
         }
-        $lines[] = '';
-        foreach ($report->gaps() as [$gap, $detail]) {
-            $lines[] = '・確かめられなかった：'.$gap->label().($detail === '' ? '' : '（'.Report::forAlert($detail).'）');
+        if ($report->findingCount() > 0) {
+            $head[] = '違いの内わけ：'.self::counts($report->findingCounts(), fn (string $value): string => Finding::from($value)->label());
         }
-        $shown = 0;
-        $length = mb_strlen(implode("\n", $lines));
-        foreach ($report->findings() as [$finding, $path]) {
-            $line = '・'.$finding->label().'：'.Report::forAlert($path);
-            if ($length + mb_strlen($line) + 40 > self::BODY_LIMIT) {
-                break;
-            }
-            $lines[] = $line;
-            $length += mb_strlen($line) + 1;
-            $shown++;
+        if ($report->gapCount() > 0) {
+            $head[] = '確かめられなかったところの内わけ：'.self::counts($report->gapCounts(), fn (string $value): string => Gap::from($value)->label());
         }
-        $rest = $report->findingCount() - $shown;
+        $head[] = '';
+
+        // 「ほか」の2行の分を残す
+        $budget = self::BODY_LIMIT - mb_strlen(implode("\n", $head)) - 80;
+        $findingBudget = $report->gaps() === [] ? $budget : intdiv($budget * 2, 3);
+        $findingLines = self::fit(array_map(fn (array $f): string => '・'.$f[0]->label().'：'.Report::forAlert($f[1]), $report->findings()), $findingBudget);
+        $used = mb_strlen(implode("\n", $findingLines)) + 1;
+        $gapLines = self::fit(array_map(fn (array $g): string => '・確かめられなかった：'.$g[0]->label().($g[1] === '' ? '' : '（'.Report::forAlert($g[1]).'）'), $report->gaps()), $budget - $used);
+
+        $lines = [...$head, ...$findingLines];
+        $rest = $report->findingCount() - count($findingLines);
         if ($rest > 0) {
-            $lines[] = "ほか {$rest} 件";
+            $lines[] = "違い ほか {$rest} 件";
+        }
+        $lines = [...$lines, ...$gapLines];
+        $restGaps = $report->gapCount() - count($gapLines);
+        if ($restGaps > 0) {
+            $lines[] = "確かめられなかったところ ほか {$restGaps} 件";
         }
 
         return mb_substr(implode("\n", $lines), 0, self::BODY_LIMIT);
+    }
+
+    /**
+     * @param  list<string>  $lines
+     * @return list<string> 字数の内に収まる頭からの行
+     */
+    private static function fit(array $lines, int $budget): array
+    {
+        $kept = [];
+        $length = 0;
+        foreach ($lines as $line) {
+            $length += mb_strlen($line) + 1;
+            if ($length > $budget) {
+                break;
+            }
+            $kept[] = $line;
+        }
+
+        return $kept;
+    }
+
+    /**
+     * @param  array<string, int>  $counts
+     * @param  \Closure(string): string  $label
+     */
+    private static function counts(array $counts, \Closure $label): string
+    {
+        $parts = [];
+        foreach ($counts as $value => $count) {
+            $parts[] = $label((string) $value).' '.$count;
+        }
+
+        return implode('・', $parts);
     }
 }

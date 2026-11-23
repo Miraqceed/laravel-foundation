@@ -120,18 +120,22 @@ trait IntegrityTree
     }
 
     /**
-     * 子プロセスで流し、時間の上限で殺す（止まりうる・落ちうる試し）。子の memory_limit を決められる
+     * 子プロセスで流し、時間の上限で殺す（止まりうる・落ちうる試し）。子の memory_limit を決められる（null は親のまま）
      *
      * @param  Closure(): mixed  $work  子の中で流す。戻り値は serialize して親に返す
      * @return array{exit: int, signaled: bool, result: mixed, seconds: float}
      */
-    protected function inChild(Closure $work, int $seconds = 20, string $memory = '128M'): array
+    protected function inChild(Closure $work, int $seconds = 20, ?string $memory = null): array
     {
         $file = tempnam(sys_get_temp_dir(), 'foundation-integrity-child-');
         $started = microtime(true);
         $pid = pcntl_fork();
         if ($pid === 0) {
-            ini_set('memory_limit', $memory);
+            // 決めた memory_limit は、メモリーを見る試し（別のプロセスで流すもの）だけが渡す。ほかは親のまま（ほかの試しで
+            // 膨らんだ親から fork すると、子は初めから親の使った分を持つので、低い上限では始めから超える）
+            if ($memory !== null) {
+                ini_set('memory_limit', $memory);
+            }
             // 落ちたときの文を出さない（別のプロセスで流す試しでは、標準エラーへの出力が試しの誤りになる。
             // CLI の log_errors は標準エラーに書くので、それも止める）
             ini_set('display_errors', '0');

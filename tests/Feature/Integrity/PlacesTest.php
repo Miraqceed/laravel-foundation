@@ -277,4 +277,18 @@ class PlacesTest extends TestCase
         $this->assertContains('maintenance-data:storage/framework/down', $result['result']['result']['findings']);
         unlink($this->root.'/storage/framework/down');
     }
+
+    /** filesystems.links の先も、一覧の値と今の値を合わせて見る（Q20。今の設定から消しても、一覧にある先は見る） */
+    public function test_link_targets_in_the_snapshot_are_looked_at_even_when_removed_from_the_config(): void
+    {
+        config(['filesystems.links' => [$this->root.'/public/storage' => $this->root.'/storage/app/public']]);
+        $this->assertSame(0, $this->snapshot());
+        config(['filesystems.links' => []]);
+        $this->writeFile('storage/app/public/.htaccess', 'AddHandler application/x-httpd-php .jpg');
+
+        $report = $this->check();
+
+        $this->assertGap($report, Gap::SettingsDiffer);
+        $this->assertFinding($report, Finding::ServedConfig, 'storage/app/public/.htaccess');
+    }
 }

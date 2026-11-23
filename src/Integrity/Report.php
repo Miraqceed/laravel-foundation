@@ -91,6 +91,27 @@ final class Report
         return $this->findingCounts;
     }
 
+    /** @return array<string, int> */
+    public function gapCounts(): array
+    {
+        return $this->gapCounts;
+    }
+
+    /**
+     * 名前を持たない分の数だけを足す（画面の調べの子が、名前の件数の上限を超えた分を数で返したとき）
+     */
+    public function addCount(Finding|Gap $kind, int $count): void
+    {
+        if ($count <= 0) {
+            return;
+        }
+        if ($kind instanceof Finding) {
+            $this->findingCounts[$kind->value] = ($this->findingCounts[$kind->value] ?? 0) + $count;
+        } else {
+            $this->gapCounts[$kind->value] = ($this->gapCounts[$kind->value] ?? 0) + $count;
+        }
+    }
+
     public function hasGap(Gap $gap): bool
     {
         return isset($this->gapCounts[$gap->value]);
