@@ -29,7 +29,7 @@ final class DataFiles
         private readonly FailureReporter $reporter = new FailureReporter,
     ) {}
 
-    /** @throws \LogicException 登録していない名前のとき */
+    /** @throws InvalidDataSources 登録していない名前のとき（LogicException の子） */
     public function path(string $name): ?string
     {
         // 頼まれた種類だけを引く（作った種類はこの入れ物で覚える。ほかの種類の書き違いで止まらない）

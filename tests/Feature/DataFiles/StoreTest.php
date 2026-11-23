@@ -6,7 +6,10 @@ use Illuminate\Support\Facades\Artisan;
 use Miraqceed\Foundation\DataFiles\DataFileException;
 use Miraqceed\Foundation\DataFiles\Refresher;
 use Miraqceed\Foundation\DataFiles\Store;
+use Miraqceed\Foundation\DeployCheck\Checks\DataFiles as DataFilesCheck;
+use Miraqceed\Foundation\DeployCheck\Status;
 use Miraqceed\Foundation\Testing\ReportFailure;
+use Miraqceed\Foundation\Tests\Support\DataFiles\LeakingSource;
 use Miraqceed\Foundation\Tests\Support\DataFiles\LoopbackDownload;
 use Miraqceed\Foundation\Tests\Support\DataFiles\TestSource;
 use Miraqceed\Foundation\Tests\Support\DataFiles\UsesDataFileDirectories;
@@ -172,6 +175,31 @@ class StoreTest extends TestCase
             $this->assertStringContainsString('データのファイルの設定を読めません：foundation.data_files.sources', $reports[$i]);
             $this->assertStringNotContainsString('Not\\A\\Class', $reports[$i]);
         }
+    }
+
+    /**
+     * アプリの種類のコンストラクターが投げた例外（LogicException の子の InvalidArgumentException）の文は、
+     * 命令の出力・知らせ・点検に出さない（アプリの文には鍵などが入りうる）。出すのは例外の種類だけ
+     */
+    public function test_never_shows_the_message_of_an_exception_from_the_apps_source(): void
+    {
+        config(['foundation.data_files.sources' => [LeakingSource::class]]);
+        $reports = ReportFailure::simulate();
+
+        $this->assertSame(1, Artisan::call('foundation:data-files'));
+        $output = Artisan::output();
+        $this->assertStringNotContainsString(LeakingSource::MARK, $output);
+        $this->assertStringContainsString('InvalidArgumentException', $output);
+        $this->assertCount(1, $reports);
+        $this->assertStringNotContainsString(LeakingSource::MARK, $reports[0]);
+        $this->assertStringContainsString('データのファイルの設定を読めません', $reports[0]);
+
+        $this->assertSame(1, Artisan::call('foundation:data-files', ['--status' => true]));
+        $this->assertStringNotContainsString(LeakingSource::MARK, Artisan::output());
+
+        $check = (new DataFilesCheck)->run();
+        $this->assertSame(Status::Fail, $check->status);
+        $this->assertStringNotContainsString(LeakingSource::MARK, (string) $check->detail);
     }
 
     public function test_the_refresher_comes_from_the_container(): void

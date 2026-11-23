@@ -3,12 +3,12 @@
 namespace Miraqceed\Foundation\DataFiles;
 
 use Illuminate\Contracts\Container\Container;
-use LogicException;
 use Throwable;
 
 /**
  * foundation.data_files.sources に並べた種類を、容器から作る（呼んだときだけ。プロバイダーの起動では作らない）。
- * 書き違い（DataSource でない・名前の形が違う・同じ名前が2つ）は LogicException（文に設定の値を入れない）
+ * 書き違い（DataSource でない・名前の形が違う・同じ名前が2つ・作ると投げる）は InvalidDataSources（LogicException の子）。
+ * 文はこの部品が決めた形だけにし、設定の値もアプリの例外の文も入れない（アプリの種類が投げた例外は、例外の種類の名前だけにして包む）
  *
  * @internal
  */
@@ -26,7 +26,7 @@ final class Sources
      * ほかの種類が壊れていても（クラスがない・DataSource でない・作ると投げる）、名前の合う種類は返す。
      * 書き違いの点検は、命令と deploy-check の all() が行う
      *
-     * @throws LogicException 名前の合う種類がないとき
+     * @throws InvalidDataSources 名前の合う種類がないとき
      */
     public function find(string $name): DataSource
     {
@@ -53,33 +53,43 @@ final class Sources
             }
         }
 
-        throw new LogicException('データのファイルの種類が foundation.data_files.sources にありません');
+        throw new InvalidDataSources('データのファイルの種類が foundation.data_files.sources にありません');
     }
 
     /**
      * @return array<string, DataSource> 名前 → 種類（設定の順）
      *
-     * @throws LogicException
+     * @throws InvalidDataSources
      */
     public function all(): array
     {
         $configured = config('foundation.data_files.sources', []);
         if (! is_array($configured)) {
-            throw new LogicException('foundation.data_files.sources は、DataSource のクラス名の配列にしてください');
+            throw new InvalidDataSources('foundation.data_files.sources は、DataSource のクラス名の配列にしてください');
         }
 
         $sources = [];
         foreach (array_values($configured) as $i => $class) {
-            $source = is_string($class) && class_exists($class) ? $this->container->make($class) : null;
-            if (! $source instanceof DataSource) {
-                throw new LogicException('foundation.data_files.sources の '.($i + 1).' 番目が、DataSource を実装したクラスではありません');
+            $place = 'foundation.data_files.sources の '.($i + 1).' 番目';
+            try {
+                $source = is_string($class) && class_exists($class) ? $this->container->make($class) : null;
+            } catch (Throwable $e) {
+                // アプリの種類のコンストラクターが投げた：文には鍵などが入りうるので、例外の種類だけ
+                throw new InvalidDataSources("{$place}の種類を作れません（".$e::class.'）');
             }
-            $name = $source->name();
-            if (preg_match(self::NAME_PATTERN, $name) !== 1) {
-                throw new LogicException('foundation.data_files.sources の '.($i + 1).' 番目の名前は、1〜64字の ASCII の英数字・-・_ にしてください');
+            if (! $source instanceof DataSource) {
+                throw new InvalidDataSources("{$place}が、DataSource を実装したクラスではありません");
+            }
+            try {
+                $name = $source->name();
+            } catch (Throwable $e) {
+                throw new InvalidDataSources("{$place}の名前を読めません（".$e::class.'）');
+            }
+            if (! is_string($name) || preg_match(self::NAME_PATTERN, $name) !== 1) {
+                throw new InvalidDataSources("{$place}の名前は、1〜64字の ASCII の英数字・-・_ にしてください");
             }
             if (isset($sources[$name])) {
-                throw new LogicException('foundation.data_files.sources に、同じ名前の種類が2つあります（'.($i + 1).' 番目）');
+                throw new InvalidDataSources('foundation.data_files.sources に、同じ名前の種類が2つあります（'.($i + 1).' 番目）');
             }
             $sources[$name] = $source;
         }
@@ -87,12 +97,12 @@ final class Sources
         return $sources;
     }
 
-    /** @throws LogicException 登録していない名前のとき */
+    /** @throws InvalidDataSources 登録していない名前のとき */
     public function get(string $name): DataSource
     {
         $sources = $this->all();
         if (! isset($sources[$name])) {
-            throw new LogicException('データのファイルの種類が foundation.data_files.sources にありません');
+            throw new InvalidDataSources('データのファイルの種類が foundation.data_files.sources にありません');
         }
 
         return $sources[$name];

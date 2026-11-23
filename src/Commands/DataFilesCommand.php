@@ -5,6 +5,7 @@ namespace Miraqceed\Foundation\Commands;
 use Illuminate\Console\Command;
 use Miraqceed\Foundation\DataFiles\DataFileException;
 use Miraqceed\Foundation\DataFiles\DataSource;
+use Miraqceed\Foundation\DataFiles\InvalidDataSources;
 use Miraqceed\Foundation\DataFiles\Refresher;
 use Miraqceed\Foundation\DataFiles\Sources;
 use Miraqceed\Foundation\DataFiles\Store;
@@ -43,8 +44,8 @@ class DataFilesCommand extends Command
             }
         } catch (Throwable $e) {
             // 設定の書き違い（クラスがない・同じ名前が2つ・作ると投げる）。schedule の出力は捨てられることが多いので、知らせもする。
-            // Sources の文には設定の値を入れていない。ほかの例外（種類を作るときに投げた）は種類だけ
-            $message = $e instanceof \LogicException ? $e->getMessage() : 'データのファイルの種類を作れません（'.$e::class.'）';
+            // そのまま出すのは、この部品が決めた文（InvalidDataSources。設定の値もアプリの例外の文も入れない）だけ。ほかは例外の種類だけ
+            $message = $e instanceof InvalidDataSources ? $e->getMessage() : 'データのファイルの種類を作れません（'.$e::class.'）';
             $this->error($message);
             $reporter->report(new RuntimeException('データのファイルの設定を読めません：'.$message));
 
