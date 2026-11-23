@@ -13,6 +13,7 @@ use Miraqceed\Foundation\DeployCheck\Checks\DataFiles;
 use Miraqceed\Foundation\DeployCheck\Checks\DbMaskedBindings;
 use Miraqceed\Foundation\DeployCheck\Checks\Drivers;
 use Miraqceed\Foundation\DeployCheck\Checks\ExceptionArgs;
+use Miraqceed\Foundation\DeployCheck\Checks\Integrity;
 use Miraqceed\Foundation\DeployCheck\Checks\IpHashKey;
 use Miraqceed\Foundation\DeployCheck\Checks\LimiterKeys;
 use Miraqceed\Foundation\DeployCheck\Checks\Mail;
@@ -77,6 +78,7 @@ final class Runner
         RetentionSchedule::class,
         PostalCodes::class,
         DataFiles::class,
+        Integrity::class,
         SessionIp::class,
         LimiterKeys::class,
         IpHashKey::class,

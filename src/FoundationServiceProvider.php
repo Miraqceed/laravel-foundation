@@ -35,6 +35,9 @@ use Miraqceed\Foundation\Commands\DataFilesCommand;
 use Miraqceed\Foundation\Commands\DbTimezoneCommand;
 use Miraqceed\Foundation\Commands\DeployCheckCommand;
 use Miraqceed\Foundation\Commands\InstallCommand;
+use Miraqceed\Foundation\Commands\IntegrityCheckCommand;
+use Miraqceed\Foundation\Commands\IntegritySnapshotCommand;
+use Miraqceed\Foundation\Commands\IntegrityViewsCommand;
 use Miraqceed\Foundation\Commands\PostalCodesCommand;
 use Miraqceed\Foundation\DataFiles\DataFiles;
 use Miraqceed\Foundation\Failures\FailureReporter;
@@ -292,7 +295,9 @@ class FoundationServiceProvider extends ServiceProvider
 
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
             // foundation:cache-prune は schedule に入れない（入れるのはアプリ。入れただけでは何も消えない）
-            $this->commands([InstallCommand::class, CachePruneCommand::class, DataFilesCommand::class, DbTimezoneCommand::class, DeployCheckCommand::class, PostalCodesCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
+            // foundation:integrity-check・foundation:integrity-snapshot も schedule に入れない（入れるのはアプリ。Integrity::schedule()）。
+            // foundation:integrity-views は、調べが流す画面の調べの子プロセス（内向き。隠してある）
+            $this->commands([InstallCommand::class, CachePruneCommand::class, DataFilesCommand::class, DbTimezoneCommand::class, DeployCheckCommand::class, IntegrityCheckCommand::class, IntegritySnapshotCommand::class, IntegrityViewsCommand::class, PostalCodesCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
         }
 
         // マイグレーションは monitoring が有効なときだけ読み込む。

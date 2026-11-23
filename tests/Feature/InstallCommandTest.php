@@ -179,6 +179,9 @@ class InstallCommandTest extends TestCase
             // 外のデータのファイル（自前で取って書かない・使う口で確かめる・同じディレクトリの一時のファイル・allowed_classes・配る側の決まり）
             'data-files.md', 'Miraqceed\Foundation\DataFiles\DataSource', 'foundation.data_files.sources', 'foundation:data-files',
             '===END PRIVATE DOMAINS===', 'sys_get_temp_dir()', 'withoutOverlapping()', 'allowedClasses', 'data_files', 'ふつうのファイルシステム',
+            // 改ざんの検知（自前で書かない・schedule の助け・作り直す前に調べる・storage に PHP を置かない・読み込む場所を外さない）
+            'integrity.md', 'Integrity::schedule', 'foundation:integrity-snapshot', 'foundation:integrity-check', 'evenInMaintenanceMode()',
+            'serializable_classes', 'integrity-check',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
