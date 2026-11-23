@@ -46,7 +46,7 @@ enum Gap: string
             self::ExcludesLoadPaths => '外すもの・公開される場所の設定が、調べが読み込む場所に掛かっている',
             self::ExcludesPublicPhp => '外すもの（exclude）が、公開される場所の PHP として動く名前か public_php に掛かっている（その値は使わない。公開される変わる場所は served に書く）',
             self::GeneratedViewsRefused => '部品が作る画面の場所の設定を使えない（コンパイルした画面のフォルダーの下だけを許せる）',
-            self::SqliteNotExcluded => '木の中の SQLite のファイルを外せない（PHP として動く名前か、調べが読み込む場所の中。違いとして見る）',
+            self::SqliteNotExcluded => '木の中の SQLite のファイルを外せない（SQLite の頭の印がない・PHP として動く名前・調べが読み込む場所の中・公開される場所の中のどれか。違いとして見る）',
             self::PublicOutside => '公開ディレクトリが木の public でない',
             self::Unopened => '開けないフォルダー',
             self::TooMany => '項目が多すぎるフォルダー',

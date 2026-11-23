@@ -18,10 +18,13 @@ use Miraqceed\Foundation\Integrity\ViewsProcess;
  */
 trait IntegrityTree
 {
+    use OwnMemoryLimit;
+
     protected string $root;
 
     protected function setUpTree(): void
     {
+        $this->liftMemoryLimit();
         $this->root = sys_get_temp_dir().'/foundation-integrity-'.bin2hex(random_bytes(6));
         foreach (['public', 'app', 'config', 'routes', 'bootstrap/cache', 'vendor/acme/lib/src', 'resources/views', 'storage/app/public', 'storage/framework/views', 'storage/logs'] as $dir) {
             mkdir($this->root.'/'.$dir, 0775, true);
@@ -54,6 +57,7 @@ trait IntegrityTree
     protected function tearDownTree(): void
     {
         Limits::overrideForTests(null);
+        $this->restoreMemoryLimit();
         \Miraqceed\Foundation\Integrity\Entry::$beforeLstatForTests = null;
         if (isset($this->root) && is_dir($this->root)) {
             exec('chmod -R u+rwx '.escapeshellarg($this->root).' 2>/dev/null; rm -rf '.escapeshellarg($this->root));

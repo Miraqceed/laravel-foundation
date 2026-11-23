@@ -17,6 +17,8 @@ use Miraqceed\Foundation\Tests\TestCase;
  */
 class ViewsChildTest extends TestCase
 {
+    use \Miraqceed\Foundation\Tests\Support\Integrity\OwnMemoryLimit;
+
     private string $repo;
 
     private string $views;
@@ -26,6 +28,7 @@ class ViewsChildTest extends TestCase
     protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
+        $this->liftMemoryLimit();
         $this->repo = (string) realpath(__DIR__.'/../../..');
         $this->views = $this->repo.'/.integrity-views-'.bin2hex(random_bytes(4));
         $this->compiled = sys_get_temp_dir().'/foundation-integrity-compiled-'.bin2hex(random_bytes(4));
@@ -45,6 +48,7 @@ class ViewsChildTest extends TestCase
         self::env('FOUNDATION_TEST_MARK', null);
         self::env('INTEGRITY_CHILD_VIEW_PATHS', null);
         exec('rm -rf '.escapeshellarg($this->views).' '.escapeshellarg($this->compiled));
+        $this->restoreMemoryLimit();
         parent::tearDown();
     }
 

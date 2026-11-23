@@ -336,7 +336,9 @@ final class Settings
     public const SQLITE_HEADER = "SQLite format 3\0";
 
     /**
-     * 外す SQLite のファイルが、本当に SQLite のものか。本体（横のファイルなら、その本体）が SQLite の頭の印を持つか
+     * 外す SQLite のファイルが、本当に SQLite のものか。本体（横のファイルなら、その本体）が SQLite の頭の印を持つか、
+     * 大きさ 0 のふつうのファイルか（SQLite は初めて書くまで空のまま。PDO で開いただけ・touch しただけのファイルも空。
+     * 空のファイルは中身を隠せず、後で SQLite でない中身が書かれれば、その回に印の確かめが外れて比べに戻る）
      */
     public static function isSqliteFile(string $root, string $path): bool
     {
@@ -353,7 +355,13 @@ final class Settings
                 return false;
             }
             $stat = @fstat($handle);
-            $head = $stat !== false && ($stat['mode'] & 0170000) === 0100000 ? (string) @fread($handle, 16) : '';
+            $regular = $stat !== false && ($stat['mode'] & 0170000) === 0100000;
+            if ($regular && $stat['size'] === 0) {
+                fclose($handle);
+
+                return true;
+            }
+            $head = $regular ? (string) @fread($handle, 16) : '';
             fclose($handle);
 
             return $head === self::SQLITE_HEADER;

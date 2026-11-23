@@ -156,4 +156,24 @@ class SqliteFilesTest extends TestCase
         $this->assertFinding($report, Finding::Changed, 'database/database.sqlite');
         $this->assertContains('sqlite-not-excluded:database/database.sqlite', $this->gaps($report));
     }
+
+    /**
+     * 大きさ 0 のふつうのファイルは、SQLite のファイルとして外す（SQLite は初めて書くまで空。雛形の接続を残した MySQL のアプリ・
+     * touch する台本で、毎日の誤報にしない）。後で SQLite でない中身が書かれれば、比べに戻る
+     */
+    public function test_an_empty_database_file_is_excluded_until_something_not_sqlite_is_written(): void
+    {
+        $this->useSqlite($this->root.'/database/database.sqlite');
+        $this->writeFile('database/database.sqlite', '');
+        $this->assertSame(0, $this->snapshot());
+
+        $report = $this->check();
+        $this->assertSame([], $this->findings($report));
+        $this->assertSame([], $this->gaps($report));
+
+        $this->writeFile('database/database.sqlite', 'not a database');
+        $report = $this->check();
+        $this->assertFinding($report, Finding::Added, 'database/database.sqlite');
+        $this->assertContains('sqlite-not-excluded:database/database.sqlite', $this->gaps($report));
+    }
 }
