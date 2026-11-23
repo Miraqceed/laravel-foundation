@@ -1,6 +1,6 @@
 ## miraqceed/laravel-foundation
 
-どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`machine-tokens.md`・`once-notices.md`・`retention.md`・`database-timezone.md`・`database-locks.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
+どのアプリにも要る部品（テストの守り・CSV・ログインのロック・CSP・見張りと知らせ・AI の費用の上限等）を1つにまとめたパッケージ。設定を持つ部品は `config/foundation.php` で有効にする。CSV・非負整数の計算・予約メールドメインの判定と入力の検証の規則・秘密を伏せる部品・メールの本文の打ち消しは、設定なしで呼び出せる。**ただしテストの DB の守りだけは入れた時点で効く**（テストの DB の名前に `test` か `testing` が語として要る。止まったら `docs/test-safety.md`）。自前で書き直す前に、`vendor/miraqceed/laravel-foundation/docs/` の説明書（`test-safety.md`・`csv.md`・`files.md`・`uploads.md`・`integer-math.md`・`reserved-email-domains.md`・`mail-safety.md`・`redaction.md`・`login.md`・`attempts.md`・`two-factor.md`・`one-time-codes.md`・`machine-tokens.md`・`data-files.md`・`once-notices.md`・`retention.md`・`database-timezone.md`・`database-locks.md`・`deploy-check.md`・`failures.md`・`http.md`・`validation-ja.md`・`child-processes.md`・`security.md`・`health.md`・`monitoring.md`・`queue.md`・`ai.md`・`ssrf.md`）を読む。
 
 ### テストの守り（`docs/test-safety.md`）
 
@@ -166,6 +166,14 @@ Fortify::authenticateUsing(new AuthenticateWithLoginLock(new LoginLock(new Norma
 - 日本郵便のデータを自前で読まない（町域の注記・括弧・高層ビルの階・事業所の番地の後ろの会社名を住所の欄に入れてしまう）。
 - 電話番号を桁の数で区切らない。`PhoneNumber::format()`（入力の区切り・番号の種類・市外局番の表）で区切った形を保存し、`Rules\JapanesePhoneNumber`・`Rules\JapanesePostalCode` で断る（理由 `shape`・`grouping` で文を分ける）。
 - 市外局番の表を写して配るときは、出典と「加工して作成」の記載を残す。
+
+### 外のデータのファイルを入れ替える（`docs/data-files.md`）
+
+- 本番で cron から取り直す外のデータのファイル（IP の位置の DB・Public Suffix List・使い捨てのメールの一覧など）を、自前で `Http::get()` → `file_put_contents()` と書かない。`Miraqceed\Foundation\DataFiles\DataSource` を実装し、`foundation.data_files.sources` に並べて `php artisan foundation:data-files` を schedule に入れる（`->watched()` を付ける）。パッケージは schedule に入れない。
+- `verify()` は使う側と同じ口で開き、決まった答えを見て、版を返す。終わりの印があれば見る（PSL の読み手は `===END PRIVATE DOMAINS===` を求めないので、切れた一覧も読めてしまう）。`Limits` の `maxShrink` で大きな減りを止める。
+- 一時のファイルを `sys_get_temp_dir()` に置かない（別のファイルシステムでは rename が写しと消しになる）。schedule の `withoutOverlapping()` は手で流したものを守らない（この部品の `flock` が守る）。
+- 読む所は `app(\Miraqceed\Foundation\DataFiles\DataFiles::class)` の `path()`・`changeKey()`・`remember()` を使う。解いた結果の写しを自前で `unserialize()` しない（`remember()` は `allowedClasses` を必ず取る）。PHP のファイルで写しを置かない。
+- 帰属の表示・取る頻度は配る側の決まりに合わせる（PSL は1日1回まで。DB-IP の Lite は CC BY 4.0 の帰属のリンク。MaxMind の GeoLite は EULA を読む）。データはパッケージに入っていない。置き場所はふつうのファイルシステムにする（bind mount・ネットワークのファイルシステムでは、入れ替えの最中に空のファイルを読むことがある）。古さは `foundation:deploy-check` の `data_files` が見る。
 
 ### DB の接続の時間帯（`docs/database-timezone.md`）
 

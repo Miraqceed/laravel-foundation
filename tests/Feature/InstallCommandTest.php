@@ -176,6 +176,9 @@ class InstallCommandTest extends TestCase
             // 住所まわり（外の API に問い合わせない・一覧はアプリが作る・桁の数で区切らない・出典を残す）
             'japan-address.md', 'Miraqceed\Foundation\Japan\PostalAddressBook', 'foundation:postal-codes', 'foundation.japan.postal_codes.path',
             'postal_codes', 'PhoneNumber::format()', 'Rules\JapanesePhoneNumber', 'Rules\JapanesePostalCode', '加工して作成',
+            // 外のデータのファイル（自前で取って書かない・使う口で確かめる・同じディレクトリの一時のファイル・allowed_classes・配る側の決まり）
+            'data-files.md', 'Miraqceed\Foundation\DataFiles\DataSource', 'foundation.data_files.sources', 'foundation:data-files',
+            '===END PRIVATE DOMAINS===', 'sys_get_temp_dir()', 'withoutOverlapping()', 'allowedClasses', 'data_files', 'ふつうのファイルシステム',
         ];
         foreach ($required as $word) {
             $this->assertStringContainsString($word, $guideline, "指針に {$word} がない");
