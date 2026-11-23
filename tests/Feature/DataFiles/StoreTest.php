@@ -31,12 +31,15 @@ class StoreTest extends TestCase
         parent::tearDown();
     }
 
-    /** @return list<string> sys_get_temp_dir() の中の名前（記録の間引きの目印の所を除く） */
+    /**
+     * sys_get_temp_dir() の中の、この部品の一時のファイルの印の付いた名前。
+     * ディレクトリ全体は比べない（CI の /tmp には、ほかのプロセスが試しの間にもファイルを作る）
+     *
+     * @return list<string>
+     */
     private function systemTemporaryNames(): array
     {
-        $throttle = basename((string) config('foundation.failures.throttle_path'));
-
-        return array_values(array_filter(scandir(sys_get_temp_dir()) ?: [], fn (string $name) => $name !== $throttle && ! str_starts_with($name, 'foundation-data-files-http-')));
+        return array_values(array_filter(scandir(sys_get_temp_dir()) ?: [], fn (string $name) => str_starts_with($name, Store::TEMPORARY_PREFIX)));
     }
 
     /**
