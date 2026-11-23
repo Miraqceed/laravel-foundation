@@ -30,7 +30,9 @@ use Miraqceed\Foundation\Ai\AiGuard;
 use Miraqceed\Foundation\Ai\AiRecorder;
 use Miraqceed\Foundation\Ai\AiStore;
 use Miraqceed\Foundation\Attempts\Attempts;
+use Miraqceed\Foundation\DataFiles\DataFiles;
 use Miraqceed\Foundation\Commands\CachePruneCommand;
+use Miraqceed\Foundation\Commands\DataFilesCommand;
 use Miraqceed\Foundation\Commands\DbTimezoneCommand;
 use Miraqceed\Foundation\Commands\DeployCheckCommand;
 use Miraqceed\Foundation\Commands\InstallCommand;
@@ -75,6 +77,8 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app->singleton(DisposableEmailDomains::class);
         $this->app->singleton(TwoFactor::class);
         $this->app->singleton(FailureReporter::class);
+        // 外のデータのファイルの読む側の助け：解いた結果を、1つのプロセスで覚えて使い回す（種類は呼んだときに作る）
+        $this->app->singleton(DataFiles::class);
 
         // mergeConfigFrom は浅い合併なので、アプリが一部だけ書いた配列（login の一部など）が
         // パッケージの既定を丸ごと消す。入れ子の鍵は再帰して合併する（アプリの値が勝つ）
@@ -288,7 +292,7 @@ class FoundationServiceProvider extends ServiceProvider
 
             // コマンドはいつも登録する（monitoring が無効なら何もしない）
             // foundation:cache-prune は schedule に入れない（入れるのはアプリ。入れただけでは何も消えない）
-            $this->commands([InstallCommand::class, CachePruneCommand::class, DbTimezoneCommand::class, DeployCheckCommand::class, PostalCodesCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
+            $this->commands([InstallCommand::class, CachePruneCommand::class, DataFilesCommand::class, DbTimezoneCommand::class, DeployCheckCommand::class, PostalCodesCommand::class, RetryAlertsCommand::class, RecordCommand::class, WatchCommand::class]);
         }
 
         // マイグレーションは monitoring が有効なときだけ読み込む。

@@ -4,6 +4,7 @@ namespace Miraqceed\Foundation\DeployCheck;
 
 use Illuminate\Contracts\Container\Container;
 use Miraqceed\Foundation\DeployCheck\Checks\AppDebug;
+use Miraqceed\Foundation\DeployCheck\Checks\DataFiles;
 use Miraqceed\Foundation\DeployCheck\Checks\AppEnv;
 use Miraqceed\Foundation\DeployCheck\Checks\AppKey;
 use Miraqceed\Foundation\DeployCheck\Checks\AppUrl;
@@ -75,6 +76,7 @@ final class Runner
         QueueTimeouts::class,
         RetentionSchedule::class,
         PostalCodes::class,
+        DataFiles::class,
         SessionIp::class,
         LimiterKeys::class,
         IpHashKey::class,
