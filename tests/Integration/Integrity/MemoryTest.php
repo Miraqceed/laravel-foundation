@@ -109,6 +109,8 @@ class MemoryTest extends TestCase
 
         $this->measured(sprintf("\n[memory] long chain 150 x 25 + 30000 folders x 3: peak %.1f MB, %.1f s\n", ($result['result']['result']['peak'] ?? 0) / 1048576, $result['seconds']));
         $this->assertSame(0, $result['exit'], (string) json_encode($result));
+        // 段ごとの枠で持つので、網（最後の守り）に頼らずに収まる
+        $this->assertFalse($result['result']['result']['memory']);
     }
 
     public function test_the_safety_net_stops_before_running_out_when_the_own_limits_are_removed(): void

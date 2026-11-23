@@ -196,6 +196,40 @@ class SnapshotCheckTest extends TestCase
         $this->assertNoFinding($report, Finding::Removed, 'vendor/acme/lib/src/Lib.php');
     }
 
+    public function test_one_item_that_throws_is_unreadable_and_hides_nothing_else(): void
+    {
+        $this->snapshot();
+        $this->writeFile('public/index.php', '<?php // changed');
+        $target = $this->root.'/app/Thing.php';
+        \Miraqceed\Foundation\Integrity\Entry::$beforeLstatForTests = function (string $path) use ($target) {
+            if ($path === $target) {
+                throw new \ErrorException('lstat(): Lstat failed for '.$path);
+            }
+        };
+
+        $report = $this->check();
+
+        $this->assertFinding($report, Finding::Unreadable, 'app/Thing.php');
+        $this->assertFinding($report, Finding::Changed, 'public/index.php');
+        $this->assertNotContains('failed', array_map(fn ($g) => $g[0]->value, $report->gaps()));
+    }
+
+    public function test_an_item_that_vanishes_between_readdir_and_lstat_is_taken_as_absent(): void
+    {
+        $this->snapshot();
+        $target = $this->root.'/app/Thing.php';
+        \Miraqceed\Foundation\Integrity\Entry::$beforeLstatForTests = function (string $path) use ($target) {
+            if ($path === $target && is_file($target)) {
+                unlink($target);
+            }
+        };
+
+        $report = $this->check();
+
+        $this->assertFinding($report, Finding::Removed, 'app/Thing.php');
+        $this->assertNoFinding($report, Finding::Unreadable, 'app/Thing.php');
+    }
+
     public function test_a_folder_with_execute_only_permission_hides_nothing(): void
     {
         $this->requireNotRoot();

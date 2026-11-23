@@ -5,7 +5,6 @@ namespace Miraqceed\Foundation\Integrity;
 use Miraqceed\Foundation\Commands\IntegrityViewsCommand;
 use Miraqceed\Foundation\Integrity\Checks\CompiledViews;
 use Symfony\Component\Process\PhpExecutableFinder;
-use Symfony\Component\Process\Process;
 use Throwable;
 
 /**
@@ -116,38 +115,58 @@ final class ViewsProcess
             'seconds' => max(1.0, $context->deadline->remaining()),
         ], JSON_UNESCAPED_SLASHES);
 
+        // 標準エラーは OS の段で捨てる（親に溜めない。道や秘密が入りうるので読まない）。環境は指定しない（親のものをそのまま）
+        $null = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
         try {
-            $process = new Process($this->command(), base_path(), null, $input, max(1.0, $context->deadline->remaining()));
-            $process->start();
+            $process = @proc_open($this->command(), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', $null, 'w']], $pipes, base_path());
         } catch (Throwable) {
+            $process = false;
+        }
+        if (! is_resource($process)) {
             return self::UNAVAILABLE;
         }
+        @fwrite($pipes[0], (string) $input);
+        @fclose($pipes[0]);
+        stream_set_blocking($pipes[1], false);
 
         $shownDirs = array_map(fn ($dir) => $dir['shown'], $targets['dirs']);
         $buffer = '';
         $bytes = 0;
         $state = ['head' => false, 'end' => false, 'bad' => false, 'count' => 0, 'stopped' => null];
         $results = [];
+        $exit = null;
+        $signaled = false;
+        $deadline = microtime(true) + max(1.0, $context->deadline->remaining());
 
         try {
             while (true) {
-                $running = $process->isRunning();
-                $chunk = $process->getIncrementalOutput();
-                // 標準エラーは読まずに捨てる。出力も受け取った分は Process の中に溜めない
-                $process->clearErrorOutput();
-                $process->clearOutput();
+                $status = proc_get_status($process);
+                if (! $status['running'] && $exit === null) {
+                    $exit = (int) $status['exitcode'];
+                    $signaled = (bool) $status['signaled'];
+                }
+                $read = [$pipes[1]];
+                $write = null;
+                $except = null;
+                $ready = @stream_select($read, $write, $except, 0, 100_000);
+                $chunk = $ready ? (string) @fread($pipes[1], 65536) : '';
                 if ($chunk === '') {
-                    if (! $running) {
+                    if (! $status['running'] && feof($pipes[1])) {
                         break;
                     }
-                    $process->checkTimeout();
-                    usleep(20_000);
+                    if (! $status['running'] && ! $ready) {
+                        break;
+                    }
+                    if (microtime(true) > $deadline) {
+                        $state['bad'] = true;
+                        break;
+                    }
 
                     continue;
                 }
+                // 受け取るたびに数え、1MB を超えたらすぐ止める
                 $bytes += strlen($chunk);
                 if ($bytes > Limits::CHILD_OUTPUT_BYTES) {
-                    $process->stop(0);
                     $state['bad'] = true;
                     break;
                 }
@@ -165,20 +184,20 @@ final class ViewsProcess
                     break;
                 }
             }
-            if ($process->isRunning()) {
-                $process->stop(0);
-            }
-            $process->wait();
         } catch (Throwable) {
             $state['bad'] = true;
-            try {
-                $process->stop(0);
-            } catch (Throwable) {
-                // 止めるのに失敗しても、親は正しく終わる
-            }
+        }
+        $status = proc_get_status($process);
+        if ($status['running']) {
+            @proc_terminate($process, 9);
+            $state['bad'] = true;
+        }
+        @fclose($pipes[1]);
+        $closed = @proc_close($process);
+        if ($exit === null) {
+            $exit = $status['running'] ? -1 : (int) $closed;
         }
 
-        $exit = $process->getExitCode();
         if ($exit === IntegrityViewsCommand::NOT_CLI && ! $state['head']) {
             return self::UNAVAILABLE;
         }
@@ -189,7 +208,7 @@ final class ViewsProcess
         if ($state['stopped'] !== null) {
             $report->notChecked($state['stopped'], 'views');
         }
-        if ($state['bad'] || $exit !== 0 || ! $state['end'] || $process->getTermSignal() > 0) {
+        if ($state['bad'] || $exit !== 0 || ! $state['end'] || $signaled) {
             $report->notChecked(Gap::ViewsFailed);
         }
 

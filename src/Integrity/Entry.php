@@ -19,6 +19,9 @@ final class Entry
     /** lstat できない（権限など） */
     public const UNREADABLE = 'unreadable';
 
+    /** @var (\Closure(string): void)|null 試しの継ぎ目。本番のコードからは使わない */
+    public static ?\Closure $beforeLstatForTests = null;
+
     /**
      * @param  array<int|string, int>|null  $stat  lstat の結果
      * @param  bool  $readThrough  項目が多すぎるフォルダーの中を読み流したもの（比べない。名前と種類だけ見る）
@@ -67,6 +70,10 @@ final class Entry
      */
     public static function lstat(string $absolute): array|false|null
     {
+        if (self::$beforeLstatForTests !== null) {
+            // 試しの継ぎ目：1つの道だけ投げる（警告から来た ErrorException の形）。項目ごとの受け止めを確かめる
+            (self::$beforeLstatForTests)($absolute);
+        }
         try {
             $stat = @lstat($absolute);
         } catch (\Throwable) {

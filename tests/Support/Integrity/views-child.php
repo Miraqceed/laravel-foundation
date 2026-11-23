@@ -63,6 +63,9 @@ switch ($mode) {
         \Miraqceed\Foundation\Integrity\Limits::overrideForTests(['view_estimate' => 0]);
         ini_set('memory_limit', '96M');
         break;
+    case 'limit-128m':
+        ini_set('memory_limit', '128M');
+        break;
     case 'sapi':
         IntegrityViewsCommand::$sapiForTests = 'cgi-fcgi';
         break;

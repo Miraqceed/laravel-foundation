@@ -54,6 +54,7 @@ trait IntegrityTree
     protected function tearDownTree(): void
     {
         Limits::overrideForTests(null);
+        \Miraqceed\Foundation\Integrity\Entry::$beforeLstatForTests = null;
         if (isset($this->root) && is_dir($this->root)) {
             exec('chmod -R u+rwx '.escapeshellarg($this->root).' 2>/dev/null; rm -rf '.escapeshellarg($this->root));
         }

@@ -103,6 +103,20 @@ class ViewsChildTest extends TestCase
         $this->assertSame([$expected], $this->list($report));
     }
 
+    /**
+     * 広がる印の詰まった画面（@props を並べた元）も、印の上限の内なら、子の memory_limit 128M で通る。
+     * compileString() の出力の全体を token_get_all する所（appendFilePath()）を通さないため
+     */
+    public function test_a_props_dense_view_within_the_mark_limit_passes_in_a_128m_child(): void
+    {
+        file_put_contents($this->views.'/props.blade.php', str_repeat("@props(['a'])\n", 6_000));
+        view('props')->render();
+
+        [$report] = $this->runChild('limit-128m');
+
+        $this->assertSame([], $this->list($report));
+    }
+
     public function test_warnings_before_the_head_line_do_not_spoil_the_output(): void
     {
         $expected = $this->tamper();
@@ -181,6 +195,7 @@ class ViewsChildTest extends TestCase
     public function test_a_child_writing_a_lot_to_stderr_does_not_grow_the_parent_and_stderr_never_shows(): void
     {
         $expected = $this->tamper();
+        memory_reset_peak_usage();
         $before = memory_get_peak_usage();
 
         [$report] = $this->runChild('stderr-flood');
